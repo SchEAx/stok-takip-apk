@@ -1,4 +1,4 @@
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -15,6 +15,7 @@ originalTitle: document.title,
   saleCart: [],
   lastQuickSale: null,
   operationQty: {},
+  quickQty: {},
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
 };
@@ -724,10 +725,29 @@ function renderMovements() {
   if (!state.movements.length) { el.movementList.innerHTML = `<div class="empty-state">Henüz hareket yok</div>`; return; }
   el.movementList.innerHTML = state.movements.map((m) => { const productName = m.stock_products?.product_name || m.description || "-"; const type = String(m.movement_type || "").toLowerCase(); const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis"; return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`; }).join("");
 }
+function getQuickQty(productId) {
+  const value = Number(state.quickQty[productId] || 1);
+  return value > 0 ? value : 1;
+}
+function setQuickQty(productId, value) {
+  const qty = Math.max(1, Number(value || 1));
+  state.quickQty[productId] = qty;
+  renderMovementSearchResults();
+}
+window.setQuickQty = setQuickQty;
+window.stepQuickQty = function(productId, step) {
+  setQuickQty(productId, getQuickQty(productId) + Number(step || 0));
+};
 function renderMovementSearchResults() {
-  const q = normalizeText(el.movementSearchInput.value); if (!q) { el.movementSearchList.innerHTML = `<div class="empty-state">Arama yaparak ürün seç</div>`; return; }
-  const results = state.products.filter((p) => productSearchText(p).includes(q)).slice(0, 30); if (!results.length) { el.movementSearchList.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`; return; }
-  el.movementSearchList.innerHTML = results.map((p) => { const available = Number(p.stock || 0) - Number(p.reserved || 0); return `<div class="movement-search-item"><div class="movement-search-info"><strong>${escapeHtml(p.category || p.name || "-")}</strong><div class="muted">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "-")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div><div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div></div><div class="movement-search-actions"><button class="btn success" onclick="quickStockAction('${p.id}', 'giris')">Giriş</button><button class="btn danger" onclick="quickStockAction('${p.id}', 'cikis')">Çıkış</button></div></div>`; }).join("");
+  const q = normalizeText(el.movementSearchInput.value);
+  if (!q) { el.movementSearchList.innerHTML = `<div class="empty-state">Arama yaparak ürün seç</div>`; return; }
+  const results = state.products.filter((p) => productSearchText(p).includes(q)).slice(0, 30);
+  if (!results.length) { el.movementSearchList.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`; return; }
+  el.movementSearchList.innerHTML = results.map((p) => {
+    const available = Number(p.stock || 0) - Number(p.reserved || 0);
+    const qty = getQuickQty(p.id);
+    return `<div class="movement-search-item"><div class="movement-search-info"><strong>${escapeHtml(p.category || p.name || "-")}</strong><div class="muted">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "-")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div><div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div></div><div class="movement-search-actions"><div class="operation-qty-row quick-qty-row"><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', -1)">-</button><input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" /><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button></div><button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button><button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button></div></div>`;
+  }).join("");
 }
 
 function getOperationQty(productId) {
@@ -872,13 +892,12 @@ function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.cat
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; el.location.value = product.location || ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = state.products.find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); await loadAll(); } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
-window.quickStockAction = async function(id, type) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
+window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
   const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
-  const qtyText = await appPrompt(`${product.category || product.name} için ${type === "giris" ? "giriş" : "çıkış"} miktarı gir:`, "1", { title: "Stok miktarı", type: "number", inputMode: "numeric", okText: "Devam" }); if (qtyText === null) return;
-  const quantity = Number(qtyText); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
+  const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
   const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
   if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast("Hareket kaydedildi"); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
+  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
 };
 
 function formatSaleMoney(value) {

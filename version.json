@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Stok işlem, kullanıcı senkron ve APK uyum düzeltmeleri hazır."
+  "message": "Ürün ekle ekranındaki mobil stok giriş/çıkış düzeltmesi hazır."
 }
