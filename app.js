@@ -1,4 +1,4 @@
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -64,6 +64,62 @@ function appConfirm(message, options = {}) {
     document.onkeydown = (e) => { if (e.key === "Escape") cleanup(false); };
     overlay.classList.remove("hidden");
     setTimeout(() => okBtn.focus(), 50);
+  });
+}
+
+// APK/WebView prompt da çoğu cihazda sorun çıkarabiliyor. Bu yüzden miktar/şifre girişlerini de uygulama içi pencereden alıyoruz.
+function appPrompt(message, defaultValue = "", options = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("appConfirmOverlay");
+    const titleEl = document.getElementById("appConfirmTitle");
+    const msgEl = document.getElementById("appConfirmMessage");
+    const okBtn = document.getElementById("appConfirmOk");
+    const cancelBtn = document.getElementById("appConfirmCancel");
+    if (!overlay || !msgEl || !okBtn || !cancelBtn) {
+      resolve(window.prompt(String(message || "Değer gir:"), String(defaultValue ?? "")));
+      return;
+    }
+
+    let input = document.getElementById("appPromptInput");
+    if (!input) {
+      input = document.createElement("input");
+      input.id = "appPromptInput";
+      input.className = "app-prompt-input";
+      msgEl.insertAdjacentElement("afterend", input);
+    }
+
+    titleEl.textContent = options.title || "Bilgi gir";
+    msgEl.textContent = String(message || "Değer gir:");
+    input.type = options.type || "text";
+    input.inputMode = options.inputMode || (options.type === "number" ? "numeric" : "text");
+    input.value = String(defaultValue ?? "");
+    input.placeholder = options.placeholder || "";
+    input.classList.remove("hidden");
+    okBtn.textContent = options.okText || "Tamam";
+    cancelBtn.textContent = options.cancelText || "İptal";
+    okBtn.className = "btn " + (options.danger ? "danger" : "primary");
+
+    const cleanup = (value) => {
+      overlay.classList.add("hidden");
+      input.classList.add("hidden");
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      overlay.onclick = null;
+      input.onkeydown = null;
+      document.onkeydown = null;
+      resolve(value);
+    };
+
+    okBtn.onclick = () => cleanup(input.value);
+    cancelBtn.onclick = () => cleanup(null);
+    overlay.onclick = (e) => { if (e.target === overlay) cleanup(null); };
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") cleanup(input.value);
+      if (e.key === "Escape") cleanup(null);
+    };
+    document.onkeydown = (e) => { if (e.key === "Escape") cleanup(null); };
+    overlay.classList.remove("hidden");
+    setTimeout(() => { input.focus(); input.select(); }, 50);
   });
 }
 
@@ -818,7 +874,7 @@ window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "�
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = state.products.find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); await loadAll(); } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
   const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
-  const qtyText = prompt(`${product.category || product.name} için ${type === "giris" ? "giriş" : "çıkış"} miktarı gir:`, "1"); if (qtyText === null) return;
+  const qtyText = await appPrompt(`${product.category || product.name} için ${type === "giris" ? "giriş" : "çıkış"} miktarı gir:`, "1", { title: "Stok miktarı", type: "number", inputMode: "numeric", okText: "Devam" }); if (qtyText === null) return;
   const quantity = Number(qtyText); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
   const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
   if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
@@ -1018,10 +1074,18 @@ async function loadStaffListFromSupabase() {
 async function saveStaffListToSupabase(list) {
   try {
     const rows = cleanStaffList(list).map(item => ({ name: item.name, role: item.role, password: item.password, is_active: true, updated_at: new Date().toISOString() }));
-    const { error } = await supabaseClient.from("app_users").upsert(rows, { onConflict: "name" });
-    if (error) throw error;
+    const names = rows.map(r => r.name);
+    const { error: upsertError } = await supabaseClient.from("app_users").upsert(rows, { onConflict: "name" });
+    if (upsertError) throw upsertError;
+    if (names.length) {
+      const { error: inactiveError } = await supabaseClient.from("app_users").update({ is_active: false, updated_at: new Date().toISOString() }).not("name", "in", `(${names.map(n => `\"${String(n).replace(/\"/g, '\\\"')}\"`).join(",")})`);
+      if (inactiveError) console.warn("Pasif kullanıcı güncelleme uyarısı:", inactiveError.message);
+    }
+    return true;
   } catch (err) {
     console.warn("Personel Supabase'e yazılamadı:", err?.message || err);
+    showToast("Personel Supabase'e yazılamadı: " + (err?.message || err), true);
+    return false;
   }
 }
 
@@ -1043,7 +1107,7 @@ function adminStaff() {
   return readStaffList().find(s => s.role === "admin") || DEFAULT_STAFF_LIST[0];
 }
 
-function verifyStaffPassword(targetName) {
+async function verifyStaffPassword(targetName) {
   const staff = readStaffList();
   const target = staff.find(s => s.name === targetName);
   if (!target) {
@@ -1052,7 +1116,7 @@ function verifyStaffPassword(targetName) {
   }
 
   const admin = adminStaff();
-  const entered = prompt(`${target.name} hesabına geçmek için şifre gir:\n(Admin şifresi de geçerlidir.)`);
+  const entered = await appPrompt(`${target.name} hesabına geçmek için şifre gir:\n(Admin şifresi de geçerlidir.)`, "", { title: "Personel şifresi", type: "password", okText: "Giriş" });
 
   if (entered === null) return false;
 
@@ -1066,9 +1130,9 @@ function verifyStaffPassword(targetName) {
   return false;
 }
 
-function verifyAdminPassword() {
+async function verifyAdminPassword() {
   const admin = adminStaff();
-  const entered = prompt("Bu işlem için Admin şifresi gerekli:");
+  const entered = await appPrompt("Bu işlem için Admin şifresi gerekli:", "", { title: "Admin onayı", type: "password", okText: "Onayla" });
   if (entered === null) return false;
 
   if (String(entered || "").trim() === normalizeStaffPassword(admin.password, "0000")) return true;
@@ -1089,7 +1153,7 @@ function renderStaffSelector() {
   renderUsersList();
 }
 
-window.setCurrentStaff = function(name) {
+window.setCurrentStaff = async function(name) {
   if (!name) return;
 
   const current = currentStaffName();
@@ -1098,7 +1162,7 @@ window.setCurrentStaff = function(name) {
     return;
   }
 
-  if (!verifyStaffPassword(name)) {
+  if (!(await verifyStaffPassword(name))) {
     renderStaffSelector();
     return;
   }
@@ -1124,10 +1188,10 @@ function staffEditorRow(item = { name: "", role: "kasa", password: "" }) {
     </div>`;
 }
 
-window.openStaffEditor = function() {
+window.openStaffEditor = async function() {
   if (!requireRoleAction(["admin"], "Personel yönetimi sadece Admin")) return;
   if (!el.staffEditor || !el.staffEditorBody) return;
-  if (!verifyAdminPassword()) return;
+  if (!(await verifyAdminPassword())) return;
 
   el.staffEditorBody.innerHTML = readStaffList().map(staffEditorRow).join("");
   el.staffEditor.classList.remove("hidden");
@@ -1154,7 +1218,8 @@ window.saveStaffEditor = async function() {
     };
   }).filter(x => x.name);
   const saved = writeStaffList(staff);
-  await saveStaffListToSupabase(saved);
+  const syncOk = await saveStaffListToSupabase(saved);
+  if (!syncOk) return;
   if (!saved.some(s => s.name === currentStaffName())) localStorage.setItem(CURRENT_STAFF_STORE_KEY, saved.find(s => s.role === "kasa")?.name || saved[0]?.name || "Kasa");
   renderStaffSelector();
   closeStaffEditor();
@@ -1165,7 +1230,8 @@ window.resetStaffEditor = async function() {
   if (!(await appConfirm("Personel listesi ve şifreler varsayılana dönsün mü?", { danger: true }))) return;
   localStorage.removeItem(STAFF_STORE_KEY);
   localStorage.removeItem(CURRENT_STAFF_STORE_KEY);
-  await saveStaffListToSupabase(DEFAULT_STAFF_LIST);
+  const syncOk = await saveStaffListToSupabase(DEFAULT_STAFF_LIST);
+  if (!syncOk) return;
   if (el.staffEditorBody) el.staffEditorBody.innerHTML = readStaffList().map(staffEditorRow).join("");
   renderStaffSelector();
   showToast("Personel listesi ve şifreler varsayılana döndü ✅");
@@ -1561,11 +1627,11 @@ window.cancelLastQuickSale = async function() {
   if (!sale || !sale.items?.length) return showToast("İptal edilecek son satış yok", true);
   if (sale.cancelledAt) return showToast("Bu satış zaten iptal edilmiş", true);
 
-  const reason = prompt(`Son satış iptal edilecek.
+  const reason = await appPrompt(`Son satış iptal edilecek.
 Fiş: ${sale.saleNo}
 Toplam: ${formatSaleMoney(sale.total)}
 
-İade/iptal nedeni:`, "Müşteri iadesi");
+İade/iptal nedeni:`, "Müşteri iadesi", { title: "Satış iptali", okText: "Devam" });
   if (reason === null) return;
 
   if (!(await appConfirm(`${sale.saleNo} numaralı satış iptal edilsin mi?
