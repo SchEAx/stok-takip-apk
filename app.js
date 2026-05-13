@@ -208,9 +208,37 @@ function setCurrentSession(staff) {
   localStorage.setItem(CURRENT_STAFF_STORE_KEY, staff.name);
   updateStaffMeta(staff.name, { lastLoginAt: session.loginAt, lastSeenAt: session.loginAt, role: staff.role });
   state.currentUser = session;
+  supabaseClient
+  .from("app_users")
+  .update({
+    last_seen_at: new Date().toISOString(),
+    last_login_at: new Date().toISOString()
+  })
+  .eq("name", staff.name);
   return session;
 }
-function clearCurrentSession() { localStorage.removeItem(SESSION_STORE_KEY); state.currentUser = null; }
+async function setUserOffline() {
+  try {
+    const session = currentSession();
+    if (!session?.name) return;
+
+    await supabaseClient
+      .from("app_users")
+      .update({
+        last_seen_at: null
+      })
+      .eq("name", session.name);
+
+  } catch (err) {
+    console.warn("Offline güncellenemedi:", err);
+  }
+}
+
+function clearCurrentSession() {
+  setUserOffline();
+  localStorage.removeItem(SESSION_STORE_KEY);
+  state.currentUser = null;
+}
 function populateLoginStaffSelect() {
   if (!el.loginStaffSelect) return;
   const staff = readStaffList();
@@ -334,7 +362,8 @@ function renderUsersList() {
   const staff = readStaffList();
   el.usersList.innerHTML = staff.map(s => {
     const m = meta[s.name] || {};
-    const online = s.name === active && !!currentSession();
+    const lastSeen = m.lastSeenAt ? new Date(m.lastSeenAt).getTime() : 0;
+const online = lastSeen && (Date.now() - lastSeen < 2 * 60 * 1000);
     return `<div class="user-row ${online ? "online" : ""}"><div class="user-avatar">${escapeHtml((s.name || "?").slice(0,1).toLocaleUpperCase("tr-TR"))}</div><div><strong>${escapeHtml(s.name)}</strong><div class="muted">${roleLabel(s.role)} · Son giriş: ${m.lastLoginAt ? formatDate(m.lastLoginAt) : "-"}</div><div class="muted">Son görünme: ${m.lastSeenAt ? formatDate(m.lastSeenAt) : "-"}</div></div><span class="user-status">${online ? "Çevrimiçi" : "Pasif"}</span></div>`;
   }).join("");
 }
@@ -1076,12 +1105,18 @@ async function loadStaffListFromSupabase() {
   try {
     const { data, error } = await supabaseClient
       .from("app_users")
-      .select("name, role, password, is_active")
+      .select("name, role, password, is_active, last_seen_at, last_login_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
     if (error) throw error;
     if (Array.isArray(data) && data.length) {
-      const mapped = data.map(row => ({ name: row.name, role: row.role, password: row.password }));
+      const mapped = data.map(row => ({
+  name: row.name,
+  role: row.role,
+  password: row.password,
+  lastSeenAt: row.last_seen_at,
+  lastLoginAt: row.last_login_at
+}));
       localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(mapped)));
     } else {
       await saveStaffListToSupabase(readStaffList());
@@ -2282,7 +2317,27 @@ async function bootApp() {
   initUpdateChecker();
 }
 bootApp();
+async function heartbeatCurrentUser() {
+  try {
+    const session = currentSession();
 
+    if (!session?.name) return;
+
+    await supabaseClient
+      .from("app_users")
+      .update({
+        last_seen_at: new Date().toISOString()
+      })
+      .eq("name", session.name);
+
+  } catch (err) {
+    console.warn("Heartbeat hatası:", err);
+  }
+}
+
+setInterval(heartbeatCurrentUser, 30000);
+
+heartbeatCurrentUser();
 
 async function checkVersion() {
   try {
