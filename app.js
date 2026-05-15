@@ -553,19 +553,26 @@ window.testInAppNotification = function() {
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function normalizeText(value) {
   return String(value || "")
-    .toLocaleLowerCase("tr-TR")
-    .replaceAll("ı", "i")
-    .replaceAll("İ", "i")
-    .replaceAll("ğ", "g")
-    .replaceAll("ü", "u")
-    .replaceAll("ş", "s")
-    .replaceAll("ö", "o")
-    .replaceAll("ç", "c")
-    .replaceAll("â", "a")
-    .replaceAll("î", "i")
-    .replaceAll("û", "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
     .replace(/\s+/g, " ")
     .trim();
+}
+function searchIncludes(text, query) {
+  const t = normalizeText(text);
+  const q = normalizeText(query);
+
+  return (
+    t.includes(q) ||
+    t.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))
+  );
 }
 function formatDate(value) { if (!value) return "-"; const d = new Date(value); if (Number.isNaN(d.getTime())) return value; return d.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }); }
 function buildProductName(row) { return [row.product_brand, row.category, row.vehicle_brand, row.vehicle_model, row.vehicle_type, row.vehicle_year].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(); }
@@ -756,7 +763,15 @@ function refreshProductQuickLists() {
 }
 
 function productSearchText(p) { return normalizeText([p.name, p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear, p.location, p.note].join(" ")); }
-function applySearch() { const q = normalizeText(el.searchInput.value); state.filteredProducts = q ? state.products.filter((p) => productSearchText(p).includes(q)) : state.products; renderProducts(); }
+function applySearch() {
+  const q = el.searchInput.value;
+
+  state.filteredProducts = q
+    ? state.products.filter((p) => searchIncludes(productSearchText(p), q))
+    : state.products;
+
+  renderProducts();
+}
 function renderProducts() {
   if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="13" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
   el.productTableBody.innerHTML = state.filteredProducts.map((p) => {
