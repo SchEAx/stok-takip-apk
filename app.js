@@ -2338,6 +2338,127 @@ async function heartbeatCurrentUser() {
 setInterval(heartbeatCurrentUser, 30000);
 
 heartbeatCurrentUser();
+async function downloadStockExcel() {
+  try {
+    showToast("Excel hazırlanıyor...");
+
+    const rows = state.products.map(p => ({
+      id: p.id,
+      urun_markasi: p.productBrand || "",
+      kategori: p.category || "",
+      arac_markasi: p.carBrand || "",
+      arac_modeli: p.carModel || "",
+      arac_tipi: p.carType || "",
+      model_yili: p.vehicleYear || "",
+      mevcut_stok: p.stock || 0,
+      minimum_stok: p.minStock || 0,
+      raf_konum: p.location || "",
+      aciklama: p.note || "",
+      barkod: p.barcode || ""
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(wb, ws, "Stok");
+
+    XLSX.writeFile(wb, "stok-listesi.xlsx");
+
+    showToast("Excel indirildi ✅");
+
+  } catch (err) {
+    console.error(err);
+    showToast("Excel indirilemedi", true);
+  }
+}
+
+async function uploadStockExcel(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    showToast("Excel okunuyor...");
+
+    const buffer = await file.arrayBuffer();
+
+    const workbook = XLSX.read(buffer, {
+      type: "array"
+    });
+
+    const sheetName = workbook.SheetNames[0];
+
+    const rows = XLSX.utils.sheet_to_json(
+      workbook.Sheets[sheetName]
+    );
+
+    let success = 0;
+    let failed = 0;
+
+    for (const r of rows) {
+
+      const payload = {
+        barcode: r.barkod || null,
+
+        product_name: [
+          r.urun_markasi,
+          r.kategori,
+          r.arac_markasi,
+          r.arac_modeli,
+          r.arac_tipi,
+          r.model_yili
+        ].filter(Boolean).join(" "),
+
+        product_brand: r.urun_markasi || null,
+        category: r.kategori || null,
+        vehicle_brand: r.arac_markasi || null,
+        vehicle_model: r.arac_modeli || null,
+        vehicle_type: r.arac_tipi || null,
+        vehicle_year: r.model_yili || null,
+
+        quantity: Number(r.mevcut_stok || 0),
+        min_stock: Number(r.minimum_stok || 0),
+
+        location: r.raf_konum || null,
+        note: r.aciklama || null
+      };
+
+      let result;
+
+      if (r.id) {
+
+        result = await supabaseClient
+          .from("stock_products")
+          .update(payload)
+          .eq("id", r.id);
+
+      } else {
+
+        result = await supabaseClient
+          .from("stock_products")
+          .insert(payload);
+      }
+
+      if (result.error) {
+        console.error(result.error);
+        failed++;
+      } else {
+        success++;
+      }
+    }
+
+    await loadProducts();
+
+    showToast(
+      `Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed}`
+    );
+
+    event.target.value = "";
+
+  } catch (err) {
+    console.error(err);
+    showToast("Excel yüklenemedi", true);
+  }
+}
 
 async function checkVersion() {
   try {
