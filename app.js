@@ -719,7 +719,41 @@ window.clearNewRequestAlert = function() {
 };
 function setLoading(flag) { state.loading = flag; el.refreshBtn.disabled = flag; el.saveProductBtn.disabled = flag; el.movementSearchInput.disabled = flag; el.refreshBtn.textContent = flag ? "Yükleniyor..." : "Yenile"; el.saveProductBtn.textContent = flag ? "Kaydediliyor..." : "Ürünü Kaydet"; }
 
-async function loadProducts() { const { data, error } = await supabaseClient.from("stock_products").select("*").order("product_name", { ascending: true }); if (error) throw error; state.products = (data || []).map(mapProduct); applySearch(); updateStats(); refreshProductQuickLists(); refreshOperationFilters(); renderOperationResults(); if (typeof renderSaleProducts === "function") renderSaleProducts(); }
+async function loadProducts() {
+  let allRows = [];
+  let from = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabaseClient
+      .from("stock_products")
+      .select("*")
+      .order("product_name", { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+
+    allRows = allRows.concat(data || []);
+
+    if (!data || data.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  state.products = allRows.map(mapProduct);
+
+  applySearch();
+  updateStats();
+  refreshProductQuickLists();
+  refreshOperationFilters();
+  renderOperationResults();
+
+  if (typeof renderSaleProducts === "function") {
+    renderSaleProducts();
+  }
+}
 async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = data || []; renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
 async function loadStockRequests() {
   const { data, error } = await supabaseClient.from("stock_requests").select("*").in("status", ["bekliyor", "rezerve_edildi", "teslim_edildi", "montaj_bitti", "iptal"]).order("created_at", { ascending: false }).limit(150);
