@@ -9,6 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="powered-badge">⚡ Powered By <span>GPT</span> & <b>SchEAx</b></div>
@@ -175,7 +176,31 @@
             <div><label>Raf / Konum</label><input id="location" type="text" list="locationList" placeholder="Örn: A-12" /></div>
             <div><label>Ürün Görsel URL</label><input id="productImage" type="url" placeholder="https://... ürün fotoğrafı" /></div>
             <div class="full"><label>Açıklama <span class="muted">(isteğe bağlı)</span></label><textarea id="note" rows="3" placeholder="İsteğe bağlı not"></textarea></div>
-            <div class="full row-gap"><button type="submit" id="saveProductBtn" class="btn primary">Ürünü Kaydet</button><button type="button" id="clearProductBtn" class="btn ghost">Formu Temizle</button></div>
+            <div class="full row-gap"><button type="submit" id="saveProductBtn" class="btn primary">Ürünü Kaydet</button><button type="button" id="clearProductBtn" class="btn ghost">Formu Temizle</button>
+            <hr style="margin:20px 0;border-color:#333;">
+
+<div class="excel-actions">
+  <button type="button" class="btn success" onclick="downloadStockExcel()">
+    📥 Excel İndir
+  </button>
+
+  <input
+    type="file"
+    id="stockExcelInput"
+    accept=".xlsx,.xls,.csv"
+    hidden
+    onchange="uploadStockExcel(event)"
+  />
+
+  <button
+    type="button"
+    class="btn secondary"
+    onclick="document.getElementById('stockExcelInput').click()"
+  >
+    📤 Excel Yükle
+  </button>
+</div>
+            </div>
           </form>
         </div>
 
