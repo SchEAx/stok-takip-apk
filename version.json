@@ -1,5 +1,5 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.7.1",
   "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Ürün ekle ekranındaki mobil stok giriş/çıkış düzeltmesi hazır."
+  "message": "Excel yükleme/indirme daha stabil hale getirildi."
 }
