@@ -165,40 +165,45 @@
           <form id="productForm" class="form-grid">
             <input type="hidden" id="productId" />
             <input type="hidden" id="barcode" />
-            <div><label>Ürün Markası</label><input id="productBrand" type="text" list="productBrandList" placeholder="Örn: Rizline" /></div>
-            <div><label>Ürün Kategorisi *</label><input id="category" type="text" list="categoryList" placeholder="Örn: Paspas, Cam Rüzgarlığı" /></div>
-            <div><label>Araç Markası *</label><input id="carBrand" type="text" list="carBrandList" placeholder="Örn: Renault" /></div>
-            <div><label>Araç Modeli *</label><input id="carModel" type="text" list="carModelList" placeholder="Örn: Megane 4" /></div>
-            <div><label>Araç Tipi</label><input id="carType" type="text" list="carTypeList" placeholder="Örn: HB / Sedan / SUV" /></div>
-            <div><label>Araç Model Yılı</label><input id="vehicleYear" type="text" placeholder="Örn: 2016-2020" /></div>
+            <div><label>Ürün Markası</label><input id="productBrand" class="custom-suggest-input" type="text" list="productBrandList" placeholder="Örn: Rizline" autocomplete="off" /></div>
+            <div><label>Ürün Kategorisi *</label><input id="category" class="custom-suggest-input" type="text" list="categoryList" placeholder="Örn: Paspas, Cam Rüzgarlığı" autocomplete="off" /></div>
+            <div><label>Araç Markası *</label><input id="carBrand" class="custom-suggest-input" type="text" list="carBrandList" placeholder="Örn: Renault" autocomplete="off" /></div>
+            <div><label>Araç Modeli *</label><input id="carModel" class="custom-suggest-input" type="text" list="carModelList" placeholder="Örn: Megane 4" autocomplete="off" /></div>
+            <div><label>Araç Tipi</label><input id="carType" class="custom-suggest-input" type="text" list="carTypeList" placeholder="Örn: HB / Sedan / SUV" autocomplete="off" /></div>
+            <div><label>Araç Model Yılı</label><input id="vehicleYear" class="custom-suggest-input" type="text" list="vehicleYearList" placeholder="Örn: 2016-2020" autocomplete="off" /></div>
             <div><label>Mevcut Stok</label><input id="stock" type="number" min="0" step="1" placeholder="0" /></div>
             <div><label>Minimum Stok</label><input id="minStock" type="number" min="0" step="1" placeholder="0" /></div>
-            <div><label>Raf / Konum</label><input id="location" type="text" list="locationList" placeholder="Örn: A-12" /></div>
+            <div><label>Raf / Konum</label><input id="location" class="custom-suggest-input" type="text" list="locationList" placeholder="Örn: A-12" autocomplete="off" /></div>
             <div><label>Ürün Görsel URL</label><input id="productImage" type="url" placeholder="https://... ürün fotoğrafı" /></div>
             <div class="full"><label>Açıklama <span class="muted">(isteğe bağlı)</span></label><textarea id="note" rows="3" placeholder="İsteğe bağlı not"></textarea></div>
             <div class="full row-gap"><button type="submit" id="saveProductBtn" class="btn primary">Ürünü Kaydet</button><button type="button" id="clearProductBtn" class="btn ghost">Formu Temizle</button>
             <hr style="margin:20px 0;border-color:#333;">
 
-<div class="excel-actions">
-  <button type="button" class="btn success" onclick="downloadStockExcel()">
-    📥 Excel İndir
-  </button>
+<div class="excel-panel">
+  <div class="excel-panel-head">
+    <strong>Kategoriye göre Excel indir / yükle</strong>
+    <span class="muted">Boş bıraktığın filtreler tümünü kapsar.</span>
+  </div>
 
-  <input
-    type="file"
-    id="stockExcelInput"
-    accept=".xlsx,.xls,.csv"
-    hidden
-    onchange="uploadStockExcel(event)"
-  />
+  <div class="excel-filter-grid">
+    <div><label>Ürün Markası</label><select id="excelProductBrandFilter"><option value="">Tüm markalar</option></select></div>
+    <div><label>Ürün Kategorisi</label><select id="excelCategoryFilter"><option value="">Tüm kategoriler</option></select></div>
+    <div><label>Araç Markası</label><select id="excelCarBrandFilter"><option value="">Tüm araç markaları</option></select></div>
+    <div><label>Araç Modeli</label><select id="excelCarModelFilter"><option value="">Tüm modeller</option></select></div>
+    <div><label>Araç Tipi</label><select id="excelCarTypeFilter"><option value="">Tüm tipler</option></select></div>
+    <div><label>Model Yılı</label><select id="excelVehicleYearFilter"><option value="">Tüm yıllar</option></select></div>
+  </div>
 
-  <button
-    type="button"
-    class="btn secondary"
-    onclick="document.getElementById('stockExcelInput').click()"
-  >
-    📤 Excel Yükle
-  </button>
+  <div class="excel-actions">
+    <button type="button" class="btn ghost" onclick="clearExcelFilters()">Filtreleri Temizle</button>
+    <button type="button" class="btn success" onclick="downloadStockExcel()">📥 Filtreli Excel İndir</button>
+
+    <input type="file" id="stockExcelInput" accept=".xlsx,.xls,.csv" hidden onchange="uploadStockExcel(event)" />
+
+    <button type="button" class="btn secondary" onclick="document.getElementById('stockExcelInput').click()">📤 Excel Yükle</button>
+  </div>
+
+  <div id="excelFilterSummary" class="excel-filter-summary">Tüm stok listesi seçili.</div>
 </div>
             </div>
           </form>
@@ -502,6 +507,14 @@ LED"></textarea>
       </div>
     </div>
   </div>
+
+  <datalist id="productBrandList"></datalist>
+  <datalist id="categoryList"></datalist>
+  <datalist id="carBrandList"></datalist>
+  <datalist id="carModelList"></datalist>
+  <datalist id="carTypeList"></datalist>
+  <datalist id="vehicleYearList"></datalist>
+  <datalist id="locationList"></datalist>
   <script src="app.js"></script>
 </body>
 </html>
