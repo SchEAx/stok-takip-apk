@@ -198,9 +198,8 @@
     <button type="button" class="btn ghost" onclick="clearExcelFilters()">Filtreleri Temizle</button>
     <button type="button" class="btn success" onclick="downloadStockExcel()">📥 Filtreli Excel İndir</button>
 
-    <input type="file" id="stockExcelInput" accept=".xlsx,.xls,.csv" hidden onchange="uploadStockExcel(event)" />
-
-    <button type="button" class="btn secondary" onclick="document.getElementById('stockExcelInput').click()">📤 Excel Yükle</button>
+    <label for="stockExcelInput" class="btn secondary file-picker-label">📤 Excel Yükle</label>
+    <input type="file" id="stockExcelInput" class="file-pick-input" accept=".xlsx,.xls,.csv" onchange="uploadStockExcel(event)" />
   </div>
 
   <div id="excelFilterSummary" class="excel-filter-summary">Tüm stok listesi seçili.</div>
