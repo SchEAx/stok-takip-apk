@@ -441,6 +441,69 @@ function showToast(message, isError = false) {
   el.toast.style.borderColor = isError ? "rgba(220,38,38,0.5)" : "rgba(22,163,74,0.5)";
   setTimeout(() => el.toast.classList.add("hidden"), 3500);
 }
+/* === Excel Aktarım Şelalesi === */
+
+function createExcelProgress() {
+  let box = document.getElementById("excelProgressBox");
+
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "excelProgressBox";
+    box.className = "excel-progress-wrap";
+
+    box.innerHTML = `
+      <div class="excel-progress-title">Excel Aktarılıyor 🚀</div>
+
+      <div class="excel-progress-bar">
+        <div id="excelProgressFill" class="excel-progress-fill"></div>
+      </div>
+
+      <div id="excelProgressText" class="excel-progress-text">
+        Hazırlanıyor...
+      </div>
+
+      <div id="excelProgressPercent" class="excel-progress-percent">
+        0%
+      </div>
+    `;
+
+    document.body.appendChild(box);
+  }
+
+  return box;
+}
+
+function updateExcelProgress(current, total, success = 0, error = 0) {
+  const percent = total ? Math.round((current / total) * 100) : 0;
+
+  createExcelProgress();
+
+  const fill = document.getElementById("excelProgressFill");
+  const text = document.getElementById("excelProgressText");
+  const percentEl = document.getElementById("excelProgressPercent");
+
+  if (fill) fill.style.width = percent + "%";
+
+  if (text) {
+    text.innerHTML = `
+      Aktarılan: <b>${current}</b> / ${total}<br>
+      Başarılı: <span class="excel-progress-success">${success}</span><br>
+      Hatalı: <span class="excel-progress-error">${error}</span>
+    `;
+  }
+
+  if (percentEl) {
+    percentEl.textContent = percent + "%";
+  }
+}
+
+function closeExcelProgress(delay = 1200) {
+  setTimeout(() => {
+    document.getElementById("excelProgressBox")?.remove();
+  }, delay);
+}
+
+/* === Excel Aktarım Şelalesi SON === */
 function notificationIcon(type) {
   return ({ stock_request: "📦", critical_stock: "⚠️", movement: "↔️", sale: "💳", system: "🔔" })[type] || "🔔";
 }
