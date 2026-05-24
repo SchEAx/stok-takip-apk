@@ -30,7 +30,8 @@ const el = {
 saleCustomerPhone: document.getElementById("saleCustomerPhone"), saleCustomerNote: document.getElementById("saleCustomerNote"), completeSaleBtn: document.getElementById("completeSaleBtn"), clearSaleBtn: document.getElementById("clearSaleBtn"), todaySaleTotal: document.getElementById("todaySaleTotal"), todaySaleQty: document.getElementById("todaySaleQty"), todayCashTotal: document.getElementById("todayCashTotal"), todayCardTotal: document.getElementById("todayCardTotal"), topSaleProducts: document.getElementById("topSaleProducts"), currentStaffSelect: document.getElementById("currentStaffSelect"), staffRoleBadge: document.getElementById("staffRoleBadge"), staffEditor: document.getElementById("staffEditor"), staffEditorBody: document.getElementById("staffEditorBody"), printLastSaleBtn: document.getElementById("printLastSaleBtn"), cancelLastSaleBtn: document.getElementById("cancelLastSaleBtn"), productImage: document.getElementById("productImage"), reportStartDate: document.getElementById("reportStartDate"), reportEndDate: document.getElementById("reportEndDate"), reportSearchInput: document.getElementById("reportSearchInput"), criticalSearchInput: document.getElementById("criticalSearchInput"), historySearchInput: document.getElementById("historySearchInput"),
   operationBrandFilter: document.getElementById("operationBrandFilter"), operationCategoryFilter: document.getElementById("operationCategoryFilter"), operationSearchInput: document.getElementById("operationSearchInput"), operationResultBox: document.getElementById("operationResultBox"),
   notificationBellBtn: document.getElementById("notificationBellBtn"), notificationUnreadCount: document.getElementById("notificationUnreadCount"), notificationList: document.getElementById("notificationList"),
-  loginOverlay: document.getElementById("loginOverlay"), appShell: document.getElementById("appShell"), loginStaffSelect: document.getElementById("loginStaffSelect"), loginPasswordInput: document.getElementById("loginPasswordInput"), loginBtn: document.getElementById("loginBtn"), logoutBtn: document.getElementById("logoutBtn"), activeUserName: document.getElementById("activeUserName"), activeUserRole: document.getElementById("activeUserRole"), usersList: document.getElementById("usersList"), activityLogList: document.getElementById("activityLogList"), rolePermissionEditor: document.getElementById("rolePermissionEditor")
+  loginOverlay: document.getElementById("loginOverlay"), appShell: document.getElementById("appShell"), loginStaffSelect: document.getElementById("loginStaffSelect"), loginPasswordInput: document.getElementById("loginPasswordInput"), loginBtn: document.getElementById("loginBtn"), logoutBtn: document.getElementById("logoutBtn"), activeUserName: document.getElementById("activeUserName"), activeUserRole: document.getElementById("activeUserRole"), usersList: document.getElementById("usersList"), activityLogList: document.getElementById("activityLogList"), rolePermissionEditor: document.getElementById("rolePermissionEditor"),
+  excelProductBrandFilter: document.getElementById("excelProductBrandFilter"), excelCategoryFilter: document.getElementById("excelCategoryFilter"), excelCarBrandFilter: document.getElementById("excelCarBrandFilter"), excelCarModelFilter: document.getElementById("excelCarModelFilter"), excelCarTypeFilter: document.getElementById("excelCarTypeFilter"), excelVehicleYearFilter: document.getElementById("excelVehicleYearFilter"), excelFilterSummary: document.getElementById("excelFilterSummary")
 };
 
 
@@ -788,13 +789,145 @@ function setDatalistOptions(id, values) {
     .join("");
 }
 function refreshProductQuickLists() {
-  setDatalistOptions("productBrandList", state.products.map(p => p.productBrand));
-  setDatalistOptions("categoryList", state.products.map(p => p.category));
-  setDatalistOptions("carBrandList", state.products.map(p => p.carBrand));
-  setDatalistOptions("carModelList", state.products.map(p => p.carModel));
-  setDatalistOptions("carTypeList", state.products.map(p => p.carType));
-  setDatalistOptions("locationList", state.products.map(p => p.location));
+  setDatalistOptions("productBrandList", getSuggestionValues("productBrand"));
+  setDatalistOptions("categoryList", getSuggestionValues("category"));
+  setDatalistOptions("carBrandList", getSuggestionValues("carBrand"));
+  setDatalistOptions("carModelList", getSuggestionValues("carModel"));
+  setDatalistOptions("carTypeList", getSuggestionValues("carType"));
+  setDatalistOptions("vehicleYearList", getSuggestionValues("vehicleYear"));
+  setDatalistOptions("locationList", getSuggestionValues("location"));
+  refreshExcelFilters();
 }
+
+const PRODUCT_RECENT_SUGGESTIONS_KEY = "garage_product_recent_suggestions_v1";
+const PRODUCT_SUGGESTION_FIELDS = {
+  productBrand: { label: "Ürün Markası", inputId: "productBrand", getter: p => p.productBrand },
+  category: { label: "Ürün Kategorisi", inputId: "category", getter: p => p.category },
+  carBrand: { label: "Araç Markası", inputId: "carBrand", getter: p => p.carBrand },
+  carModel: { label: "Araç Modeli", inputId: "carModel", getter: p => p.carModel },
+  carType: { label: "Araç Tipi", inputId: "carType", getter: p => p.carType },
+  vehicleYear: { label: "Model Yılı", inputId: "vehicleYear", getter: p => p.vehicleYear },
+  location: { label: "Raf / Konum", inputId: "location", getter: p => p.location }
+};
+
+function readRecentProductSuggestions() {
+  try { return JSON.parse(localStorage.getItem(PRODUCT_RECENT_SUGGESTIONS_KEY) || "{}"); }
+  catch { return {}; }
+}
+function writeRecentProductSuggestions(data) {
+  localStorage.setItem(PRODUCT_RECENT_SUGGESTIONS_KEY, JSON.stringify(data || {}));
+}
+function rememberProductSuggestions(payload = {}) {
+  const recent = readRecentProductSuggestions();
+  Object.keys(PRODUCT_SUGGESTION_FIELDS).forEach(field => {
+    const value = String(payload[field] || "").trim();
+    if (!value) return;
+    const list = Array.isArray(recent[field]) ? recent[field] : [];
+    recent[field] = uniqueCleanValues([value, ...list]).slice(0, 80);
+  });
+  writeRecentProductSuggestions(recent);
+}
+function getSuggestionValues(field) {
+  const cfg = PRODUCT_SUGGESTION_FIELDS[field];
+  const recent = readRecentProductSuggestions();
+  const productValues = cfg ? state.products.map(cfg.getter) : [];
+  return uniqueCleanValues([...(recent[field] || []), ...productValues]);
+}
+function closeProductSuggestBoxes(exceptBox = null) {
+  document.querySelectorAll(".custom-suggest-box").forEach(box => {
+    if (box !== exceptBox) box.remove();
+  });
+}
+function showProductSuggestions(field) {
+  const cfg = PRODUCT_SUGGESTION_FIELDS[field];
+  if (!cfg) return;
+  const input = document.getElementById(cfg.inputId);
+  if (!input) return;
+
+  const query = normalizeText(input.value);
+  const values = getSuggestionValues(field)
+    .filter(v => !query || normalizeText(v).includes(query))
+    .slice(0, 10);
+
+  closeProductSuggestBoxes();
+  if (!values.length) return;
+
+  const box = document.createElement("div");
+  box.className = "custom-suggest-box";
+  box.innerHTML = values.map(v => `<button type="button" data-value="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join("");
+  input.insertAdjacentElement("afterend", box);
+
+  box.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      input.value = btn.dataset.value || "";
+      closeProductSuggestBoxes();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  });
+}
+function initProductSuggestionInputs() {
+  Object.keys(PRODUCT_SUGGESTION_FIELDS).forEach(field => {
+    const input = document.getElementById(PRODUCT_SUGGESTION_FIELDS[field].inputId);
+    if (!input || input.dataset.suggestReady === "1") return;
+    input.dataset.suggestReady = "1";
+    input.addEventListener("focus", () => showProductSuggestions(field));
+    input.addEventListener("input", () => showProductSuggestions(field));
+    input.addEventListener("blur", () => setTimeout(() => closeProductSuggestBoxes(), 160));
+  });
+}
+
+function setSelectOptions(selectEl, values, allText) {
+  if (!selectEl) return;
+  const current = selectEl.value;
+  selectEl.innerHTML = `<option value="">${escapeHtml(allText || "Tümü")}</option>` +
+    uniqueCleanValues(values).map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  if ([...selectEl.options].some(opt => opt.value === current)) selectEl.value = current;
+}
+function getExcelFilterValues() {
+  return {
+    productBrand: el.excelProductBrandFilter?.value || "",
+    category: el.excelCategoryFilter?.value || "",
+    carBrand: el.excelCarBrandFilter?.value || "",
+    carModel: el.excelCarModelFilter?.value || "",
+    carType: el.excelCarTypeFilter?.value || "",
+    vehicleYear: el.excelVehicleYearFilter?.value || ""
+  };
+}
+function productMatchesExcelFilters(p, filters = getExcelFilterValues()) {
+  return (!filters.productBrand || p.productBrand === filters.productBrand) &&
+    (!filters.category || p.category === filters.category) &&
+    (!filters.carBrand || p.carBrand === filters.carBrand) &&
+    (!filters.carModel || p.carModel === filters.carModel) &&
+    (!filters.carType || p.carType === filters.carType) &&
+    (!filters.vehicleYear || p.vehicleYear === filters.vehicleYear);
+}
+function getFilteredProductsForExcel() {
+  return state.products.filter(p => productMatchesExcelFilters(p));
+}
+function updateExcelFilterSummary() {
+  if (!el.excelFilterSummary) return;
+  const filters = getExcelFilterValues();
+  const active = Object.values(filters).filter(Boolean);
+  const count = getFilteredProductsForExcel().length;
+  el.excelFilterSummary.textContent = active.length
+    ? `${count} ürün seçili. Aktif filtre: ${active.join(" / ")}`
+    : `${count} ürün seçili. Tüm stok listesi.`;
+}
+function refreshExcelFilters() {
+  setSelectOptions(el.excelProductBrandFilter, state.products.map(p => p.productBrand), "Tüm markalar");
+  setSelectOptions(el.excelCategoryFilter, state.products.map(p => p.category), "Tüm kategoriler");
+  setSelectOptions(el.excelCarBrandFilter, state.products.map(p => p.carBrand), "Tüm araç markaları");
+  setSelectOptions(el.excelCarModelFilter, state.products.map(p => p.carModel), "Tüm modeller");
+  setSelectOptions(el.excelCarTypeFilter, state.products.map(p => p.carType), "Tüm tipler");
+  setSelectOptions(el.excelVehicleYearFilter, state.products.map(p => p.vehicleYear), "Tüm yıllar");
+  updateExcelFilterSummary();
+}
+window.clearExcelFilters = function() {
+  [el.excelProductBrandFilter, el.excelCategoryFilter, el.excelCarBrandFilter, el.excelCarModelFilter, el.excelCarTypeFilter, el.excelVehicleYearFilter]
+    .filter(Boolean).forEach(select => select.value = "");
+  updateExcelFilterSummary();
+};
 
 function productSearchText(p) { return normalizeText([p.name, p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear, p.location, p.note].join(" ")); }
 function applySearch() {
@@ -2345,7 +2478,7 @@ window.renderPlateHistory = function() {
   moveBox.innerHTML = moves.length ? moves.map(m => `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(m.stock_products?.product_name || m.description || "-")}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${String(m.movement_type || "").includes("iade") ? "giris" : "cikis"}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`).join("") : `<div class="empty-state">Hareket bulunamadı</div>`;
 };
 
-el.productForm.addEventListener("submit", async (e) => { e.preventDefault(); if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return; const payload = { id: el.productId.value.trim(), barcode: el.barcode.value.trim(), productBrand: el.productBrand.value.trim(), category: el.category.value.trim(), carBrand: el.carBrand.value.trim(), carModel: el.carModel.value.trim(), carType: el.carType.value.trim(), vehicleYear: el.vehicleYear.value.trim(), stock: el.stock.value.trim(), minStock: el.minStock.value.trim(), location: el.location.value.trim(), note: el.note.value.trim(), imageUrl: el.productImage?.value?.trim() || "" }; if (!payload.category || !payload.carBrand || !payload.carModel) return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true); try { setLoading(true); if (payload.id) { const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id); if (error) throw error; await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id); showToast("Ürün güncellendi"); } else { const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single(); if (error) throw error; await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id); showToast("Ürün kaydedildi"); } clearProductForm(); await loadProducts(); } catch (err) { console.error(err); showToast(err.message || "Ürün kaydedilemedi", true); } finally { setLoading(false); } });
+el.productForm.addEventListener("submit", async (e) => { e.preventDefault(); if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return; const payload = { id: el.productId.value.trim(), barcode: el.barcode.value.trim(), productBrand: el.productBrand.value.trim(), category: el.category.value.trim(), carBrand: el.carBrand.value.trim(), carModel: el.carModel.value.trim(), carType: el.carType.value.trim(), vehicleYear: el.vehicleYear.value.trim(), stock: el.stock.value.trim(), minStock: el.minStock.value.trim(), location: el.location.value.trim(), note: el.note.value.trim(), imageUrl: el.productImage?.value?.trim() || "" }; if (!payload.category || !payload.carBrand || !payload.carModel) return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true); try { setLoading(true); rememberProductSuggestions(payload); if (payload.id) { const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id); if (error) throw error; await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id); showToast("Ürün güncellendi"); } else { const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single(); if (error) throw error; await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id); showToast("Ürün kaydedildi"); } clearProductForm(); await loadProducts(); } catch (err) { console.error(err); showToast(err.message || "Ürün kaydedilemedi", true); } finally { setLoading(false); } });
 el.clearProductBtn.addEventListener("click", clearProductForm); el.refreshBtn.addEventListener("click", loadAll); el.enableNotifyBtn.addEventListener("click", enablePushNotifications); el.searchInput.addEventListener("input", applySearch); el.movementSearchInput.addEventListener("input", renderMovementSearchResults); el.productSearchInput.addEventListener("input", () => searchProductsForRequest(el.productSearchInput.value));
 if (el.operationBrandFilter) el.operationBrandFilter.addEventListener("change", renderOperationResults);
 if (el.operationCategoryFilter) el.operationCategoryFilter.addEventListener("change", renderOperationResults);
@@ -2375,6 +2508,9 @@ if (el.logoutBtn) el.logoutBtn.addEventListener("click", logoutCurrentUser);
 if (el.reportSearchInput) el.reportSearchInput.addEventListener("input", renderReports);
 if (el.criticalSearchInput) el.criticalSearchInput.addEventListener("input", renderCriticalStock);
 if (el.historySearchInput) el.historySearchInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderPlateHistory(); });
+[el.excelProductBrandFilter, el.excelCategoryFilter, el.excelCarBrandFilter, el.excelCarModelFilter, el.excelCarTypeFilter, el.excelVehicleYearFilter]
+  .filter(Boolean).forEach(select => select.addEventListener("change", updateExcelFilterSummary));
+initProductSuggestionInputs();
 if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.error)); }
 async function bootApp() {
   await Promise.all([loadStaffListFromSupabase(), loadRolePermissionsFromSupabase()]);
@@ -2414,9 +2550,15 @@ setInterval(heartbeatCurrentUser, 30000);
 heartbeatCurrentUser();
 async function downloadStockExcel() {
   try {
-    showToast("Excel hazırlanıyor...");
+    const selectedProducts = getFilteredProductsForExcel();
+    if (!selectedProducts.length) {
+      showToast("Bu filtrede indirilecek ürün yok", true);
+      return;
+    }
 
-    const rows = state.products.map(p => ({
+    showToast(`${selectedProducts.length} ürün için Excel hazırlanıyor...`);
+
+    const rows = selectedProducts.map(p => ({
       id: p.id,
       urun_markasi: p.productBrand || "",
       kategori: p.category || "",
@@ -2436,9 +2578,15 @@ async function downloadStockExcel() {
 
     XLSX.utils.book_append_sheet(wb, ws, "Stok");
 
-    XLSX.writeFile(wb, "stok-listesi.xlsx");
+    const filters = getExcelFilterValues();
+    const fileSuffix = Object.values(filters).filter(Boolean).join("-")
+      .replace(/[^a-zA-Z0-9ğüşöçıİĞÜŞÖÇ-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "tum-stok";
 
-    showToast("Excel indirildi ✅");
+    XLSX.writeFile(wb, `stok-listesi-${fileSuffix}.xlsx`);
+
+    showToast(`Excel indirildi ✅ (${selectedProducts.length} ürün)`);
 
   } catch (err) {
     console.error(err);
@@ -2446,70 +2594,91 @@ async function downloadStockExcel() {
   }
 }
 
+function normalizeExcelCell(value) {
+  return String(value ?? "").trim();
+}
+function excelNumber(value, fallback = 0) {
+  if (value === "" || value === null || value === undefined) return fallback;
+  const normalized = String(value).replace(",", ".").trim();
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 async function uploadStockExcel(event) {
   const file = event.target.files[0];
   if (!file) return;
 
   try {
+    const activeFilters = getExcelFilterValues();
+    const activeFilterText = Object.values(activeFilters).filter(Boolean).join(" / ");
+    const confirmed = await appConfirm(
+      activeFilterText
+        ? `Excel yüklenecek. Aktif filtre: ${activeFilterText}\n\nID olan satırlar güncellenecek, ID boş olan satırlar yeni ürün olarak eklenecek. Devam edilsin mi?`
+        : "Excel yüklenecek. ID olan satırlar güncellenecek, ID boş olan satırlar yeni ürün olarak eklenecek. Devam edilsin mi?",
+      { title: "Excel yükleme onayı", okText: "Yükle", cancelText: "Vazgeç" }
+    );
+    if (!confirmed) {
+      event.target.value = "";
+      return;
+    }
+
     showToast("Excel okunuyor...");
 
     const buffer = await file.arrayBuffer();
 
-    const workbook = XLSX.read(buffer, {
-      type: "array"
-    });
-
+    const workbook = XLSX.read(buffer, { type: "array" });
     const sheetName = workbook.SheetNames[0];
-
-    const rows = XLSX.utils.sheet_to_json(
-      workbook.Sheets[sheetName]
-    );
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
 
     let success = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (const r of rows) {
-
       const payload = {
-        barcode: r.barkod || null,
-
-        product_name: [
-          r.urun_markasi,
-          r.kategori,
-          r.arac_markasi,
-          r.arac_modeli,
-          r.arac_tipi,
-          r.model_yili
-        ].filter(Boolean).join(" "),
-
-        product_brand: r.urun_markasi || null,
-        category: r.kategori || null,
-        vehicle_brand: r.arac_markasi || null,
-        vehicle_model: r.arac_modeli || null,
-        vehicle_type: r.arac_tipi || null,
-        vehicle_year: r.model_yili || null,
-
-        quantity: Number(r.mevcut_stok || 0),
-        min_stock: Number(r.minimum_stok || 0),
-
-        location: r.raf_konum || null,
-        note: r.aciklama || null
+        barcode: normalizeExcelCell(r.barkod) || null,
+        product_brand: normalizeExcelCell(r.urun_markasi) || null,
+        category: normalizeExcelCell(r.kategori) || null,
+        vehicle_brand: normalizeExcelCell(r.arac_markasi) || null,
+        vehicle_model: normalizeExcelCell(r.arac_modeli) || null,
+        vehicle_type: normalizeExcelCell(r.arac_tipi) || null,
+        vehicle_year: normalizeExcelCell(r.model_yili) || null,
+        quantity: excelNumber(r.mevcut_stok, 0),
+        min_stock: excelNumber(r.minimum_stok, 0),
+        location: normalizeExcelCell(r.raf_konum) || null,
+        note: normalizeExcelCell(r.aciklama) || null
       };
 
+      payload.product_name = [
+        payload.product_brand,
+        payload.category,
+        payload.vehicle_brand,
+        payload.vehicle_model,
+        payload.vehicle_type,
+        payload.vehicle_year
+      ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim() || payload.category || "Ürün";
+
+      if (!payload.category && !payload.vehicle_brand && !payload.vehicle_model) {
+        skipped++;
+        continue;
+      }
+
+      rememberProductSuggestions({
+        productBrand: payload.product_brand,
+        category: payload.category,
+        carBrand: payload.vehicle_brand,
+        carModel: payload.vehicle_model,
+        carType: payload.vehicle_type,
+        vehicleYear: payload.vehicle_year,
+        location: payload.location
+      });
+
       let result;
-
-      if (r.id) {
-
-        result = await supabaseClient
-          .from("stock_products")
-          .update(payload)
-          .eq("id", r.id);
-
+      const id = normalizeExcelCell(r.id);
+      if (id) {
+        result = await supabaseClient.from("stock_products").update(payload).eq("id", id);
       } else {
-
-        result = await supabaseClient
-          .from("stock_products")
-          .insert(payload);
+        result = await supabaseClient.from("stock_products").insert(payload);
       }
 
       if (result.error) {
@@ -2522,15 +2691,13 @@ async function uploadStockExcel(event) {
 
     await loadProducts();
 
-    showToast(
-      `Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed}`
-    );
-
+    showToast(`Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed} Atlanan: ${skipped}`);
     event.target.value = "";
 
   } catch (err) {
     console.error(err);
-    showToast("Excel yüklenemedi", true);
+    showToast(err.message || "Excel yüklenemedi", true);
+    event.target.value = "";
   }
 }
 
