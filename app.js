@@ -2714,6 +2714,8 @@ async function uploadStockExcel(event) {
     let success = 0;
     let failed = 0;
     let skipped = 0;
+    createExcelProgress();
+updateExcelProgress(0, rows.length, success, failed);
 
     for (const r of rows) {
       const payload = {
@@ -2740,9 +2742,11 @@ async function uploadStockExcel(event) {
       ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim() || payload.category || "Ürün";
 
       if (!payload.category && !payload.vehicle_brand && !payload.vehicle_model) {
-        skipped++;
-        continue;
-      }
+  skipped++;
+  updateExcelProgress(success + failed + skipped, rows.length, success, failed);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  continue;
+}
 
       rememberProductSuggestions({
         productBrand: payload.product_brand,
@@ -2768,8 +2772,10 @@ async function uploadStockExcel(event) {
       } else {
         success++;
       }
+      updateExcelProgress(success + failed + skipped, rows.length, success, failed);
+await new Promise(resolve => setTimeout(resolve, 0));
     }
-
+closeExcelProgress();
     await loadProducts();
 
     showToast(`Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed} Atlanan: ${skipped}`);
