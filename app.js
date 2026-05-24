@@ -134,7 +134,7 @@ const ROLE_PERMISSION_STORE_KEY = "garage_role_permissions_v1";
 const TAB_DEFINITIONS = [
   { key: "requests", label: "Depo" },
   { key: "operation", label: "İşlem" },
-  { key: "search", label: "Ara" },
+  //{ key: "search", label: "Ara" },
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "sale", label: "Hızlı Satış" },
@@ -147,10 +147,10 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["requests", "operation", "search", "add", "movements", "critical", "notifications"],
-  kasa: ["search", "sale", "reports", "history"],
-  satis: ["requests", "search", "sale", "notifications", "history"],
-  usta: ["requests", "search", "notifications", "history"]
+  depo: ["requests", "operation", "add", "movements", "critical", "notifications"],
+  kasa: ["sale", "reports", "history"],
+  satis: ["requests", "sale", "notifications", "history"],
+  usta: ["requests", "notifications", "history"]
 };
 const ROLE_DEFAULT_TAB = { admin: "requests", depo: "requests", kasa: "sale", satis: "sale", usta: "requests" };
 function normalizeRolePermissions(data) {
