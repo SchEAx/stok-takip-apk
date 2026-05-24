@@ -218,3 +218,17 @@
 .app-prompt-input.hidden {
   display: none;
 }
+
+
+/* === Kategori bazlı Excel + APK uyumlu öneri kutuları === */
+.excel-panel{width:100%;border:1px solid rgba(37,99,235,.28);background:rgba(37,99,235,.07);border-radius:18px;padding:14px;margin-top:10px}
+.excel-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.excel-panel-head strong{font-size:15px;color:#fff}
+.excel-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.excel-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.excel-filter-summary{margin-top:10px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.18);border-radius:14px;padding:10px 12px;color:#cbd5e1;font-size:13px}
+.custom-suggest-input{position:relative}
+.custom-suggest-box{position:absolute;z-index:15000;width:min(420px,calc(100% - 36px));margin-top:4px;display:grid;gap:4px;border:1px solid rgba(37,99,235,.35);background:#0b1324;border-radius:14px;padding:6px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.custom-suggest-box button{border:0;background:transparent;color:#e5e7eb;text-align:left;border-radius:10px;padding:9px 10px;font-weight:700;cursor:pointer}
+.custom-suggest-box button:hover{background:rgba(37,99,235,.22)}
+@media(max-width:900px){.excel-filter-grid{grid-template-columns:1fr}.excel-actions .btn{width:100%}.custom-suggest-box{width:calc(100% - 36px)}}
