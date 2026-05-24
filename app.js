@@ -2584,7 +2584,25 @@ async function downloadStockExcel() {
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "") || "tum-stok";
 
-    XLSX.writeFile(wb, `stok-listesi-${fileSuffix}.xlsx`);
+    const fileName = `stok-listesi-${fileSuffix}.xlsx`;
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1500);
 
     showToast(`Excel indirildi ✅ (${selectedProducts.length} ürün)`);
 
