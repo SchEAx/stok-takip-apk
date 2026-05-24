@@ -232,3 +232,22 @@
 .custom-suggest-box button{border:0;background:transparent;color:#e5e7eb;text-align:left;border-radius:10px;padding:9px 10px;font-weight:700;cursor:pointer}
 .custom-suggest-box button:hover{background:rgba(37,99,235,.22)}
 @media(max-width:900px){.excel-filter-grid{grid-template-columns:1fr}.excel-actions .btn{width:100%}.custom-suggest-box{width:calc(100% - 36px)}}
+
+/* === Excel dosya seçme APK/WebView düzeltmesi === */
+.file-picker-label{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin:0;
+  width:auto;
+}
+.file-pick-input{
+  position:absolute;
+  left:-9999px;
+  width:1px;
+  height:1px;
+  opacity:0;
+}
+@media(max-width:700px){
+  .file-picker-label{width:100%;}
+}
