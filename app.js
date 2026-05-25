@@ -31,7 +31,10 @@ saleCustomerPhone: document.getElementById("saleCustomerPhone"), saleCustomerNot
   operationBrandFilter: document.getElementById("operationBrandFilter"), operationCategoryFilter: document.getElementById("operationCategoryFilter"), operationSearchInput: document.getElementById("operationSearchInput"), operationResultBox: document.getElementById("operationResultBox"),
   notificationBellBtn: document.getElementById("notificationBellBtn"), notificationUnreadCount: document.getElementById("notificationUnreadCount"), notificationList: document.getElementById("notificationList"),
   loginOverlay: document.getElementById("loginOverlay"), appShell: document.getElementById("appShell"), loginStaffSelect: document.getElementById("loginStaffSelect"), loginPasswordInput: document.getElementById("loginPasswordInput"), loginBtn: document.getElementById("loginBtn"), logoutBtn: document.getElementById("logoutBtn"), activeUserName: document.getElementById("activeUserName"), activeUserRole: document.getElementById("activeUserRole"), usersList: document.getElementById("usersList"), activityLogList: document.getElementById("activityLogList"), rolePermissionEditor: document.getElementById("rolePermissionEditor"),
-  excelProductBrandFilter: document.getElementById("excelProductBrandFilter"), excelCategoryFilter: document.getElementById("excelCategoryFilter"), excelCarBrandFilter: document.getElementById("excelCarBrandFilter"), excelCarModelFilter: document.getElementById("excelCarModelFilter"), excelCarTypeFilter: document.getElementById("excelCarTypeFilter"), excelVehicleYearFilter: document.getElementById("excelVehicleYearFilter"), excelFilterSummary: document.getElementById("excelFilterSummary")
+excelProductBrandFilter: document.getElementById("excelProductBrandFilter"),
+excelCategoryFilter: document.getElementById("excelCategoryFilter"),
+excelCarBrandFilter: document.getElementById("excelCarBrandFilter"),
+excelFilterSummary: document.getElementById("excelFilterSummary")
 };
 
 
@@ -1008,7 +1011,7 @@ function renderProducts() {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const isLow = available <= Number(p.minStock || 0);
     const img = p.imageUrl ? `<img class="product-thumb" src="${escapeHtml(p.imageUrl)}" onerror="this.style.display='none'" />` : `<div class="product-thumb empty">📦</div>`;
-    return `<tr><td>${img}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="action-btn delete" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
+    return `<tr><td>${img}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
   }).join("");
 }
 function renderMovements() {
