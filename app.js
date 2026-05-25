@@ -954,19 +954,13 @@ function getExcelFilterValues() {
   return {
     productBrand: el.excelProductBrandFilter?.value || "",
     category: el.excelCategoryFilter?.value || "",
-    carBrand: el.excelCarBrandFilter?.value || "",
-    carModel: el.excelCarModelFilter?.value || "",
-    carType: el.excelCarTypeFilter?.value || "",
-    vehicleYear: el.excelVehicleYearFilter?.value || ""
+    carBrand: el.excelCarBrandFilter?.value || ""
   };
 }
 function productMatchesExcelFilters(p, filters = getExcelFilterValues()) {
   return (!filters.productBrand || p.productBrand === filters.productBrand) &&
     (!filters.category || p.category === filters.category) &&
-    (!filters.carBrand || p.carBrand === filters.carBrand) &&
-    (!filters.carModel || p.carModel === filters.carModel) &&
-    (!filters.carType || p.carType === filters.carType) &&
-    (!filters.vehicleYear || p.vehicleYear === filters.vehicleYear);
+    (!filters.carBrand || p.carBrand === filters.carBrand);
 }
 function getFilteredProductsForExcel() {
   return state.products.filter(p => productMatchesExcelFilters(p));
@@ -984,13 +978,10 @@ function refreshExcelFilters() {
   setSelectOptions(el.excelProductBrandFilter, state.products.map(p => p.productBrand), "Tüm markalar");
   setSelectOptions(el.excelCategoryFilter, state.products.map(p => p.category), "Tüm kategoriler");
   setSelectOptions(el.excelCarBrandFilter, state.products.map(p => p.carBrand), "Tüm araç markaları");
-  setSelectOptions(el.excelCarModelFilter, state.products.map(p => p.carModel), "Tüm modeller");
-  setSelectOptions(el.excelCarTypeFilter, state.products.map(p => p.carType), "Tüm tipler");
-  setSelectOptions(el.excelVehicleYearFilter, state.products.map(p => p.vehicleYear), "Tüm yıllar");
   updateExcelFilterSummary();
 }
 window.clearExcelFilters = function() {
-  [el.excelProductBrandFilter, el.excelCategoryFilter, el.excelCarBrandFilter, el.excelCarModelFilter, el.excelCarTypeFilter, el.excelVehicleYearFilter]
+  [el.excelProductBrandFilter, el.excelCategoryFilter, el.excelCarBrandFilter]
     .filter(Boolean).forEach(select => select.value = "");
   updateExcelFilterSummary();
 };
@@ -1115,6 +1106,7 @@ function renderOperationResults() {
         <button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>
         <button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
         <button class="btn secondary" onclick="editProduct('${p.id}')">Düzenle</button>
+        <button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button>
       </div>
     </div>`;
   }).join("");
