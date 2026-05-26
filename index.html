@@ -288,6 +288,23 @@
             <div>Toplam</div>
             <strong id="saleTotal">₺0,00</strong>
           </div>
+          <div class="sale-discount-box">
+  <label>İndirim Tutarı</label>
+  <input
+    id="saleDiscount"
+    type="number"
+    min="0"
+    step="1"
+    value="0"
+    placeholder="0"
+    oninput="updateSaleTotal()"
+  />
+</div>
+
+<div class="sale-final-total">
+  <span>Genel Toplam</span>
+  <strong id="saleFinalTotal">₺0,00</strong>
+</div>
 
           <div class="form-grid">
             <div>
