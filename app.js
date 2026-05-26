@@ -26,7 +26,7 @@ const el = {
   productBrand: document.getElementById("productBrand"), category: document.getElementById("category"), carBrand: document.getElementById("carBrand"), carModel: document.getElementById("carModel"), carType: document.getElementById("carType"), vehicleYear: document.getElementById("vehicleYear"), stock: document.getElementById("stock"), minStock: document.getElementById("minStock"), location: document.getElementById("location"), note: document.getElementById("note"),
   saveProductBtn: document.getElementById("saveProductBtn"), clearProductBtn: document.getElementById("clearProductBtn"), movementSearchInput: document.getElementById("movementSearchInput"), movementSearchList: document.getElementById("movementSearchList"), searchInput: document.getElementById("searchInput"), productTableBody: document.getElementById("productTableBody"), movementList: document.getElementById("movementList"),
   stockRequestsBox: document.getElementById("stockRequestsBox"), reservationPanel: document.getElementById("reservationPanel"), requestedTextBox: document.getElementById("requestedTextBox"), productSearchInput: document.getElementById("productSearchInput"), productMatchBox: document.getElementById("productMatchBox"), toast: document.getElementById("toast"),
-  saleSearchInput: document.getElementById("saleSearchInput"), saleProductList: document.getElementById("saleProductList"), saleCartList: document.getElementById("saleCartList"), saleTotal: document.getElementById("saleTotal"), salePaymentType: document.getElementById("salePaymentType"), saleCustomerName: document.getElementById("saleCustomerName"),
+  saleSearchInput: document.getElementById("saleSearchInput"), saleProductList: document.getElementById("saleProductList"), saleCartList: document.getElementById("saleCartList"), saleTotal: document.getElementById("saleTotal"), saleDiscount: document.getElementById("saleDiscount"), saleFinalTotal: document.getElementById("saleFinalTotal"), salePaymentType: document.getElementById("salePaymentType"), saleCustomerName: document.getElementById("saleCustomerName"),
 saleCustomerPhone: document.getElementById("saleCustomerPhone"), saleCustomerNote: document.getElementById("saleCustomerNote"), completeSaleBtn: document.getElementById("completeSaleBtn"), clearSaleBtn: document.getElementById("clearSaleBtn"), todaySaleTotal: document.getElementById("todaySaleTotal"), todaySaleQty: document.getElementById("todaySaleQty"), todayCashTotal: document.getElementById("todayCashTotal"), todayCardTotal: document.getElementById("todayCardTotal"), topSaleProducts: document.getElementById("topSaleProducts"), currentStaffSelect: document.getElementById("currentStaffSelect"), staffRoleBadge: document.getElementById("staffRoleBadge"), staffEditor: document.getElementById("staffEditor"), staffEditorBody: document.getElementById("staffEditorBody"), printLastSaleBtn: document.getElementById("printLastSaleBtn"), cancelLastSaleBtn: document.getElementById("cancelLastSaleBtn"), productImage: document.getElementById("productImage"), reportStartDate: document.getElementById("reportStartDate"), reportEndDate: document.getElementById("reportEndDate"), reportSearchInput: document.getElementById("reportSearchInput"), criticalSearchInput: document.getElementById("criticalSearchInput"), historySearchInput: document.getElementById("historySearchInput"),
   operationBrandFilter: document.getElementById("operationBrandFilter"), operationCategoryFilter: document.getElementById("operationCategoryFilter"), operationSearchInput: document.getElementById("operationSearchInput"), operationResultBox: document.getElementById("operationResultBox"),
   notificationBellBtn: document.getElementById("notificationBellBtn"), notificationUnreadCount: document.getElementById("notificationUnreadCount"), notificationList: document.getElementById("notificationList"),
@@ -1760,18 +1760,69 @@ function saleCartTotal() {
   return state.saleCart.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
 }
 
-function updateSaleTotalDisplay() {
-  if (el.saleTotal) {
-    el.saleTotal.textContent = formatSaleMoney(saleCartTotal());
+function ensureSaleDiscountUi() {
+  if (!el.saleDiscount) el.saleDiscount = document.getElementById("saleDiscount");
+  if (!el.saleFinalTotal) el.saleFinalTotal = document.getElementById("saleFinalTotal");
+  if (el.saleDiscount && el.saleFinalTotal) return;
+
+  const summary = el.saleTotal?.closest(".sale-summary") || el.saleTotal?.parentElement;
+  if (!summary || !summary.parentElement) return;
+
+  const label = summary.querySelector("div");
+  if (label) label.textContent = "Ara Toplam";
+
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="sale-discount-box">
+      <label>İndirim Tutarı</label>
+      <input id="saleDiscount" type="number" min="0" step="1" value="0" placeholder="0" oninput="updateSaleTotal()" />
+    </div>
+    <div class="sale-final-total">
+      <span>Genel Toplam</span>
+      <strong id="saleFinalTotal">₺0,00</strong>
+    </div>
+  `.trim();
+
+  while (wrap.firstChild) {
+    summary.insertAdjacentElement("afterend", wrap.lastChild || wrap.firstChild);
   }
+
+  el.saleDiscount = document.getElementById("saleDiscount");
+  el.saleFinalTotal = document.getElementById("saleFinalTotal");
 }
+
+function saleDiscountAmount() {
+  ensureSaleDiscountUi();
+  const subtotal = saleCartTotal();
+  const discount = Math.max(0, Number(el.saleDiscount?.value || 0));
+  return Math.min(discount, subtotal);
+}
+
+function saleFinalTotal() {
+  return Math.max(0, saleCartTotal() - saleDiscountAmount());
+}
+
+function updateSaleTotalDisplay() {
+  ensureSaleDiscountUi();
+  const subtotal = saleCartTotal();
+  const discount = saleDiscountAmount();
+  const finalTotal = Math.max(0, subtotal - discount);
+
+  if (el.saleTotal) el.saleTotal.textContent = formatSaleMoney(subtotal);
+  if (el.saleFinalTotal) el.saleFinalTotal.textContent = formatSaleMoney(finalTotal);
+
+  state.saleDiscountAmount = discount;
+  state.saleFinalTotal = finalTotal;
+}
+
+window.updateSaleTotal = updateSaleTotalDisplay;
 
 function renderSaleCart() {
   if (!el.saleCartList) return;
 
   if (!state.saleCart.length) {
     el.saleCartList.innerHTML = `<div class="empty-state">Sepet boş</div>`;
-    if (el.saleTotal) el.saleTotal.textContent = formatSaleMoney(0);
+    updateSaleTotalDisplay();
     return;
   }
 
@@ -1789,11 +1840,15 @@ function renderSaleCart() {
     </div>
   `).join("");
 
-  if (el.saleTotal) el.saleTotal.textContent = formatSaleMoney(saleCartTotal());
+  updateSaleTotalDisplay();
 }
 
 window.clearSaleCart = function() {
   state.saleCart = [];
+  ensureSaleDiscountUi();
+  if (el.saleDiscount) el.saleDiscount.value = "0";
+  state.saleDiscountAmount = 0;
+  state.saleFinalTotal = 0;
   if (el.saleCustomerNote) el.saleCustomerNote.value = "";
   renderSaleCart();
 };
@@ -1836,7 +1891,14 @@ function updateLastSaleButtons() {
 
 
 function buildQuickSaleSnapshot() {
+  ensureSaleDiscountUi();
+  updateSaleTotalDisplay();
+
   const staff = currentStaff();
+  const subtotal = saleCartTotal();
+  const discount = saleDiscountAmount();
+  const total = saleFinalTotal();
+
   return {
     saleNo: "HS-" + Date.now().toString().slice(-8),
     createdAt: new Date().toISOString(),
@@ -1845,16 +1907,27 @@ function buildQuickSaleSnapshot() {
     paymentType: el.salePaymentType?.value || "Nakit",
     note: String(el.saleCustomerNote?.value || "").trim(),
     customerName: String(el.saleCustomerName?.value || "").trim(),
-customerPhone: String(el.saleCustomerPhone?.value || "").trim(),
-    total: saleCartTotal(),
-    items: state.saleCart.map(item => ({
-      productId: item.productId,
-      name: item.name,
-      detail: item.detail,
-      qty: Number(item.qty || 0),
-      price: Number(item.price || 0),
-      lineTotal: Number(item.qty || 0) * Number(item.price || 0)
-    }))
+    customerPhone: String(el.saleCustomerPhone?.value || "").trim(),
+    subtotal,
+    discount,
+    total,
+    items: state.saleCart.map(item => {
+      const qty = Number(item.qty || 0);
+      const price = Number(item.price || 0);
+      const lineTotal = qty * price;
+      const discountShare = subtotal > 0 ? (lineTotal / subtotal) * discount : 0;
+      const netLineTotal = Math.max(0, lineTotal - discountShare);
+      return {
+        productId: item.productId,
+        name: item.name,
+        detail: item.detail,
+        qty,
+        price,
+        lineTotal,
+        discountShare,
+        netLineTotal
+      };
+    })
   };
 }
 
@@ -1921,6 +1994,10 @@ function printQuickSaleReceipt(sale = state.lastQuickSale) {
             <thead><tr><th>Ürün</th><th>Ad.</th><th>Birim</th><th>Tutar</th></tr></thead>
             <tbody>${itemsHtml}</tbody>
           </table>
+          ${Number(sale.discount || 0) > 0 ? `
+            <div class="total" style="font-size:12px;background:#fff"><span>ARA TOPLAM</span><span>${formatSaleMoney(sale.subtotal || 0)}</span></div>
+            <div class="total" style="font-size:12px;background:#fff"><span>İNDİRİM</span><span>-${formatSaleMoney(sale.discount || 0)}</span></div>
+          ` : ""}
           <div class="total"><span>TOPLAM</span><span>${formatSaleMoney(sale.total)}</span></div>
           ${sale.note ? `<div class="box" style="margin-top:8px"><b>Not</b><br>${escapeHtml(sale.note)}</div>` : ""}
           <div class="foot">Teşekkür ederiz · Powered By GPT & SchEAx</div>
@@ -2040,7 +2117,11 @@ async function completeQuickSale() {
   saleSnapshot.customerPhone ? "Telefon: " + saleSnapshot.customerPhone : ""
 ].filter(Boolean).join(" - ");
 
-const desc = `Hızlı satış (${paymentType}) - Personel: ${staff.name} (${roleLabel(staff.role)}) - Fiş: ${saleSnapshot.saleNo} - Birim: ${formatSaleMoney(item.price)} - Toplam: ${formatSaleMoney(Number(item.qty || 0) * Number(item.price || 0))}${customerInfo ? " - " + customerInfo : ""}${note ? " - Not: " + note : ""}`;
+const discountInfo = Number(saleSnapshot.discount || 0) > 0
+  ? ` - Ara Toplam: ${formatSaleMoney(saleSnapshot.subtotal)} - İndirim: ${formatSaleMoney(saleSnapshot.discount)} - Satır İndirim Payı: ${formatSaleMoney(item.discountShare || 0)}`
+  : "";
+
+const desc = `Hızlı satış (${paymentType}) - Personel: ${staff.name} (${roleLabel(staff.role)}) - Fiş: ${saleSnapshot.saleNo} - Birim: ${formatSaleMoney(item.price)} - Toplam: ${formatSaleMoney(item.netLineTotal ?? (Number(item.qty || 0) * Number(item.price || 0)))}${discountInfo}${customerInfo ? " - " + customerInfo : ""}${note ? " - Not: " + note : ""}`;
 
       const { error: movementError } = await supabaseClient
         .from("stock_movements")
