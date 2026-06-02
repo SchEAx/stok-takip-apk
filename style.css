@@ -317,3 +317,9 @@
 .excel-progress-error{
   color:#fca5a5;
 }
+
+/* === Sade stok modu === */
+.legacy-page{display:none!important}
+.operation-card{grid-template-columns:1fr auto!important}
+.product-card-img,.product-thumb{display:none!important}
+@media(max-width:900px){.top-nav{grid-template-columns:repeat(2,1fr)}}
