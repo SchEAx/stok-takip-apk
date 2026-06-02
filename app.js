@@ -813,7 +813,7 @@ async function loadProducts() {
     renderSaleProducts();
   }
 }
-async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = data || []; renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
+async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode, location)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = data || []; renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
 async function loadStockRequests() {
   const { data, error } = await supabaseClient.from("stock_requests").select("*").in("status", ["bekliyor", "rezerve_edildi", "teslim_edildi", "montaj_bitti", "iptal"]).order("created_at", { ascending: false }).limit(150);
   if (error) { el.stockRequestsBox.innerHTML = `<div class="empty-state">Talep alınamadı: ${escapeHtml(error.message)}</div>`; return; }
@@ -897,8 +897,25 @@ function rememberProductSuggestions(payload = {}) {
 function getSuggestionValues(field) {
   const cfg = PRODUCT_SUGGESTION_FIELDS[field];
   const recent = readRecentProductSuggestions();
-  const productValues = cfg ? state.products.map(cfg.getter) : [];
-  return uniqueCleanValues([...(recent[field] || []), ...productValues]);
+  let sourceProducts = state.products || [];
+
+  // Araç modeli önerilerini, seçilen araç markasına göre daraltıyoruz.
+  // Toyota yazıldıysa sadece Toyota modelleri gelir; bütün markaların modelleri karışmaz.
+  if (field === "carModel") {
+    const selectedBrand = normalizeText(el.carBrand?.value || "");
+    if (selectedBrand) {
+      sourceProducts = sourceProducts.filter(p => normalizeText(p.carBrand) === selectedBrand);
+    }
+  }
+
+  const productValues = cfg ? sourceProducts.map(cfg.getter) : [];
+
+  // Marka seçiliyken eski genel model geçmişi karışmasın diye modelde recent'i kapatıyoruz.
+  const recentValues = field === "carModel" && normalizeText(el.carBrand?.value || "")
+    ? []
+    : (recent[field] || []);
+
+  return uniqueCleanValues([...recentValues, ...productValues]);
 }
 function closeProductSuggestBoxes(exceptBox = null) {
   document.querySelectorAll(".custom-suggest-box").forEach(box => {
@@ -914,7 +931,7 @@ function showProductSuggestions(field) {
   const query = normalizeText(input.value);
   const values = getSuggestionValues(field)
     .filter(v => !query || normalizeText(v).includes(query))
-    .slice(0, 10);
+    .slice(0, 6);
 
   closeProductSuggestBoxes();
   if (!values.length) return;
@@ -939,7 +956,10 @@ function initProductSuggestionInputs() {
     if (!input || input.dataset.suggestReady === "1") return;
     input.dataset.suggestReady = "1";
     input.addEventListener("focus", () => showProductSuggestions(field));
-    input.addEventListener("input", () => showProductSuggestions(field));
+    input.addEventListener("input", () => {
+      if (field === "carBrand") setDatalistOptions("carModelList", getSuggestionValues("carModel"));
+      showProductSuggestions(field);
+    });
     input.addEventListener("blur", () => setTimeout(() => closeProductSuggestBoxes(), 160));
   });
 }
@@ -1005,7 +1025,23 @@ function renderProducts() {
 }
 function renderMovements() {
   if (!state.movements.length) { el.movementList.innerHTML = `<div class="empty-state">Henüz hareket yok</div>`; return; }
-  el.movementList.innerHTML = state.movements.map((m) => { const productName = m.stock_products?.product_name || m.description || "-"; const type = String(m.movement_type || "").toLowerCase(); const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis"; return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`; }).join("");
+  el.movementList.innerHTML = state.movements.map((m) => {
+    const productName = m.stock_products?.product_name || m.description || "-";
+    const productLocation = m.stock_products?.location || "";
+    const type = String(m.movement_type || "").toLowerCase();
+    const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis";
+    return `<div class="movement-item">
+      <div class="movement-top">
+        <div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div>
+        <span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span>
+      </div>
+      <div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div>
+      <div>Raf / Konum: <strong>${escapeHtml(productLocation || "-")}</strong></div>
+      <div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div>
+      <div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div>
+      <div>Tarih: <strong>${formatDate(m.created_at)}</strong></div>
+    </div>`;
+  }).join("");
 }
 function getQuickQty(productId) {
   const value = Number(state.quickQty[productId] || 1);
@@ -1028,7 +1064,23 @@ function renderMovementSearchResults() {
   el.movementSearchList.innerHTML = results.map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const qty = getQuickQty(p.id);
-    return `<div class="movement-search-item"><div class="movement-search-info"><strong>${escapeHtml(p.category || p.name || "-")}</strong><div class="muted">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "-")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div><div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div></div><div class="movement-search-actions"><div class="operation-qty-row quick-qty-row"><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', -1)">-</button><input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" /><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button></div><button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button><button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button></div></div>`;
+    return `<div class="movement-search-item">
+      <div class="movement-search-info">
+        <strong>${escapeHtml(p.category || p.name || "-")}</strong>
+        <div class="muted">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "-")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div>
+        <div class="muted">Raf / Konum: <strong>${escapeHtml(p.location || "-")}</strong></div>
+        <div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div>
+      </div>
+      <div class="movement-search-actions">
+        <div class="operation-qty-row quick-qty-row">
+          <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', -1)">-</button>
+          <input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" />
+          <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button>
+        </div>
+        <button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>
+        <button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
+      </div>
+    </div>`;
   }).join("");
 }
 
@@ -1130,7 +1182,7 @@ window.operationStockAction = async function(id, type) { if (!requireRoleAction(
       product_id: id,
       movement_type: type,
       quantity,
-      description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`
+      description: `Hızlı işlem ekranı manuel ${label} · Raf: ${product.location || "-"}${actorSuffix()}`
     });
     if (movementError) throw movementError;
     if (type === "cikis") {
@@ -1178,7 +1230,7 @@ window.quickStockAction = async function(id, type, fixedQty = null) { if (!requi
   const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
   const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
   if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
+  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"} · Raf: ${product.location || "-"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
 };
 
 function formatSaleMoney(value) {

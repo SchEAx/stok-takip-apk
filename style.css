@@ -227,11 +227,12 @@
 .excel-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .excel-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .excel-filter-summary{margin-top:10px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.18);border-radius:14px;padding:10px 12px;color:#cbd5e1;font-size:13px}
+.form-grid > div{position:relative}
 .custom-suggest-input{position:relative}
-.custom-suggest-box{position:absolute;z-index:15000;width:min(420px,calc(100% - 36px));margin-top:4px;display:grid;gap:4px;border:1px solid rgba(37,99,235,.35);background:#0b1324;border-radius:14px;padding:6px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
-.custom-suggest-box button{border:0;background:transparent;color:#e5e7eb;text-align:left;border-radius:10px;padding:9px 10px;font-weight:700;cursor:pointer}
-.custom-suggest-box button:hover{background:rgba(37,99,235,.22)}
-@media(max-width:900px){.excel-filter-grid{grid-template-columns:1fr}.excel-actions .btn{width:100%}.custom-suggest-box{width:calc(100% - 36px)}}
+.custom-suggest-box{position:absolute;left:0;right:0;top:100%;z-index:15000;margin-top:6px;display:grid;gap:4px;max-height:230px;overflow-y:auto;overscroll-behavior:contain;border:1px solid rgba(37,99,235,.45);background:#0b1324;border-radius:14px;padding:6px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.custom-suggest-box button{border:0;background:transparent;color:#e5e7eb;text-align:left;border-radius:10px;padding:9px 10px;font-weight:800;cursor:pointer;font-size:14px}
+.custom-suggest-box button:hover,.custom-suggest-box button:focus{background:rgba(37,99,235,.22)}
+@media(max-width:900px){.excel-filter-grid{grid-template-columns:1fr}.excel-actions .btn{width:100%}.custom-suggest-box{max-height:205px}}
 
 /* === Excel dosya seçme APK/WebView düzeltmesi === */
 .file-picker-label{
