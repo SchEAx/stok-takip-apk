@@ -40,42 +40,30 @@
         <img src="/logo.png" alt="Logo" class="app-logo" onerror="this.style.display='none'" />
         <div>
           <h1>Stok Takip</h1>
-          <p class="muted">Depo talep / rezerv / stok sistemi</p>
+          <p class="muted">Sade stok giriş / çıkış sistemi</p>
         </div>
       </div>
       <div class="top-actions">
         <div class="user-pill" id="activeUserPill">👤 <strong id="activeUserName">-</strong><span id="activeUserRole">-</span></div>
-        <button id="notificationBellBtn" class="btn ghost notification-bell" onclick="switchTab('notifications')">🔔 <span id="notificationUnreadCount" class="notification-count hidden">0</span></button>
-        <button id="enableNotifyBtn" class="btn ghost">Bildirim Aç</button>
         <button id="refreshBtn" class="btn secondary">Yenile</button>
         <button id="logoutBtn" class="btn danger" type="button">Çıkış</button>
       </div>
     </header>
-<div id="newRequestAlert" class="new-request-alert hidden">
-  🔴 <strong id="newRequestAlertText">Yeni depo talebi var</strong>
-  <button onclick="clearNewRequestAlert()">Gördüm</button>
-</div>
     <nav class="top-nav">
-      <button id="nav-requests" onclick="switchTab('requests')">Depo</button>
       <button id="nav-operation" onclick="switchTab('operation')">İşlem</button>
       <button id="nav-add" onclick="switchTab('add')">Ürün Ekle</button>
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
-      <button id="nav-sale" onclick="switchTab('sale')">Hızlı Satış</button>
-      <button id="nav-reports" onclick="switchTab('reports')">Raporlar</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
-      <button id="nav-notifications" onclick="switchTab('notifications')">Bildirimler</button>
-      <button id="nav-history" onclick="switchTab('history')">Plaka Geçmişi</button>
       <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
     </nav>
 
     <section class="stats-grid stats-grid-4">
       <div class="card stat-card"><span class="stat-label">Toplam Ürün</span><strong id="totalProductCount">0</strong></div>
       <div class="card stat-card"><span class="stat-label">Toplam Stok</span><strong id="totalStockCount">0</strong></div>
-      <div class="card stat-card"><span class="stat-label">Rezerve</span><strong id="reservedStockCount">0</strong></div>
       <div class="card stat-card danger"><span class="stat-label">Kritik Stok</span><strong id="criticalStockCount">0</strong></div>
     </section>
 
-    <div id="page-requests" class="page">
+    <div id="page-requests" class="page hidden legacy-page">
       <section class="grid-2">
         <div class="card">
           <div class="section-head">
@@ -115,20 +103,20 @@
 
         <div class="operation-filter-grid">
           <div>
-            <label>Araç Markası</label>
-            <select id="operationBrandFilter">
-              <option value="">Tüm markalar</option>
-            </select>
-          </div>
-          <div>
             <label>Ürün Kategorisi</label>
             <select id="operationCategoryFilter">
               <option value="">Tüm kategoriler</option>
             </select>
           </div>
           <div>
+            <label>Araç Markası</label>
+            <select id="operationBrandFilter">
+              <option value="">Tüm markalar</option>
+            </select>
+          </div>
+          <div>
             <label>Model / Ürün Ara</label>
-            <input id="operationSearchInput" type="text" placeholder="Megane 4, paspas, Rizline..." autocomplete="off" />
+            <input id="operationSearchInput" type="text" placeholder="Megane 4, Egea, Clio..." autocomplete="off" />
           </div>
         </div>
 
@@ -142,7 +130,7 @@
       </section>
     </div>
 
-    <div id="page-search" class="page hidden">
+    <div id="page-search" class="page hidden legacy-page">
       <section class="card">
         <div class="section-head">
           <div><h2>Ürün Listesi</h2><p class="muted">Ürün kategorisi, araç marka/model/tip/yıl ile ara</p></div>
@@ -150,8 +138,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Görsel</th><th>Ürün Markası</th><th>Ürün Kategorisi</th><th>Araç Markası</th><th>Araç Modeli</th><th>Araç Tipi</th><th>Model Yılı</th><th>Stok</th><th>Rezerve</th><th>Kullanılabilir</th><th>Min</th><th>Raf/Konum</th><th>İşlem</th></tr></thead>
-            <tbody id="productTableBody"><tr><td colspan="13" class="empty-cell">Veri bekleniyor...</td></tr></tbody>
+            <thead><tr><th>Ürün Markası</th><th>Ürün Kategorisi</th><th>Araç Markası</th><th>Araç Modeli</th><th>Araç Tipi</th><th>Model Yılı</th><th>Stok</th><th>Rezerve</th><th>Kullanılabilir</th><th>Min</th><th>Raf/Konum</th><th>İşlem</th></tr></thead>
+            <tbody id="productTableBody"><tr><td colspan="12" class="empty-cell">Veri bekleniyor...</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -173,7 +161,7 @@
             <div><label>Mevcut Stok</label><input id="stock" type="number" min="0" step="1" placeholder="0" /></div>
             <div><label>Minimum Stok</label><input id="minStock" type="number" min="0" step="1" placeholder="0" /></div>
             <div><label>Raf / Konum</label><input id="location" class="custom-suggest-input" type="text" list="locationList" placeholder="Örn: A-12" autocomplete="off" /></div>
-            <div><label>Ürün Görsel URL</label><input id="productImage" type="url" placeholder="https://... ürün fotoğrafı" /></div>
+            <input id="productImage" type="hidden" />
             <div class="full"><label>Açıklama <span class="muted">(isteğe bağlı)</span></label><textarea id="note" rows="3" placeholder="İsteğe bağlı not"></textarea></div>
             <div class="full row-gap"><button type="submit" id="saveProductBtn" class="btn primary">Ürünü Kaydet</button><button type="button" id="clearProductBtn" class="btn ghost">Formu Temizle</button>
             <hr style="margin:20px 0;border-color:#333;">
@@ -185,7 +173,7 @@
   </div>
 
   <div class="excel-filter-grid">
-    <div><label>Ürün Markası</label><select id="excelProductBrandFilter"><option value="">Tüm markalar</option></select></div>
+    <select id="excelProductBrandFilter" class="hidden"><option value="">Tüm markalar</option></select>
     <div><label>Ürün Kategorisi</label><select id="excelCategoryFilter"><option value="">Tüm kategoriler</option></select></div>
     <div><label>Araç Markası</label><select id="excelCarBrandFilter"><option value="">Tüm araç markaları</option></select></div>
      </div>
@@ -212,7 +200,7 @@
       </section>
     </div>
 
-    <div id="page-sale" class="page hidden">
+    <div id="page-sale" class="page hidden legacy-page">
       <section class="sale-grid">
         <div class="card">
           <div class="section-head">
@@ -346,7 +334,7 @@
       <section class="card"><div class="section-head"><div><h2>Son Hareketler</h2><p class="muted">Giriş / çıkış / rezerv geçmişi</p></div></div><div id="movementList" class="movement-list"><div class="empty-state">Henüz hareket yok</div></div></section>
     </div>
 
-    <div id="page-reports" class="page hidden">
+    <div id="page-reports" class="page hidden legacy-page">
       <section class="card">
         <div class="section-head">
           <div><h2>Gelişmiş Satış Raporları</h2><p class="muted">Tarih aralığına göre ciro, ödeme, personel ve ürün raporu</p></div>
@@ -384,7 +372,7 @@
     </div>
 
 
-    <div id="page-notifications" class="page hidden">
+    <div id="page-notifications" class="page hidden legacy-page">
       <section class="card">
         <div class="section-head">
           <div>
@@ -410,7 +398,7 @@
       </section>
     </div>
 
-    <div id="page-history" class="page hidden">
+    <div id="page-history" class="page hidden legacy-page">
       <section class="card">
         <div class="section-head">
           <div><h2>Müşteri / Plaka Geçmişi</h2><p class="muted">Plaka veya müşteri adı ile depo talepleri ve stok hareketlerini bul</p></div>
