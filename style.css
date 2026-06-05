@@ -363,3 +363,10 @@
 /* === Akıllı öneri kutusu mobil sınırı === */
 .custom-suggest-box{max-height:230px;overflow-y:auto}
 .custom-suggest-box button:nth-child(n+7){display:none}
+
+
+/* === Kullanıcı / Log ayrımı === */
+.users-permission-grid{grid-template-columns:.9fr 1.1fr}
+.permission-actions{margin-top:16px}
+#page-logs .movement-list{max-height:none}
+@media(max-width:960px){.users-permission-grid{grid-template-columns:1fr}}

@@ -15,6 +15,7 @@ originalTitle: document.title,
   saleCart: [],
   lastQuickSale: null,
   operationQty: {},
+  operationResults: [], operationSearchTimer: null,
   quickQty: {},
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
@@ -139,7 +140,8 @@ const TAB_DEFINITIONS = [
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
-  { key: "users", label: "Kullanıcılar / Yetkiler" }
+  { key: "users", label: "Kullanıcılar / Yetkiler" },
+  { key: "logs", label: "Loglar" }
 ];
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
@@ -384,7 +386,7 @@ function renderRolePermissionEditor() {
         <small>${(permissions[role] || []).length} sekme aktif</small>
       </div>
       <div class="permission-check-grid">
-        ${TAB_DEFINITIONS.filter(tab => tab.key !== "users").map(tab => `
+        ${TAB_DEFINITIONS.filter(tab => !["users", "logs"].includes(tab.key)).map(tab => `
           <label class="permission-check">
             <input type="checkbox" data-role-permission="${role}" value="${tab.key}" ${(permissions[role] || []).includes(tab.key) ? "checked" : ""} />
             <span>${escapeHtml(tab.label)}</span>
@@ -1086,19 +1088,13 @@ function operationProductMatches(p, brand, category, q) {
   if (q && !productSmartSearch(p, q)) return false;
   return true;
 }
-function renderOperationResults() {
+function renderOperationCards(results) {
   if (!el.operationResultBox) return;
-  const brand = el.operationBrandFilter?.value || "";
-  const category = el.operationCategoryFilter?.value || "";
-  const q = normalizeText(el.operationSearchInput?.value || "");
-  let results = state.products.filter(p => operationProductMatches(p, brand, category, q));
-  if (!brand && !category && !q) results = results.slice(0, 20);
-  results = results.slice(0, 80);
   if (!results.length) {
     el.operationResultBox.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`;
     return;
   }
-  el.operationResultBox.innerHTML = results.map((p) => {
+  el.operationResultBox.innerHTML = results.slice(0, 80).map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const qty = getOperationQty(p.id);
     return `<div class="operation-card">
@@ -1126,6 +1122,62 @@ function renderOperationResults() {
     </div>`;
   }).join("");
 }
+
+function escapeIlikeValue(value) {
+  return String(value || "").replace(/[%_,]/g, "");
+}
+
+async function queryOperationProducts() {
+  if (!el.operationResultBox) return;
+  const brand = el.operationBrandFilter?.value || "";
+  const category = el.operationCategoryFilter?.value || "";
+  const rawSearch = String(el.operationSearchInput?.value || "").trim();
+  const q = normalizeText(rawSearch);
+
+  if (!brand && !category && q.length < 2) {
+    state.operationResults = [];
+    el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
+    return;
+  }
+
+  el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
+
+  try {
+    let query = supabaseClient
+      .from("stock_products")
+      .select("*")
+      .order("product_name", { ascending: true })
+      .limit(80);
+
+    if (brand) query = query.eq("vehicle_brand", brand);
+    if (category) query = query.eq("category", category);
+
+    const tokens = q.split(" ").filter(Boolean).slice(0, 4);
+    const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location"];
+    tokens.forEach(token => {
+      const safeToken = escapeIlikeValue(token);
+      if (safeToken.length >= 2) {
+        query = query.or(columns.map(col => `${col}.ilike.%${safeToken}%`).join(","));
+      }
+    });
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    let results = (data || []).map(mapProduct);
+    if (q) results = results.filter(p => operationProductMatches(p, brand, category, q));
+    state.operationResults = results;
+    renderOperationCards(results);
+  } catch (err) {
+    console.error(err);
+    el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler alınamadı: ${escapeHtml(err.message || err)}</div>`;
+  }
+}
+
+function renderOperationResults() {
+  clearTimeout(state.operationSearchTimer);
+  state.operationSearchTimer = setTimeout(queryOperationProducts, 250);
+}
 window.clearOperationFilters = function() {
   if (el.operationBrandFilter) el.operationBrandFilter.value = "";
   if (el.operationCategoryFilter) el.operationCategoryFilter.value = "";
@@ -1133,7 +1185,7 @@ window.clearOperationFilters = function() {
   renderOperationResults();
 };
 window.operationStockAction = async function(id, type) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
-  const product = state.products.find((p) => String(p.id) === String(id));
+  const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id));
   if (!product) return showToast("Ürün bulunamadı", true);
   const quantity = getOperationQty(id);
   const available = Number(product.stock || 0) - Number(product.reserved || 0);
@@ -1168,7 +1220,8 @@ window.operationStockAction = async function(id, type) { if (!requireRoleAction(
     }
     await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
     showToast(`${quantity} adet ${label} kaydedildi ✅`);
-    await Promise.all([loadProducts(), loadMovements()]);
+    await loadMovements();
+    await queryOperationProducts();
     renderMovementSearchResults();
   } catch (err) {
     console.error(err);
@@ -1190,8 +1243,8 @@ function renderStockRequests() {
 window.setRequestFilter = function(status) { state.requestFilter = status; renderStockRequests(); };
 function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.location, el.productImage, el.note].filter(Boolean).forEach((x) => x.value = ""); }
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; el.location.value = product.location || ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
-window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
-window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = state.products.find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); await loadAll(); } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
+window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
+window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadAll(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
   const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
   const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
@@ -2307,7 +2360,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "notifications", "history", "users"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -2321,8 +2374,14 @@ function switchTab(tab) {
   renderUsersList();
 if (tab === "operation") {
   refreshOperationFilters();
-  renderOperationResults();
+  if (el.operationResultBox && !(el.operationBrandFilter?.value || el.operationCategoryFilter?.value || String(el.operationSearchInput?.value || "").trim())) {
+    state.operationResults = [];
+    el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
+  } else {
+    renderOperationResults();
+  }
 }
+if (["add", "critical"].includes(tab) && !state.products.length) { loadProducts().catch(err => showToast(err.message || "Ürünler yüklenemedi", true)); }
 if (tab === "sale") {
   renderSaleFavorites();
   renderSaleProducts();
@@ -2333,7 +2392,8 @@ if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
-if (tab === "users") { renderUsersList(); loadActivityLogs(); }
+if (tab === "users") { renderUsersList(); renderRolePermissionEditor(); }
+if (tab === "logs") { loadActivityLogs(); }
 }
 window.switchTab = switchTab;
 function showUpdateNotice(newVersion) {
@@ -2638,7 +2698,15 @@ window.renderPlateHistory = function() {
 
 el.productForm.addEventListener("submit", async (e) => { e.preventDefault(); if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return; const payload = { id: el.productId.value.trim(), barcode: el.barcode.value.trim(), productBrand: el.productBrand.value.trim(), category: el.category.value.trim(), carBrand: el.carBrand.value.trim(), carModel: el.carModel.value.trim(), carType: el.carType.value.trim(), vehicleYear: el.vehicleYear.value.trim(), stock: el.stock.value.trim(), minStock: el.minStock.value.trim(), location: el.location.value.trim(), note: el.note.value.trim(), imageUrl: "" }; if (!payload.category || !payload.carBrand || !payload.carModel) return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true); try { setLoading(true); rememberProductSuggestions(payload); if (payload.id) { const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id); if (error) throw error; await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id); showToast("Ürün güncellendi"); } else { const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single(); if (error) throw error; await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id); showToast("Ürün kaydedildi"); } clearProductForm(); await loadProducts(); } catch (err) { console.error(err); showToast(err.message || "Ürün kaydedilemedi", true); } finally { setLoading(false); } });
 if (el.clearProductBtn) el.clearProductBtn.addEventListener("click", clearProductForm);
-if (el.refreshBtn) el.refreshBtn.addEventListener("click", loadAll);
+async function smartRefresh() {
+  if (state.activeTab === "operation") {
+    await loadMovements();
+    renderOperationResults();
+    return;
+  }
+  await loadAll();
+}
+if (el.refreshBtn) el.refreshBtn.addEventListener("click", smartRefresh);
 if (el.enableNotifyBtn) el.enableNotifyBtn.addEventListener("click", enablePushNotifications);
 if (el.searchInput) el.searchInput.addEventListener("input", applySearch);
 if (el.movementSearchInput) el.movementSearchInput.addEventListener("input", renderMovementSearchResults);
@@ -2681,7 +2749,7 @@ async function bootApp() {
   renderStaffSelector();
   switchTab(canAccessTab("operation") ? "operation" : (ROLE_DEFAULT_TAB[currentStaff().role] || "operation"));
   loadActivityLogs();
-  loadAll();
+  loadMovements().catch(err => console.error(err));
   initUpdateChecker();
 }
 bootApp();

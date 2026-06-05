@@ -55,6 +55,7 @@
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
       <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
+      <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
     </nav>
 
     <section class="stats-grid stats-grid-4">
@@ -442,40 +443,46 @@ LED"></textarea>
 
 
     <div id="page-users" class="page hidden">
-      <section class="grid-2">
+      <section class="grid-2 users-permission-grid">
         <div class="card">
           <div class="section-head">
             <div>
               <h2>Kullanıcı / Yetki Merkezi</h2>
-              <p class="muted">Personeller, roller, son giriş ve işlem kayıtları</p>
+              <p class="muted">Personeller, roller, son giriş ve yetki ayarları</p>
             </div>
             <button type="button" class="btn secondary" onclick="openStaffEditor()">⚙️ Personel Yönetimi</button>
           </div>
           <div id="usersList" class="users-list"><div class="empty-state">Personeller yükleniyor...</div></div>
         </div>
-        <div class="card">
-          <div class="section-head compact">
-            <h2>Son İşlem Kayıtları</h2>
-            <button type="button" class="btn secondary" onclick="loadActivityLogs()">Yenile</button>
-          </div>
-          <div id="activityLogList" class="movement-list"><div class="empty-state">Kayıt bekleniyor...</div></div>
-        </div>
-      </section>
 
-      <section class="card">
-        <div class="section-head">
-          <div>
-            <h2>Menü Yetkileri</h2>
-            <p class="muted">Hangi rolün hangi sekmeleri göreceğini buradan ayarla. Admin her zaman tüm sekmeleri görür.</p>
+        <div class="card">
+          <div class="section-head">
+            <div>
+              <h2>Menü Yetkileri</h2>
+              <p class="muted">Hangi rolün hangi sekmeleri göreceğini buradan ayarla. Admin her zaman tüm sekmeleri görür.</p>
+            </div>
           </div>
-          <div class="row-gap">
+          <div id="rolePermissionEditor" class="permission-editor">
+            <div class="empty-state">Menü yetkileri yükleniyor...</div>
+          </div>
+          <div class="row-gap permission-actions">
             <button type="button" class="btn success" onclick="saveRolePermissions()">Yetkileri Kaydet</button>
             <button type="button" class="btn secondary" onclick="resetRolePermissions()">Varsayılana Dön</button>
           </div>
         </div>
-        <div id="rolePermissionEditor" class="permission-editor">
-          <div class="empty-state">Menü yetkileri yükleniyor...</div>
+      </section>
+    </div>
+
+    <div id="page-logs" class="page hidden">
+      <section class="card">
+        <div class="section-head compact">
+          <div>
+            <h2>Son İşlem Kayıtları</h2>
+            <p class="muted">Silme, giriş, çıkış ve yetki değişiklikleri burada tutulur.</p>
+          </div>
+          <button type="button" class="btn secondary" onclick="loadActivityLogs()">Yenile</button>
         </div>
+        <div id="activityLogList" class="movement-list"><div class="empty-state">Kayıt bekleniyor...</div></div>
       </section>
     </div>
 
