@@ -15,7 +15,7 @@ originalTitle: document.title,
   saleCart: [],
   lastQuickSale: null,
   operationQty: {},
-  operationResults: [], operationSearchTimer: null,
+  operationResults: [], operationSearchTimer: null, operationQuerySeq: 0, operationCacheKey: "",
   quickQty: {},
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
@@ -809,7 +809,9 @@ async function loadProducts() {
   updateStats();
   refreshProductQuickLists();
   refreshOperationFilters();
-  renderOperationResults();
+  if (state.activeTab === "operation" && (el.operationBrandFilter?.value || el.operationCategoryFilter?.value || String(el.operationSearchInput?.value || "").trim().length >= 2)) {
+    renderOperationResults();
+  }
 
   if (typeof renderSaleProducts === "function") {
     renderSaleProducts();
@@ -1060,7 +1062,8 @@ function getOperationQty(productId) {
 function setOperationQty(productId, value) {
   const qty = Math.max(1, Number(value || 1));
   state.operationQty[productId] = qty;
-  renderOperationResults();
+  // Miktar değişince Supabase'e tekrar sorgu atma; sadece mevcut kartları yeniden çiz.
+  renderOperationCards(state.operationResults || []);
 }
 window.setOperationQty = setOperationQty;
 window.stepOperationQty = function(productId, step) {
@@ -1136,39 +1139,49 @@ async function queryOperationProducts() {
 
   if (!brand && !category && q.length < 2) {
     state.operationResults = [];
+    state.operationCacheKey = "";
     el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
     return;
   }
 
+  const cacheKey = [brand, category, q].join("|");
+  if (state.operationCacheKey === cacheKey && state.operationResults?.length) {
+    renderOperationCards(state.operationResults);
+    return;
+  }
+
+  const seq = ++state.operationQuerySeq;
   el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
 
   try {
     let query = supabaseClient
       .from("stock_products")
-      .select("*")
+      .select("id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at")
       .order("product_name", { ascending: true })
       .limit(80);
 
     if (brand) query = query.eq("vehicle_brand", brand);
     if (category) query = query.eq("category", category);
 
-    const tokens = q.split(" ").filter(Boolean).slice(0, 4);
-    const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location"];
-    tokens.forEach(token => {
-      const safeToken = escapeIlikeValue(token);
-      if (safeToken.length >= 2) {
-        query = query.or(columns.map(col => `${col}.ilike.%${safeToken}%`).join(","));
-      }
-    });
+    const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 3);
+    if (tokens.length) {
+      const safe = escapeIlikeValue(tokens.join(" "));
+      // Tek OR sorgusu daha hızlı; kalan akıllı eleme aşağıda JS tarafında yapılıyor.
+      const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location"];
+      query = query.or(columns.map(col => `${col}.ilike.%${safe}%`).join(","));
+    }
 
     const { data, error } = await query;
     if (error) throw error;
+    if (seq !== state.operationQuerySeq) return; // Eski/yavaş dönen sorguyu ekrana basma.
 
     let results = (data || []).map(mapProduct);
     if (q) results = results.filter(p => operationProductMatches(p, brand, category, q));
     state.operationResults = results;
+    state.operationCacheKey = cacheKey;
     renderOperationCards(results);
   } catch (err) {
+    if (seq !== state.operationQuerySeq) return;
     console.error(err);
     el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler alınamadı: ${escapeHtml(err.message || err)}</div>`;
   }
@@ -1182,7 +1195,10 @@ window.clearOperationFilters = function() {
   if (el.operationBrandFilter) el.operationBrandFilter.value = "";
   if (el.operationCategoryFilter) el.operationCategoryFilter.value = "";
   if (el.operationSearchInput) el.operationSearchInput.value = "";
-  renderOperationResults();
+  clearTimeout(state.operationSearchTimer);
+  state.operationResults = [];
+  state.operationCacheKey = "";
+  if (el.operationResultBox) el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
 };
 window.operationStockAction = async function(id, type) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
   const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id));
@@ -1219,9 +1235,16 @@ window.operationStockAction = async function(id, type) { if (!requireRoleAction(
       }
     }
     await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
+    // Ekranı anında güncelle; stok işlemi sonrası tekrar büyük sorgu bekleme.
+    product.stock = newQty;
+    const idx = state.operationResults.findIndex(p => String(p.id) === String(id));
+    if (idx >= 0) state.operationResults[idx] = product;
+    const allIdx = state.products.findIndex(p => String(p.id) === String(id));
+    if (allIdx >= 0) state.products[allIdx].stock = newQty;
+    renderOperationCards(state.operationResults || []);
+    updateStats();
     showToast(`${quantity} adet ${label} kaydedildi ✅`);
-    await loadMovements();
-    await queryOperationProducts();
+    loadMovements().catch(err => console.warn("Hareketler yenilenemedi:", err));
     renderMovementSearchResults();
   } catch (err) {
     console.error(err);
