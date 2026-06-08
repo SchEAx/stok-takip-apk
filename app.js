@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.0-sade-stok';
+const APP_VERSION = '2.0.1-sade-stok';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -187,9 +187,14 @@ async function loadRolePermissionsFromSupabase() {
 }
 async function saveRolePermissionsToSupabase(permissions) {
   try {
-    await supabaseClient.from("app_settings").upsert({ key: "role_permissions", value: normalizeRolePermissions(permissions), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    const { error } = await supabaseClient
+      .from("app_settings")
+      .upsert({ key: "role_permissions", value: normalizeRolePermissions(permissions), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) throw error;
+    return true;
   } catch (err) {
     console.warn("Yetki ayarları Supabase'e yazılamadı:", err?.message || err);
+    return false;
   }
 }
 function permissionsForRole(role) { return readRolePermissions()[role] || readRolePermissions().kasa; }
@@ -399,23 +404,27 @@ function renderRolePermissionEditor() {
 }
 window.renderRolePermissionEditor = renderRolePermissionEditor;
 
-window.saveRolePermissions = function() {
+window.saveRolePermissions = async function() {
   if (!requireRoleAction(["admin"], "Menü yetkilerini sadece Admin düzenleyebilir")) return;
   const current = readRolePermissions();
   ["depo", "kasa", "satis", "usta"].forEach(role => {
     current[role] = [...document.querySelectorAll(`[data-role-permission="${role}"]:checked`)].map(input => input.value);
   });
-  writeRolePermissions(current);
+  const normalized = normalizeRolePermissions(current);
+  localStorage.setItem(ROLE_PERMISSION_STORE_KEY, JSON.stringify(normalized));
+  const syncOk = await saveRolePermissionsToSupabase(normalized);
+  if (!syncOk) return showToast("Yetkiler cihaza kaydedildi ama Supabase'e yazılamadı", true);
   applyRoleVisibility();
   renderRolePermissionEditor();
-  logActivity("role_permissions", "Rol bazlı menü yetkileri güncellendi", "permissions", "menu");
+  await logActivity("role_permissions", "Rol bazlı menü yetkileri güncellendi", "permissions", "menu");
   showToast("Menü yetkileri kaydedildi ✅");
 };
 
 window.resetRolePermissions = async function() {
   if (!requireRoleAction(["admin"], "Menü yetkilerini sadece Admin sıfırlayabilir")) return;
   if (!(await appConfirm("Menü yetkileri varsayılana dönsün mü?", { danger: true }))) return;
-  localStorage.removeItem(ROLE_PERMISSION_STORE_KEY);
+  localStorage.setItem(ROLE_PERMISSION_STORE_KEY, JSON.stringify(normalizeRolePermissions(null)));
+  await saveRolePermissionsToSupabase(normalizeRolePermissions(null));
   applyRoleVisibility();
   renderRolePermissionEditor();
   logActivity("role_permissions_reset", "Rol bazlı menü yetkileri varsayılana döndü", "permissions", "menu");
@@ -1061,7 +1070,7 @@ window.clearExcelFilters = function() {
   updateExcelFilterSummary();
 };
 
-function productSearchText(p) { return normalizeText([p.name, p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear, p.location, p.note].join(" ")); }
+function productSearchText(p) { return normalizeText([p.name, p.barcode, p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear, p.location, p.note].join(" ")); }
 function productSmartSearch(p, rawQuery) {
   const q = normalizeText(rawQuery);
   if (!q) return true;
@@ -1231,17 +1240,22 @@ async function queryOperationProducts() {
       .from("stock_products")
       .select("id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at")
       .order("product_name", { ascending: true })
-      .limit(80);
+      .limit(q ? 300 : 80);
 
     if (brand) query = query.eq("vehicle_brand", brand);
     if (category) query = query.eq("category", category);
 
-    const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 3);
+    const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 5);
     if (tokens.length) {
-      const safe = escapeIlikeValue(tokens.join(" "));
-      // Tek OR sorgusu daha hızlı; kalan akıllı eleme aşağıda JS tarafında yapılıyor.
-      const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location"];
-      query = query.or(columns.map(col => `${col}.ilike.%${safe}%`).join(","));
+      // "paspas clio" gibi aramalarda kelimeler farklı kolonlarda olabilir.
+      // Supabase'ten geniş aday listeyi alıp asıl akıllı eşleşmeyi aşağıda JS tarafında yapıyoruz.
+      const columns = ["product_name", "barcode", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location", "note"];
+      const ors = [];
+      tokens.forEach(token => {
+        const safe = escapeIlikeValue(token);
+        if (safe) columns.forEach(col => ors.push(`${col}.ilike.%${safe}%`));
+      });
+      if (ors.length) query = query.or(ors.join(","));
     }
 
     const { data, error } = await query;
@@ -1342,11 +1356,51 @@ function fillProductForm(product) { el.productId.value = product.id || ""; el.ba
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
-  const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
-  const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
-  const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
+  const product = state.products.find((p) => String(p.id) === String(id)) || (state.operationResults || []).find((p) => String(p.id) === String(id));
+  if (!product) return showToast("Ürün bulunamadı", true);
+  const quantity = Number(fixedQty || getQuickQty(id) || 1);
+  if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
+  const available = Number(product.stock || 0) - Number(product.reserved || 0);
+  if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
+  const label = type === "giris" ? "giriş" : "çıkış";
+  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
+  try {
+    setLoading(true);
+    const newQty = type === "giris" ? Number(product.stock || 0) + quantity : Number(product.stock || 0) - quantity;
+    const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id);
+    if (updateError) throw updateError;
+    const { error: movementError } = await supabaseClient.from("stock_movements").insert({
+      product_id: id,
+      movement_type: type,
+      quantity,
+      description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}`
+    });
+    if (movementError) throw movementError;
+    if (type === "cikis") {
+      const minStock = Number(product.minStock || 0);
+      const willAvailable = newQty - Number(product.reserved || 0);
+      if (willAvailable <= minStock) {
+        await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id });
+      }
+    }
+    await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
+    // Sadece işlem yapılan ürünü ekranda güncelle; 5000+ ürünü baştan çekme.
+    product.stock = newQty;
+    const allIdx = state.products.findIndex(p => String(p.id) === String(id));
+    if (allIdx >= 0) state.products[allIdx].stock = newQty;
+    const opIdx = state.operationResults.findIndex(p => String(p.id) === String(id));
+    if (opIdx >= 0) state.operationResults[opIdx].stock = newQty;
+    renderMovementSearchResults();
+    if (state.activeTab === "operation") renderOperationCards(state.operationResults || []);
+    loadDashboardStats().catch(() => updateStats());
+    loadMovements().catch(err => console.warn("Hareketler yenilenemedi:", err));
+    showToast(`${quantity} adet ${label} kaydedildi ✅`);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Hareket kaydedilemedi", true);
+  } finally {
+    setLoading(false);
+  }
 };
 
 function formatSaleMoney(value) {
