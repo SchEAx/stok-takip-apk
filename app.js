@@ -1119,12 +1119,30 @@ window.stepQuickQty = function(productId, step) {
 function renderMovementSearchResults() {
   const q = normalizeText(el.movementSearchInput.value);
   if (!q) { el.movementSearchList.innerHTML = `<div class="empty-state">Arama yaparak ürün seç</div>`; return; }
-  const results = state.products.filter((p) => productSmartSearch(p, q)).slice(0, 30);
+  const results = state.products.filter((p) => productSmartSearch(p, q)).slice(0, 50);
   if (!results.length) { el.movementSearchList.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`; return; }
   el.movementSearchList.innerHTML = results.map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const qty = getQuickQty(p.id);
-    return `<div class="movement-search-item"><div class="movement-search-info"><strong>${escapeHtml(p.category || p.name || "-")}</strong><div class="muted">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "-")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div><div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div></div><div class="movement-search-actions"><div class="operation-qty-row quick-qty-row"><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', -1)">-</button><input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" /><button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button></div><button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button><button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button></div></div>`;
+    const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
+    return `<div class="movement-search-item">
+      <div class="movement-search-info">
+        <strong>${escapeHtml(p.name || p.category || "-")}</strong>
+        <div class="muted">Ürün Marka: <strong>${escapeHtml(p.productBrand || "-")}</strong> · Kategori: <strong>${escapeHtml(p.category || "-")}</strong></div>
+        <div class="muted">Araç: <strong>${escapeHtml(vehicle || "-")}</strong> · Raf: <strong>${escapeHtml(p.location || "-")}</strong>${p.barcode ? ` · Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""}</div>
+        ${p.note ? `<div class="muted">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
+        <div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div>
+      </div>
+      <div class="movement-search-actions">
+        <div class="operation-qty-row quick-qty-row">
+          <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', -1)">-</button>
+          <input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" />
+          <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button>
+        </div>
+        <button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>
+        <button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
+      </div>
+    </div>`;
   }).join("");
 }
 
@@ -1170,18 +1188,27 @@ function renderOperationCards(results) {
     el.operationResultBox.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`;
     return;
   }
-  el.operationResultBox.innerHTML = results.slice(0, 80).map((p) => {
+  el.operationResultBox.innerHTML = results.slice(0, 120).map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const qty = getOperationQty(p.id);
+    const detailLine = [
+      p.productBrand ? `Ürün Marka: <strong>${escapeHtml(p.productBrand)}</strong>` : "",
+      p.category ? `Kategori: <strong>${escapeHtml(p.category)}</strong>` : "",
+      p.carBrand ? `Araç: <strong>${escapeHtml([p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" "))}</strong>` : "",
+      p.location ? `Raf: <strong>${escapeHtml(p.location)}</strong>` : "",
+      p.barcode ? `Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""
+    ].filter(Boolean).join(" · ");
+
     return `<div class="operation-card">
       <div class="operation-main">
         <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
-        <div class="operation-meta">${escapeHtml(p.productBrand || "-")} / ${escapeHtml(p.carBrand || "-")} ${escapeHtml(p.carModel || "")} ${escapeHtml(p.carType || "")} ${escapeHtml(p.vehicleYear || "")}</div>
-        <div class="operation-meta">Kategori: <strong>${escapeHtml(p.category || "-")}</strong> · Raf: <strong>${escapeHtml(p.location || "-")}</strong></div>
+        <div class="operation-meta">${detailLine || "-"}</div>
+        ${p.note ? `<div class="operation-meta operation-note">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
         <div class="operation-stock-row">
           <span>Stok: <b>${Number(p.stock || 0)}</b></span>
           <span>Rezerve: <b>${Number(p.reserved || 0)}</b></span>
           <span>Kullanılabilir: <b class="${available <= 0 ? "stock-warning" : ""}">${available}</b></span>
+          <span>Min: <b>${Number(p.minStock || 0)}</b></span>
         </div>
       </div>
       <div class="operation-actions">
@@ -1233,15 +1260,16 @@ function uniqueRowsById(rows) {
   return [...map.values()];
 }
 
-async function queryOperationProducts() {
+async async function queryOperationProducts() {
   if (!el.operationResultBox) return;
 
   const brand = el.operationBrandFilter?.value || "";
   const category = el.operationCategoryFilter?.value || "";
   const rawSearch = String(el.operationSearchInput?.value || "").trim();
   const q = normalizeText(rawSearch);
+  const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 6);
 
-  if (!brand && !category && q.length < 2) {
+  if (!brand && !category && tokens.length === 0) {
     state.operationResults = [];
     state.operationCacheKey = "";
     el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
@@ -1258,40 +1286,36 @@ async function queryOperationProducts() {
   el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
 
   try {
-    let query = supabaseClient
-      .from("stock_products")
-      .select("id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at")
-      .order("product_name", { ascending: true })
-      .limit(200);
+    let rows = [];
 
-    if (brand) query = query.eq("vehicle_brand", brand);
-    if (category) query = query.eq("category", category);
-
-    const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 5);
-
+    // Eski mantık tek sorguda ilk 200 sonucu alıyordu; aranan ürün 201. sıradaysa kayboluyordu.
+    // Yeni mantık: "kaput doblo" yazınca kaput ve doblo için ayrı ayrı geniş arama yapar,
+    // sonra ürün ekle kısmındaki productSmartSearch ile içeride kesin eşleştirir.
     if (tokens.length) {
-      const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location", "note", "barcode"];
-      const ors = [];
-
-      tokens.forEach(token => {
-        const safe = escapeIlikeValue(token);
-        columns.forEach(col => ors.push(`${col}.ilike.%${safe}%`));
-      });
-
-      query = query.or(ors.join(","));
+      const searches = tokens.map(token =>
+        fetchOperationProductRows({ brand, category, token, limit: 1000 })
+      );
+      rows = uniqueRowsById((await Promise.all(searches)).flat());
+    } else {
+      rows = await fetchOperationProductRows({ brand, category, token: "", limit: 1000 });
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
     if (seq !== state.operationQuerySeq) return;
 
-    let results = (data || []).map(mapProduct);
+    let results = rows.map(mapProduct).filter(p =>
+      operationProductMatches(p, brand, category, rawSearch) ||
+      barcodeSmartSearch(p, rawSearch)
+    );
 
-    if (q) {
-      results = results.filter(p =>
-        operationProductMatches(p, brand, category, rawSearch) ||
-        barcodeSmartSearch(p, rawSearch)
-      );
+    // Daha anlaşılır sıralama: tüm kelimeleri adı/kategori/model içinde yakalayanlar üstte.
+    if (tokens.length) {
+      results.sort((a, b) => {
+        const at = productSearchText(a);
+        const bt = productSearchText(b);
+        const as = tokens.reduce((sum, token) => sum + (at.includes(token) ? 2 : 0), 0);
+        const bs = tokens.reduce((sum, token) => sum + (bt.includes(token) ? 2 : 0), 0);
+        return bs - as || String(a.name || "").localeCompare(String(b.name || ""), "tr");
+      });
     }
 
     state.operationResults = results;
