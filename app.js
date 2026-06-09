@@ -1260,7 +1260,7 @@ function uniqueRowsById(rows) {
   return [...map.values()];
 }
 
-async async function queryOperationProducts() {
+async function queryOperationProducts() {
   if (!el.operationResultBox) return;
 
   const brand = el.operationBrandFilter?.value || "";
