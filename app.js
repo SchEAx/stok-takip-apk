@@ -1240,7 +1240,6 @@ async function queryOperationProducts() {
   const category = el.operationCategoryFilter?.value || "";
   const rawSearch = String(el.operationSearchInput?.value || "").trim();
   const q = normalizeText(rawSearch);
-  const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 5);
 
   if (!brand && !category && q.length < 2) {
     state.operationResults = [];
@@ -1250,8 +1249,8 @@ async function queryOperationProducts() {
   }
 
   const cacheKey = [brand, category, q].join("|");
-  if (state.operationCacheKey === cacheKey) {
-    renderOperationCards(state.operationResults || []);
+  if (state.operationCacheKey === cacheKey && state.operationResults?.length) {
+    renderOperationCards(state.operationResults);
     return;
   }
 
@@ -1259,40 +1258,45 @@ async function queryOperationProducts() {
   el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
 
   try {
-    let rows = [];
+    let query = supabaseClient
+      .from("stock_products")
+      .select("id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at")
+      .order("product_name", { ascending: true })
+      .limit(200);
+
+    if (brand) query = query.eq("vehicle_brand", brand);
+    if (category) query = query.eq("category", category);
+
+    const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 5);
 
     if (tokens.length) {
-      // "paspas clio" gibi aramalarda kelimeler farklı kolonlarda durabiliyor.
-      // Bu yüzden tek cümle olarak değil, her kelime için ayrı çekip sonra JS tarafında
-      // tüm kelimeler geçiyor mu diye filtreliyoruz.
-      const chunkLists = await Promise.all(
-        tokens.map(token => fetchOperationProductRows({ brand, category, token, limit: 600 }))
-      );
-      rows = uniqueRowsById(chunkLists.flat());
-    } else {
-      rows = await fetchOperationProductRows({ brand, category, limit: 600 });
+      const columns = ["product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location", "note", "barcode"];
+      const ors = [];
+
+      tokens.forEach(token => {
+        const safe = escapeIlikeValue(token);
+        columns.forEach(col => ors.push(`${col}.ilike.%${safe}%`));
+      });
+
+      query = query.or(ors.join(","));
     }
 
+    const { data, error } = await query;
+    if (error) throw error;
     if (seq !== state.operationQuerySeq) return;
 
-    let results = rows.map(mapProduct);
-    results = results.filter(p => operationProductMatches(p, brand, category, rawSearch));
+    let results = (data || []).map(mapProduct);
 
-    // Önce en güçlü eşleşmeler gelsin: kategori/model/marka içinde geçenleri üste al.
-    const scoreProduct = (p) => {
-      const searchMain = normalizeText([p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear].join(" "));
-      const searchAll = productSearchText(p);
-      return tokens.reduce((sum, token) => {
-        if (searchMain.includes(token)) return sum + 3;
-        if (searchAll.includes(token)) return sum + 1;
-        return sum;
-      }, 0);
-    };
-    results.sort((a, b) => scoreProduct(b) - scoreProduct(a));
+    if (q) {
+      results = results.filter(p =>
+        operationProductMatches(p, brand, category, rawSearch) ||
+        barcodeSmartSearch(p, rawSearch)
+      );
+    }
 
-    state.operationResults = results.slice(0, 80);
+    state.operationResults = results;
     state.operationCacheKey = cacheKey;
-    renderOperationCards(state.operationResults);
+    renderOperationCards(results);
   } catch (err) {
     if (seq !== state.operationQuerySeq) return;
     console.error(err);
