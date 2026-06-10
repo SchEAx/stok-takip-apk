@@ -16,6 +16,7 @@ originalTitle: document.title,
   lastQuickSale: null,
   operationQty: {},
   operationResults: [], operationSearchTimer: null, operationQuerySeq: 0, operationCacheKey: "",
+  movementResults: [], movementSearchTimer: null, movementQuerySeq: 0,
   operationFilterOptionsLoaded: false, operationBrands: [], operationCategories: [],
   quickQty: {},
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
@@ -38,6 +39,10 @@ excelCategoryFilter: document.getElementById("excelCategoryFilter"),
 excelCarBrandFilter: document.getElementById("excelCarBrandFilter"),
 excelFilterSummary: document.getElementById("excelFilterSummary")
 };
+
+// Performans notu: Ürün arama ekranlarında sadece görünen/gerekli kolonları çekiyoruz.
+// Böylece özellikle tablet/WebView tarafında gereksiz veri ve RAM tüketimi azalır.
+const STOCK_PRODUCT_SELECT = "id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at";
 
 
 // APK/WebView içinde alert/confirm bazen çalışmadığı için uygulama içi onay penceresi.
@@ -782,6 +787,23 @@ window.clearNewRequestAlert = function() {
 function setLoading(flag) { state.loading = flag; el.refreshBtn.disabled = flag; el.saveProductBtn.disabled = flag; el.movementSearchInput.disabled = flag; el.refreshBtn.textContent = flag ? "Yükleniyor..." : "Yenile"; el.saveProductBtn.textContent = flag ? "Kaydediliyor..." : "Ürünü Kaydet"; }
 
 async function loadDashboardStats() {
+  // Önce Supabase SQL fonksiyonunu dener. Fonksiyon yoksa eski güvenli yönteme düşer.
+  // Böylece SQL paketini çalıştırmadan da uygulama bozulmaz.
+  try {
+    const { data, error } = await supabaseClient.rpc("stock_dashboard_stats");
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error("Sayaç sonucu boş geldi");
+
+    if (el.totalProductCount) el.totalProductCount.textContent = Number(row.total_products || 0);
+    if (el.totalStockCount) el.totalStockCount.textContent = Number(row.total_stock || 0);
+    if (el.reservedStockCount) el.reservedStockCount.textContent = Number(row.reserved_stock || 0);
+    if (el.criticalStockCount) el.criticalStockCount.textContent = Number(row.critical_stock || 0);
+    return;
+  } catch (rpcErr) {
+    console.warn("stock_dashboard_stats RPC yok/çalışmadı, eski sayaç yöntemine düşüldü:", rpcErr?.message || rpcErr);
+  }
+
   try {
     const { count, error: countError } = await supabaseClient
       .from("stock_products")
@@ -821,7 +843,6 @@ async function loadDashboardStats() {
     if (el.criticalStockCount) el.criticalStockCount.textContent = critical;
   } catch (err) {
     console.warn("Sayaçlar alınamadı:", err?.message || err);
-    // Son çare: ürün listesi zaten yüklenmişse eski yöntemle hesapla.
     if (state.products?.length) updateStats();
   }
 }
@@ -1110,18 +1131,16 @@ function getQuickQty(productId) {
 function setQuickQty(productId, value) {
   const qty = Math.max(1, Number(value || 1));
   state.quickQty[productId] = qty;
-  renderMovementSearchResults();
+  renderMovementCards(state.movementResults || []);
 }
 window.setQuickQty = setQuickQty;
 window.stepQuickQty = function(productId, step) {
   setQuickQty(productId, getQuickQty(productId) + Number(step || 0));
 };
-function renderMovementSearchResults() {
-  const q = normalizeText(el.movementSearchInput.value);
-  if (!q) { el.movementSearchList.innerHTML = `<div class="empty-state">Arama yaparak ürün seç</div>`; return; }
-  const results = state.products.filter((p) => productSmartSearch(p, q)).slice(0, 50);
+function renderMovementCards(results) {
+  if (!el.movementSearchList) return;
   if (!results.length) { el.movementSearchList.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`; return; }
-  el.movementSearchList.innerHTML = results.map((p) => {
+  el.movementSearchList.innerHTML = results.slice(0, 60).map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const qty = getQuickQty(p.id);
     const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
@@ -1144,6 +1163,42 @@ function renderMovementSearchResults() {
       </div>
     </div>`;
   }).join("");
+}
+function renderMovementSearchResults() {
+  if (!el.movementSearchInput || !el.movementSearchList) return;
+  const rawSearch = String(el.movementSearchInput.value || "").trim();
+  const q = normalizeText(rawSearch);
+  clearTimeout(state.movementSearchTimer);
+
+  if (!q) {
+    state.movementResults = [];
+    el.movementSearchList.innerHTML = `<div class="empty-state">Arama yaparak ürün seç</div>`;
+    return;
+  }
+  if (q.length < 2) {
+    state.movementResults = [];
+    el.movementSearchList.innerHTML = `<div class="empty-state">En az 2 karakter yaz</div>`;
+    return;
+  }
+
+  const seq = ++state.movementQuerySeq;
+  el.movementSearchList.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
+
+  state.movementSearchTimer = setTimeout(async () => {
+    try {
+      const rows = await searchStockProducts({ search: rawSearch, limit: 80 });
+      if (seq !== state.movementQuerySeq) return;
+      const results = rows.map(mapProduct).filter(p =>
+        productSmartSearch(p, rawSearch) || barcodeSmartSearch(p, rawSearch)
+      );
+      state.movementResults = results;
+      renderMovementCards(results);
+    } catch (err) {
+      if (seq !== state.movementQuerySeq) return;
+      console.error(err);
+      el.movementSearchList.innerHTML = `<div class="empty-state">Ürünler alınamadı: ${escapeHtml(err.message || err)}</div>`;
+    }
+  }, 250);
 }
 
 function getOperationQty(productId) {
@@ -1233,7 +1288,7 @@ function escapeIlikeValue(value) {
 async function fetchOperationProductRows({ brand = "", category = "", token = "", limit = 600 } = {}) {
   let query = supabaseClient
     .from("stock_products")
-    .select("id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at")
+    .select(STOCK_PRODUCT_SELECT)
     .order("product_name", { ascending: true })
     .limit(limit);
 
@@ -1258,6 +1313,35 @@ function uniqueRowsById(rows) {
     map.set(String(row.id), row);
   });
   return [...map.values()];
+}
+
+async function searchStockProducts({ brand = "", category = "", search = "", limit = 120 } = {}) {
+  const rawSearch = String(search || "").trim();
+
+  // SQL paketindeki search_stock_products fonksiyonu varsa tek sorgu ile hızlı arar.
+  // Fonksiyon henüz kurulmadıysa catch içinde mevcut güvenli JS/Supabase arama mantığı devam eder.
+  try {
+    const { data, error } = await supabaseClient.rpc("search_stock_products", {
+      p_brand: brand || null,
+      p_category: category || null,
+      p_search: rawSearch || null,
+      p_limit: Number(limit || 120)
+    });
+    if (error) throw error;
+    return data || [];
+  } catch (rpcErr) {
+    console.warn("search_stock_products RPC yok/çalışmadı, eski arama yöntemine düşüldü:", rpcErr?.message || rpcErr);
+  }
+
+  const q = normalizeText(rawSearch);
+  const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 6);
+  if (tokens.length) {
+    const searches = tokens.map(token =>
+      fetchOperationProductRows({ brand, category, token, limit: Math.max(Number(limit || 120) * 4, 400) })
+    );
+    return uniqueRowsById((await Promise.all(searches)).flat()).slice(0, Math.max(Number(limit || 120) * 4, 400));
+  }
+  return fetchOperationProductRows({ brand, category, token: "", limit });
 }
 
 async function queryOperationProducts() {
@@ -1286,19 +1370,8 @@ async function queryOperationProducts() {
   el.operationResultBox.innerHTML = `<div class="empty-state">Ürünler aranıyor...</div>`;
 
   try {
-    let rows = [];
-
-    // Eski mantık tek sorguda ilk 200 sonucu alıyordu; aranan ürün 201. sıradaysa kayboluyordu.
-    // Yeni mantık: "kaput doblo" yazınca kaput ve doblo için ayrı ayrı geniş arama yapar,
-    // sonra ürün ekle kısmındaki productSmartSearch ile içeride kesin eşleştirir.
-    if (tokens.length) {
-      const searches = tokens.map(token =>
-        fetchOperationProductRows({ brand, category, token, limit: 1000 })
-      );
-      rows = uniqueRowsById((await Promise.all(searches)).flat());
-    } else {
-      rows = await fetchOperationProductRows({ brand, category, token: "", limit: 1000 });
-    }
+    // Öncelik SQL tarafındaki hızlı arama fonksiyonunda; yoksa searchStockProducts eski yönteme düşer.
+    let rows = await searchStockProducts({ brand, category, search: rawSearch, limit: 160 });
 
     if (seq !== state.operationQuerySeq) return;
 
@@ -1407,14 +1480,24 @@ function renderStockRequests() {
 window.setRequestFilter = function(status) { state.requestFilter = status; renderStockRequests(); };
 function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.location, el.productImage, el.note].filter(Boolean).forEach((x) => x.value = ""); }
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; el.location.value = product.location || ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
-window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
-window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
+window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
+window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
-  const product = state.products.find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
+  const product = [...(state.movementResults || []), ...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
   const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
   const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
   if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`); await loadAll(); renderMovementSearchResults(); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
+  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } product.stock = newQty;
+    const midx = state.movementResults.findIndex(p => String(p.id) === String(id));
+    if (midx >= 0) state.movementResults[midx].stock = newQty;
+    const oidx = state.operationResults.findIndex(p => String(p.id) === String(id));
+    if (oidx >= 0) state.operationResults[oidx].stock = newQty;
+    const pidx = state.products.findIndex(p => String(p.id) === String(id));
+    if (pidx >= 0) state.products[pidx].stock = newQty;
+    showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`);
+    loadDashboardStats().catch(() => updateStats());
+    loadMovements().catch(err => console.warn("Hareketler yenilenemedi:", err));
+    renderMovementCards(state.movementResults || []); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
 };
 
 function formatSaleMoney(value) {
@@ -2946,9 +3029,36 @@ async function heartbeatCurrentUser() {
 setInterval(heartbeatCurrentUser, 30000);
 
 heartbeatCurrentUser();
+async function fetchProductsForExcel() {
+  const filters = getExcelFilterValues();
+  let allRows = [];
+  let from = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    let query = supabaseClient
+      .from("stock_products")
+      .select(STOCK_PRODUCT_SELECT)
+      .order("product_name", { ascending: true })
+      .range(from, to);
+
+    if (filters.category) query = query.eq("category", filters.category);
+    if (filters.carBrand) query = query.eq("vehicle_brand", filters.carBrand);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    allRows = allRows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows.map(mapProduct);
+}
+
 async function downloadStockExcel() {
   try {
-    const selectedProducts = getFilteredProductsForExcel();
+    const selectedProducts = await fetchProductsForExcel();
     if (!selectedProducts.length) {
       showToast("Bu filtrede indirilecek ürün yok", true);
       return;
