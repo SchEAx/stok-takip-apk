@@ -167,8 +167,9 @@
               <label>Ürün Resmi <span class="muted">(isteğe bağlı)</span></label>
               <div id="productImagePreview" class="product-image-preview"><div class="product-image-empty">📷<span>Resim yok</span></div></div>
               <div class="product-image-actions row-gap">
-                <label for="productImageFile" class="btn secondary file-picker-label">📷 Resim Seç</label>
-                <input type="file" id="productImageFile" class="file-pick-input" accept="image/*" />
+                <label class="btn secondary file-picker-label product-image-picker">📷 Resim Seç
+                  <input type="file" id="productImageFile" class="native-file-input" accept="image/*" onchange="handleProductImageFile(event)" />
+                </label>
                 <button type="button" id="productImageViewBtn" class="btn ghost" disabled>Resmi Gör</button>
                 <button type="button" id="productImageRemoveBtn" class="btn danger" disabled>Resmi Sil</button>
               </div>

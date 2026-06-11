@@ -37,12 +37,20 @@ saleCustomerPhone: document.getElementById("saleCustomerPhone"), saleCustomerNot
 excelProductBrandFilter: document.getElementById("excelProductBrandFilter"),
 excelCategoryFilter: document.getElementById("excelCategoryFilter"),
 excelCarBrandFilter: document.getElementById("excelCarBrandFilter"),
-excelFilterSummary: document.getElementById("excelFilterSummary")
+excelFilterSummary: document.getElementById("excelFilterSummary"),
+productImageFile: document.getElementById("productImageFile"),
+productImagePreview: document.getElementById("productImagePreview"),
+productImageStatus: document.getElementById("productImageStatus"),
+productImageRemoveBtn: document.getElementById("productImageRemoveBtn"),
+productImageViewBtn: document.getElementById("productImageViewBtn")
 };
 
 // Performans notu: Ürün arama ekranlarında sadece görünen/gerekli kolonları çekiyoruz.
 // Böylece özellikle tablet/WebView tarafında gereksiz veri ve RAM tüketimi azalır.
-const STOCK_PRODUCT_SELECT = "id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,created_at";
+const STOCK_IMAGE_BUCKET = "product-images";
+const STOCK_IMAGE_MAX_SIZE = 1200;
+const STOCK_IMAGE_QUALITY = 0.72;
+const STOCK_PRODUCT_SELECT = "id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,image_url,image_thumb_url,created_at";
 
 
 // APK/WebView içinde alert/confirm bazen çalışmadığı için uygulama içi onay penceresi.
@@ -652,11 +660,22 @@ function extractImageUrlFromNote(note) {
 function stripImageUrlFromNote(note) {
   return String(note || "").replace(/\s*\[IMG:[^\]]+\]\s*/ig, " ").replace(/\s+/g, " ").trim();
 }
-function mergeNoteWithImage(note, imageUrl) {
-  return stripImageUrlFromNote(note) || null;
+function publicUrlToStoragePath(url) {
+  const value = String(url || "").trim();
+  const marker = `/storage/v1/object/public/${STOCK_IMAGE_BUCKET}/`;
+  const index = value.indexOf(marker);
+  if (index < 0) return "";
+  return decodeURIComponent(value.slice(index + marker.length).split("?")[0]);
+}
+function productImageHtml(p, sizeClass = "product-card-img") {
+  const url = p?.imageThumbUrl || p?.imageUrl || "";
+  return url
+    ? `<img class="${sizeClass}" src="${escapeHtml(url)}" alt="Ürün resmi" loading="lazy" onclick="openProductImage('${escapeHtml(p.imageUrl || url)}')" />`
+    : `<div class="${sizeClass} empty" title="Resim yok">📷</div>`;
 }
 function mapProduct(row) {
-  return { id: row.id || "", barcode: row.barcode || "", name: row.product_name || buildProductName(row), productBrand: row.product_brand || "", category: row.category || "", carBrand: row.vehicle_brand || "", carModel: row.vehicle_model || "", carType: row.vehicle_type || "", vehicleYear: row.vehicle_year || "", stock: Number(row.quantity || 0), reserved: Number(row.reserved_quantity || 0), minStock: Number(row.min_stock || 0), location: row.location || "", note: stripImageUrlFromNote(row.note || ""), imageUrl: "", createdAt: row.created_at || "" };
+  const imageUrl = row.image_url || extractImageUrlFromNote(row.note || "");
+  return { id: row.id || "", barcode: row.barcode || "", name: row.product_name || buildProductName(row), productBrand: row.product_brand || "", category: row.category || "", carBrand: row.vehicle_brand || "", carModel: row.vehicle_model || "", carType: row.vehicle_type || "", vehicleYear: row.vehicle_year || "", stock: Number(row.quantity || 0), reserved: Number(row.reserved_quantity || 0), minStock: Number(row.min_stock || 0), location: row.location || "", note: stripImageUrlFromNote(row.note || ""), imageUrl, imageThumbUrl: row.image_thumb_url || imageUrl, createdAt: row.created_at || "" };
 }
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -748,9 +767,145 @@ function playNotificationSound() {
 }
 function toProductRow(payload) {
   const productName = [payload.productBrand, payload.category, payload.carBrand, payload.carModel, payload.carType, payload.vehicleYear].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  return { barcode: payload.barcode || null, product_name: productName || payload.category, product_brand: payload.productBrand || null, category: payload.category || null, vehicle_brand: payload.carBrand || null, vehicle_model: payload.carModel || null, vehicle_type: payload.carType || null, vehicle_year: payload.vehicleYear || null, quantity: Number(payload.stock || 0), min_stock: Number(payload.minStock || 0), location: payload.location || null, note: mergeNoteWithImage(payload.note || "", payload.imageUrl || "") };
+  return { barcode: payload.barcode || null, product_name: productName || payload.category, product_brand: payload.productBrand || null, category: payload.category || null, vehicle_brand: payload.carBrand || null, vehicle_model: payload.carModel || null, vehicle_type: payload.carType || null, vehicle_year: payload.vehicleYear || null, quantity: Number(payload.stock || 0), min_stock: Number(payload.minStock || 0), location: payload.location || null, note: stripImageUrlFromNote(payload.note || "") || null, image_url: payload.imageUrl || null, image_thumb_url: payload.imageThumbUrl || payload.imageUrl || null };
 }
 function formatRequestStatus(status) { return ({ bekliyor: "Bekliyor", rezerve_edildi: "Rezerve", teslim_edildi: "Teslim Edildi", montaj_bitti: "Tamamlandı", iptal: "İptal" })[status] || status || "-"; }
+
+let productImageRemoveRequested = false;
+let selectedProductImageBlob = null;
+let selectedProductImageExt = "webp";
+
+function updateProductImagePreview(url = "") {
+  if (el.productImagePreview) {
+    el.productImagePreview.innerHTML = url
+      ? `<img src="${escapeHtml(url)}" alt="Ürün resmi" />`
+      : `<div class="product-image-empty">📷<span>Resim yok</span></div>`;
+  }
+  if (el.productImageStatus) {
+    el.productImageStatus.textContent = url ? "Resim hazır" : "Resim seçilmedi";
+  }
+  if (el.productImageViewBtn) el.productImageViewBtn.disabled = !url;
+  if (el.productImageRemoveBtn) el.productImageRemoveBtn.disabled = !url && !selectedProductImageBlob;
+}
+
+function resetProductImageState() {
+  productImageRemoveRequested = false;
+  selectedProductImageBlob = null;
+  selectedProductImageExt = "webp";
+  if (el.productImageFile) el.productImageFile.value = "";
+  if (el.productImage) el.productImage.value = "";
+  updateProductImagePreview("");
+}
+
+function loadImageForCompression(file) {
+  if (typeof createImageBitmap === "function") {
+    return createImageBitmap(file).catch(() => loadImageElementForCompression(file));
+  }
+  return loadImageElementForCompression(file);
+}
+
+function loadImageElementForCompression(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Resim okunamadı"));
+    };
+    img.src = url;
+  });
+}
+
+async function compressProductImage(file) {
+  const bitmap = await loadImageForCompression(file);
+  const sourceWidth = bitmap.width || bitmap.naturalWidth || 1;
+  const sourceHeight = bitmap.height || bitmap.naturalHeight || 1;
+  const scale = Math.min(1, STOCK_IMAGE_MAX_SIZE / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  if (bitmap.close) bitmap.close();
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", STOCK_IMAGE_QUALITY));
+  if (blob) return { blob, ext: "webp" };
+  const fallback = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", STOCK_IMAGE_QUALITY));
+  if (!fallback) throw new Error("Resim küçültülemedi");
+  return { blob: fallback, ext: "jpg" };
+}
+
+async function handleProductImageFile(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToast("Lütfen resim dosyası seç", true);
+    event.target.value = "";
+    return;
+  }
+  try {
+    if (el.productImageStatus) el.productImageStatus.textContent = "Resim küçültülüyor...";
+    const optimized = await compressProductImage(file);
+    selectedProductImageBlob = optimized.blob;
+    selectedProductImageExt = optimized.ext;
+    productImageRemoveRequested = false;
+    const previewUrl = URL.createObjectURL(selectedProductImageBlob);
+    updateProductImagePreview(previewUrl);
+    if (el.productImageStatus) {
+      const kb = Math.round(selectedProductImageBlob.size / 1024);
+      el.productImageStatus.textContent = `Resim hazır (${kb} KB)`;
+    }
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Resim hazırlanamadı", true);
+    if (event?.target) event.target.value = "";
+  }
+}
+window.handleProductImageFile = handleProductImageFile;
+
+async function uploadProductImageIfNeeded(productId) {
+  if (productImageRemoveRequested) return { imageUrl: "", imageThumbUrl: "" };
+  if (!selectedProductImageBlob) {
+    const current = String(el.productImage?.value || "").trim();
+    return { imageUrl: current, imageThumbUrl: current };
+  }
+  const safeId = String(productId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "");
+  const filePath = `${safeId}/main-${Date.now()}.${selectedProductImageExt || "webp"}`;
+  if (el.productImageStatus) el.productImageStatus.textContent = "Resim yükleniyor...";
+  const { error: uploadError } = await supabaseClient.storage
+    .from(STOCK_IMAGE_BUCKET)
+    .upload(filePath, selectedProductImageBlob, {
+      cacheControl: "31536000",
+      upsert: true,
+      contentType: selectedProductImageBlob.type || "image/webp"
+    });
+  if (uploadError) throw uploadError;
+  const { data } = supabaseClient.storage.from(STOCK_IMAGE_BUCKET).getPublicUrl(filePath);
+  const publicUrl = data?.publicUrl || "";
+  if (!publicUrl) throw new Error("Resim linki alınamadı");
+  return { imageUrl: publicUrl, imageThumbUrl: publicUrl };
+}
+
+window.removeSelectedProductImage = async function() {
+  productImageRemoveRequested = true;
+  selectedProductImageBlob = null;
+  if (el.productImageFile) el.productImageFile.value = "";
+  if (el.productImage) el.productImage.value = "";
+  updateProductImagePreview("");
+  if (el.productImageStatus) el.productImageStatus.textContent = "Resim silinecek";
+};
+
+window.openProductImage = function(url) {
+  const imageUrl = String(url || el.productImage?.value || "").trim();
+  if (!imageUrl) return showToast("Bu üründe resim yok", true);
+  window.open(imageUrl, "_blank", "noopener");
+};
+
 function requestVehicleText(req) {
   return [req?.vehicle_brand, req?.vehicle_model, req?.vehicle_type, req?.vehicle_year].filter(Boolean).join(" ");
 }
@@ -1113,11 +1268,11 @@ function applySearch() {
 }
 function renderProducts() {
   if (!el.productTableBody) return;
-  if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="12" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
+  if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="13" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
   el.productTableBody.innerHTML = state.filteredProducts.map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const isLow = available <= Number(p.minStock || 0);
-    return `<tr><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
+    return `<tr><td>${productImageHtml(p, "product-thumb")}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
   }).join("");
 }
 function renderMovements() {
@@ -1145,6 +1300,7 @@ function renderMovementCards(results) {
     const qty = getQuickQty(p.id);
     const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
     return `<div class="movement-search-item">
+      ${productImageHtml(p, "product-card-img")}
       <div class="movement-search-info">
         <strong>${escapeHtml(p.name || p.category || "-")}</strong>
         <div class="muted">Ürün Marka: <strong>${escapeHtml(p.productBrand || "-")}</strong> · Kategori: <strong>${escapeHtml(p.category || "-")}</strong></div>
@@ -1158,6 +1314,7 @@ function renderMovementCards(results) {
           <input type="number" min="1" value="${qty}" inputmode="numeric" onchange="setQuickQty('${p.id}', this.value)" />
           <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button>
         </div>
+        ${p.imageUrl ? `<button type="button" class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
         <button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>
         <button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
       </div>
@@ -1255,6 +1412,7 @@ function renderOperationCards(results) {
     ].filter(Boolean).join(" · ");
 
     return `<div class="operation-card">
+      ${productImageHtml(p, "product-card-img")}
       <div class="operation-main">
         <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
         <div class="operation-meta">${detailLine || "-"}</div>
@@ -1274,6 +1432,7 @@ function renderOperationCards(results) {
         </div>
         <button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>
         <button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
+        ${p.imageUrl ? `<button class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
         <button class="btn secondary" onclick="editProduct('${p.id}')">Düzenle</button>
         <button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button>
       </div>
@@ -1478,8 +1637,8 @@ function renderStockRequests() {
 ].filter(Boolean).join(" ") || "-")}</strong></div><div>Tarih: <strong>${formatDate(req.created_at)}</strong></div><div class="row-gap" style="margin-top:10px;"><button class="btn primary" onclick="openReservationPanel('${req.id}')">Ürün Eşleştir</button>${req.status === "rezerve_edildi" ? `<button class="btn danger" onclick="cancelReservation('${req.id}')">Rezervi İptal Et</button>` : ""}</div></div>`).join("");
 }
 window.setRequestFilter = function(status) { state.requestFilter = status; renderStockRequests(); };
-function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.location, el.productImage, el.note].filter(Boolean).forEach((x) => x.value = ""); }
-function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; el.location.value = product.location || ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); }
+function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
@@ -2944,10 +3103,68 @@ window.renderPlateHistory = function() {
   moveBox.innerHTML = moves.length ? moves.map(m => `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(m.stock_products?.product_name || m.description || "-")}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${String(m.movement_type || "").includes("iade") ? "giris" : "cikis"}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`).join("") : `<div class="empty-state">Hareket bulunamadı</div>`;
 };
 
-el.productForm.addEventListener("submit", async (e) => { e.preventDefault(); if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return; const payload = { id: el.productId.value.trim(), barcode: el.barcode.value.trim(), productBrand: el.productBrand.value.trim(), category: el.category.value.trim(), carBrand: el.carBrand.value.trim(), carModel: el.carModel.value.trim(), carType: el.carType.value.trim(), vehicleYear: el.vehicleYear.value.trim(), stock: el.stock.value.trim(), minStock: el.minStock.value.trim(), location: el.location.value.trim(), note: el.note.value.trim(), imageUrl: "" }; if (!payload.category || !payload.carBrand || !payload.carModel) return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true); try { setLoading(true); rememberProductSuggestions(payload); if (payload.id) { const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id); if (error) throw error; await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id); showToast("Ürün güncellendi"); } else { const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single(); if (error) throw error; await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id); showToast("Ürün kaydedildi"); } clearProductForm();
+el.productForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return;
+
+  const payload = {
+    id: el.productId.value.trim(),
+    barcode: el.barcode.value.trim(),
+    productBrand: el.productBrand.value.trim(),
+    category: el.category.value.trim(),
+    carBrand: el.carBrand.value.trim(),
+    carModel: el.carModel.value.trim(),
+    carType: el.carType.value.trim(),
+    vehicleYear: el.vehicleYear.value.trim(),
+    stock: el.stock.value.trim(),
+    minStock: el.minStock.value.trim(),
+    location: el.location.value.trim(),
+    note: el.note.value.trim(),
+    imageUrl: el.productImage?.value?.trim() || "",
+    imageThumbUrl: el.productImage?.value?.trim() || ""
+  };
+
+  if (!payload.category || !payload.carBrand || !payload.carModel) {
+    return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true);
+  }
+
+  try {
+    setLoading(true);
+    rememberProductSuggestions(payload);
+
+    if (payload.id) {
+      const uploaded = await uploadProductImageIfNeeded(payload.id);
+      payload.imageUrl = uploaded.imageUrl;
+      payload.imageThumbUrl = uploaded.imageThumbUrl;
+      const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id);
+      if (error) throw error;
+      await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id);
+      showToast("Ürün güncellendi");
+    } else {
+      const tempImageId = crypto.randomUUID();
+      const uploaded = await uploadProductImageIfNeeded(tempImageId);
+      payload.imageUrl = uploaded.imageUrl;
+      payload.imageThumbUrl = uploaded.imageThumbUrl;
+      const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single();
+      if (error) throw error;
+      await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id);
+      showToast("Ürün kaydedildi");
+    }
+
+    clearProductForm();
     state.operationFilterOptionsLoaded = false;
-    await Promise.all([loadDashboardStats(), loadOperationFilterOptions().catch(() => {})]); } catch (err) { console.error(err); showToast(err.message || "Ürün kaydedilemedi", true); } finally { setLoading(false); } });
+    await Promise.all([loadDashboardStats(), loadOperationFilterOptions().catch(() => {})]);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Ürün kaydedilemedi", true);
+  } finally {
+    setLoading(false);
+  }
+});
 if (el.clearProductBtn) el.clearProductBtn.addEventListener("click", clearProductForm);
+if (el.productImageFile) el.productImageFile.addEventListener("change", handleProductImageFile);
+if (el.productImageRemoveBtn) el.productImageRemoveBtn.addEventListener("click", removeSelectedProductImage);
+if (el.productImageViewBtn) el.productImageViewBtn.addEventListener("click", () => openProductImage());
 async function smartRefresh() {
   if (state.activeTab === "operation") {
     await Promise.all([loadDashboardStats(), loadMovements()]);
@@ -3077,7 +3294,8 @@ async function downloadStockExcel() {
       mevcut_stok: p.stock || 0,
       minimum_stok: p.minStock || 0,
       raf_konum: p.location || "",
-      aciklama: p.note || ""
+      aciklama: p.note || "",
+      resim_url: p.imageUrl || ""
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -3173,7 +3391,9 @@ updateExcelProgress(0, rows.length, success, failed);
         quantity: excelNumber(r.mevcut_stok, 0),
         min_stock: excelNumber(r.minimum_stok, 0),
         location: normalizeExcelCell(r.raf_konum) || null,
-        note: normalizeExcelCell(r.aciklama) || null
+        note: normalizeExcelCell(r.aciklama) || null,
+        image_url: normalizeExcelCell(r.resim_url || r.image_url || r.gorsel_url) || null,
+        image_thumb_url: normalizeExcelCell(r.resim_url || r.image_url || r.gorsel_url) || null
       };
 
       payload.product_name = [
