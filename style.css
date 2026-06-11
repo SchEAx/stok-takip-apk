@@ -126,7 +126,7 @@
 
 /* === Mega Paket: Raporlar / Kritik Stok / Plaka Geçmişi / Ürün Görseli === */
 .top-nav{grid-template-columns:repeat(8,1fr)}
-.report-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.report-actions{align-items:end;padding-top:20px}.mega-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.inner-card{margin-bottom:0;background:rgba(11,19,36,.75)}.product-thumb{width:42px;height:42px;border-radius:10px;object-fit:cover;border:1px solid var(--border);background:#0b1324;display:flex;align-items:center;justify-content:center}.product-thumb.empty{font-size:20px}.product-card-img{width:56px;height:56px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:#0b1324;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}.product-card-img.empty{font-size:22px;cursor:default}.critical-card{align-items:center}.report-dashboard{margin:14px 0}.top-sale-item small{display:block;color:var(--muted);margin-top:3px}.compact h2{margin-bottom:0}
+.report-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.report-actions{align-items:end;padding-top:20px}.mega-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.inner-card{margin-bottom:0;background:rgba(11,19,36,.75)}.product-thumb{width:42px;height:42px;border-radius:10px;object-fit:cover;border:1px solid var(--border);background:#0b1324;display:flex;align-items:center;justify-content:center}.product-thumb.empty{font-size:20px}.product-card-img{width:72px;height:72px;border-radius:16px;object-fit:cover;border:1px solid var(--border);background:#0b1324;display:flex;align-items:center;justify-content:center;flex-shrink:0}.product-card-img.empty{font-size:28px}.critical-card{align-items:center}.report-dashboard{margin:14px 0}.top-sale-item small{display:block;color:var(--muted);margin-top:3px}.compact h2{margin-bottom:0}
 @media(max-width:1100px){.top-nav{grid-template-columns:repeat(4,1fr)}.mega-grid-3,.report-filter-grid{grid-template-columns:1fr}.report-actions{padding-top:0}.critical-card{align-items:flex-start}}
 @media(max-width:640px){.top-nav{grid-template-columns:repeat(2,1fr)}}
 
@@ -320,8 +320,8 @@
 
 /* === Sade stok modu === */
 .legacy-page{display:none!important}
-.operation-card{grid-template-columns:1fr auto!important}
-.product-card-img,.product-thumb{display:none!important}
+.operation-card{grid-template-columns:auto 1fr auto!important}
+.product-card-img,.product-thumb{display:flex!important}
 @media(max-width:900px){.top-nav{grid-template-columns:repeat(2,1fr)}}
 
 
@@ -400,31 +400,4 @@
   height:100%;
   opacity:0;
   cursor:pointer;
-}
-
-
-/* === Ürün arama sonuçlarında mini resim === */
-.movement-search-item .product-card-img,
-.operation-card .product-card-img{
-  width:56px;
-  height:56px;
-  min-width:56px;
-  border-radius:14px;
-}
-
-.product-card-img:hover,
-.product-thumb:hover{
-  border-color:rgba(37,99,235,.75);
-}
-
-@media(max-width:640px){
-  .movement-search-item{
-    align-items:flex-start;
-  }
-  .movement-search-item .product-card-img,
-  .operation-card .product-card-img{
-    width:52px;
-    height:52px;
-    min-width:52px;
-  }
 }

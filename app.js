@@ -669,9 +669,8 @@ function publicUrlToStoragePath(url) {
 }
 function productImageHtml(p, sizeClass = "product-card-img") {
   const url = p?.imageThumbUrl || p?.imageUrl || "";
-  const fullUrl = p?.imageUrl || url;
   return url
-    ? `<img class="${sizeClass}" src="${escapeHtml(url)}" alt="Ürün resmi" title="Resmi büyüt" loading="lazy" decoding="async" referrerpolicy="no-referrer" onclick="openProductImage('${escapeHtml(fullUrl)}')" />`
+    ? `<img class="${sizeClass}" src="${escapeHtml(url)}" alt="Ürün resmi" loading="lazy" onclick="openProductImage('${escapeHtml(p.imageUrl || url)}')" />`
     : `<div class="${sizeClass} empty" title="Resim yok">📷</div>`;
 }
 function mapProduct(row) {
@@ -859,7 +858,7 @@ async function handleProductImageFile(event) {
     updateProductImagePreview(previewUrl);
     if (el.productImageStatus) {
       const kb = Math.round(selectedProductImageBlob.size / 1024);
-      el.productImageStatus.textContent = `Resim hazır (${kb} KB)`;
+      el.productImageStatus.textContent = `Resim hazır (${kb} KB) · Kaydet'e basınca yüklenecek`;
     }
   } catch (err) {
     console.error(err);
@@ -904,8 +903,7 @@ window.removeSelectedProductImage = async function() {
 window.openProductImage = function(url) {
   const imageUrl = String(url || el.productImage?.value || "").trim();
   if (!imageUrl) return showToast("Bu üründe resim yok", true);
-  const win = window.open(imageUrl, "_blank", "noopener");
-  if (!win) window.location.href = imageUrl;
+  window.open(imageUrl, "_blank", "noopener");
 };
 
 function requestVehicleText(req) {
@@ -1489,7 +1487,26 @@ async function searchStockProducts({ brand = "", category = "", search = "", lim
       p_limit: Number(limit || 120)
     });
     if (error) throw error;
-    return data || [];
+    const rows = data || [];
+
+    // Eski SQL fonksiyonu image_url/image_thumb_url döndürmüyorsa,
+    // aynı id'leri normal tablodan tekrar çekip resim alanlarını da ekle.
+    // Böylece SQL'i henüz güncellemesen bile küçük resimler ve form önizlemesi boşa düşmez.
+    if (rows.length && (!Object.prototype.hasOwnProperty.call(rows[0], "image_url") || !Object.prototype.hasOwnProperty.call(rows[0], "image_thumb_url"))) {
+      const ids = rows.map(r => r.id).filter(Boolean);
+      if (ids.length) {
+        const { data: fullRows, error: fullError } = await supabaseClient
+          .from("stock_products")
+          .select(STOCK_PRODUCT_SELECT)
+          .in("id", ids);
+        if (!fullError && fullRows?.length) {
+          const byId = new Map(fullRows.map(r => [String(r.id), r]));
+          return ids.map(id => byId.get(String(id))).filter(Boolean);
+        }
+      }
+    }
+
+    return rows;
   } catch (rpcErr) {
     console.warn("search_stock_products RPC yok/çalışmadı, eski arama yöntemine düşüldü:", rpcErr?.message || rpcErr);
   }
