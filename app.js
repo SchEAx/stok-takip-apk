@@ -669,8 +669,9 @@ function publicUrlToStoragePath(url) {
 }
 function productImageHtml(p, sizeClass = "product-card-img") {
   const url = p?.imageThumbUrl || p?.imageUrl || "";
+  const fullUrl = p?.imageUrl || url;
   return url
-    ? `<img class="${sizeClass}" src="${escapeHtml(url)}" alt="Ürün resmi" loading="lazy" onclick="openProductImage('${escapeHtml(p.imageUrl || url)}')" />`
+    ? `<img class="${sizeClass}" src="${escapeHtml(url)}" alt="Ürün resmi" title="Resmi büyüt" loading="lazy" decoding="async" referrerpolicy="no-referrer" onclick="openProductImage('${escapeHtml(fullUrl)}')" />`
     : `<div class="${sizeClass} empty" title="Resim yok">📷</div>`;
 }
 function mapProduct(row) {
@@ -903,7 +904,8 @@ window.removeSelectedProductImage = async function() {
 window.openProductImage = function(url) {
   const imageUrl = String(url || el.productImage?.value || "").trim();
   if (!imageUrl) return showToast("Bu üründe resim yok", true);
-  window.open(imageUrl, "_blank", "noopener");
+  const win = window.open(imageUrl, "_blank", "noopener");
+  if (!win) window.location.href = imageUrl;
 };
 
 function requestVehicleText(req) {
