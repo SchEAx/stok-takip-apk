@@ -858,7 +858,7 @@ async function handleProductImageFile(event) {
     updateProductImagePreview(previewUrl);
     if (el.productImageStatus) {
       const kb = Math.round(selectedProductImageBlob.size / 1024);
-      el.productImageStatus.textContent = `Resim hazır (${kb} KB) · Kaydet'e basınca yüklenecek`;
+      el.productImageStatus.textContent = `Resim hazır (${kb} KB)`;
     }
   } catch (err) {
     console.error(err);
@@ -900,11 +900,54 @@ window.removeSelectedProductImage = async function() {
   if (el.productImageStatus) el.productImageStatus.textContent = "Resim silinecek";
 };
 
+function ensureProductImageModal() {
+  let modal = document.getElementById("productImageModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "productImageModal";
+  modal.className = "product-image-modal hidden";
+  modal.innerHTML = `
+    <div class="product-image-modal-backdrop" onclick="closeProductImageModal()"></div>
+    <div class="product-image-modal-card" role="dialog" aria-modal="true" aria-label="Ürün resmi">
+      <button type="button" class="product-image-modal-close" onclick="closeProductImageModal()">×</button>
+      <img id="productImageModalImg" src="" alt="Ürün resmi" />
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
 window.openProductImage = function(url) {
   const imageUrl = String(url || el.productImage?.value || "").trim();
   if (!imageUrl) return showToast("Bu üründe resim yok", true);
-  window.open(imageUrl, "_blank", "noopener");
+  const modal = ensureProductImageModal();
+  const img = document.getElementById("productImageModalImg");
+  if (img) img.src = imageUrl;
+  modal.classList.remove("hidden");
+  document.body.classList.add("image-modal-open");
+  if (!history.state || !history.state.productImageModal) {
+    history.pushState({ ...(history.state || {}), productImageModal: true }, "");
+  }
 };
+
+window.closeProductImageModal = function(fromPopState = false) {
+  const modal = document.getElementById("productImageModal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  modal.classList.add("hidden");
+  document.body.classList.remove("image-modal-open");
+  const img = document.getElementById("productImageModalImg");
+  if (img) img.src = "";
+  if (!fromPopState && history.state?.productImageModal) {
+    history.back();
+  }
+};
+
+window.addEventListener("popstate", () => {
+  const modal = document.getElementById("productImageModal");
+  if (modal && !modal.classList.contains("hidden")) {
+    closeProductImageModal(true);
+  }
+});
 
 function requestVehicleText(req) {
   return [req?.vehicle_brand, req?.vehicle_model, req?.vehicle_type, req?.vehicle_year].filter(Boolean).join(" ");
@@ -1487,26 +1530,7 @@ async function searchStockProducts({ brand = "", category = "", search = "", lim
       p_limit: Number(limit || 120)
     });
     if (error) throw error;
-    const rows = data || [];
-
-    // Eski SQL fonksiyonu image_url/image_thumb_url döndürmüyorsa,
-    // aynı id'leri normal tablodan tekrar çekip resim alanlarını da ekle.
-    // Böylece SQL'i henüz güncellemesen bile küçük resimler ve form önizlemesi boşa düşmez.
-    if (rows.length && (!Object.prototype.hasOwnProperty.call(rows[0], "image_url") || !Object.prototype.hasOwnProperty.call(rows[0], "image_thumb_url"))) {
-      const ids = rows.map(r => r.id).filter(Boolean);
-      if (ids.length) {
-        const { data: fullRows, error: fullError } = await supabaseClient
-          .from("stock_products")
-          .select(STOCK_PRODUCT_SELECT)
-          .in("id", ids);
-        if (!fullError && fullRows?.length) {
-          const byId = new Map(fullRows.map(r => [String(r.id), r]));
-          return ids.map(id => byId.get(String(id))).filter(Boolean);
-        }
-      }
-    }
-
-    return rows;
+    return data || [];
   } catch (rpcErr) {
     console.warn("search_stock_products RPC yok/çalışmadı, eski arama yöntemine düşüldü:", rpcErr?.message || rpcErr);
   }

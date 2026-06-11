@@ -320,8 +320,8 @@
 
 /* === Sade stok modu === */
 .legacy-page{display:none!important}
-.operation-card{grid-template-columns:auto 1fr auto!important}
-.product-card-img,.product-thumb{display:flex!important}
+.operation-card{grid-template-columns:1fr auto!important}
+.product-card-img,.product-thumb{display:none!important}
 @media(max-width:900px){.top-nav{grid-template-columns:repeat(2,1fr)}}
 
 
@@ -400,4 +400,176 @@
   height:100%;
   opacity:0;
   cursor:pointer;
+}
+
+/* === Mobil resimli kart düzeni + resim modal kapatma düzeltmesi === */
+.product-card-img,
+.product-thumb{
+  display:flex!important;
+}
+img.product-card-img,
+img.product-thumb{
+  display:block!important;
+}
+.operation-card{
+  grid-template-columns:auto 1fr auto!important;
+}
+.operation-main,
+.movement-search-info{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.product-image-modal{
+  position:fixed;
+  inset:0;
+  z-index:100000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+}
+.product-image-modal.hidden{display:none!important}
+.product-image-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.82);
+  backdrop-filter:blur(8px);
+}
+.product-image-modal-card{
+  position:relative;
+  width:min(960px,96vw);
+  max-height:92vh;
+  border:1px solid rgba(255,255,255,.16);
+  background:#020617;
+  border-radius:22px;
+  padding:46px 12px 12px;
+  box-shadow:0 30px 90px rgba(0,0,0,.65);
+}
+.product-image-modal-card img{
+  display:block;
+  width:100%;
+  max-height:calc(92vh - 70px);
+  object-fit:contain;
+  border-radius:14px;
+}
+.product-image-modal-close{
+  position:absolute;
+  top:8px;
+  right:10px;
+  width:38px;
+  height:38px;
+  border:0;
+  border-radius:14px;
+  background:#ef4444;
+  color:#fff;
+  font-size:28px;
+  line-height:1;
+  font-weight:900;
+  cursor:pointer;
+}
+body.image-modal-open{overflow:hidden}
+
+@media(max-width:700px){
+  .movement-search-item{
+    display:grid!important;
+    grid-template-columns:86px minmax(0,1fr);
+    align-items:start;
+    gap:12px;
+  }
+  .movement-search-item .product-card-img{
+    width:78px;
+    height:78px;
+    border-radius:18px;
+    grid-column:1;
+    grid-row:1;
+  }
+  .movement-search-info{
+    grid-column:2;
+    grid-row:1;
+  }
+  .movement-search-actions{
+    grid-column:1/-1;
+    display:flex!important;
+    flex-direction:column;
+    align-items:stretch!important;
+    width:100%;
+    gap:10px;
+  }
+  .movement-search-actions .btn,
+  .movement-search-actions button{
+    width:100%!important;
+  }
+  .movement-search-actions .quick-qty-row,
+  .movement-search-actions .operation-qty-row{
+    width:100%;
+    display:grid!important;
+    grid-template-columns:64px 1fr 64px;
+    gap:8px;
+  }
+  .movement-search-actions .operation-qty-row input{
+    width:100%!important;
+    min-width:0;
+  }
+
+  .operation-card{
+    display:grid!important;
+    grid-template-columns:86px minmax(0,1fr)!important;
+    align-items:start!important;
+    gap:12px!important;
+    padding:14px!important;
+  }
+  .operation-card .product-card-img{
+    width:78px;
+    height:78px;
+    border-radius:18px;
+    grid-column:1;
+    grid-row:1;
+  }
+  .operation-main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .operation-title{
+    font-size:15px;
+    line-height:1.25;
+  }
+  .operation-actions{
+    grid-column:1/-1;
+    display:flex!important;
+    flex-direction:column;
+    align-items:stretch!important;
+    justify-content:flex-start!important;
+    width:100%;
+    min-width:0!important;
+    gap:10px;
+    margin-top:4px;
+  }
+  .operation-actions .btn,
+  .operation-actions button{
+    width:100%!important;
+  }
+  .operation-actions .operation-qty-row{
+    width:100%;
+    display:grid!important;
+    grid-template-columns:64px 1fr 64px;
+    gap:8px;
+  }
+  .operation-actions .operation-qty-row input{
+    width:100%!important;
+    min-width:0;
+  }
+  .operation-stock-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px 10px;
+  }
+  .product-image-modal{
+    padding:10px;
+  }
+  .product-image-modal-card{
+    width:98vw;
+    max-height:90vh;
+    border-radius:18px;
+    padding:48px 8px 8px;
+  }
 }
