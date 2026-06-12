@@ -55,6 +55,7 @@
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
       <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
+      <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
       <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
     </nav>
 
@@ -455,6 +456,41 @@ LED"></textarea>
   </div>
 
 
+
+    <div id="page-surveys" class="page hidden">
+      <section class="card">
+        <div class="section-head compact">
+          <div>
+            <h2>Müşteri Memnuniyeti</h2>
+            <p class="muted">QR anketlerinden gelen değerlendirmeler ve son yorumlar</p>
+          </div>
+          <div class="row-gap">
+            <a class="btn secondary" href="/survey.html" target="_blank" rel="noopener">Anket Sayfasını Aç</a>
+            <button type="button" class="btn secondary" onclick="loadCustomerSurveyStats()">Yenile</button>
+          </div>
+        </div>
+        <div class="survey-admin-note">
+          QR linki: <strong>/survey.html</strong> — Müşteriler bu sayfadan anonim değerlendirme gönderebilir.
+        </div>
+        <div id="customerSurveyPanel">
+          <div class="empty-state">Anket verileri yükleniyor...</div>
+        </div>
+      </section>
+    </div>
+
+    <style>
+      .survey-admin-note{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:14px;color:#334155}
+      .survey-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
+      .survey-stats .stat-card{padding:16px;border-radius:14px;border:1px solid #e5e7eb;background:#fff}
+      .survey-stats .stat-card b{display:block;font-size:28px}
+      .survey-stats .stat-card span{color:#64748b;font-size:13px}
+      .survey-table{width:100%;border-collapse:collapse;margin:10px 0 20px}
+      .survey-table th,.survey-table td{border-bottom:1px solid #e5e7eb;padding:10px;text-align:left}
+      .survey-comment{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff}
+      .survey-comment.danger{border-color:#fecaca;background:#fff7f7}
+      .survey-comment p{margin:8px 0 0;white-space:pre-wrap}
+      .survey-comment small{display:block;color:#64748b;margin-top:6px}
+    </style>
     <div id="page-users" class="page hidden">
       <section class="grid-2 users-permission-grid">
         <div class="card">

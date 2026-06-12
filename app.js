@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.0-sade-stok';
+const APP_VERSION = '2.0.1-anket';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -154,14 +154,15 @@ const TAB_DEFINITIONS = [
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
+  { key: "surveys", label: "Müşteri Memnuniyeti" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
   { key: "logs", label: "Loglar" }
 ];
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical"],
-  kasa: ["operation", "movements", "critical"],
+  depo: ["operation", "add", "movements", "critical", "surveys"],
+  kasa: ["operation", "movements", "critical", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
 };
@@ -2802,6 +2803,76 @@ window.reserveProductForRequest = async function(productId) { if (!requireRoleAc
   try { setLoading(true); const { error } = await supabaseClient.rpc("reserve_stock_for_request", { p_request_id: state.selectedStockRequestId, p_product_id: productId, p_quantity: quantity, p_delivered_to: "" }); if (error) throw error; showToast("Stok rezerve edildi ✅ Yeni ürün ekleyebilirsin."); await loadAll(); const stillSelected = state.stockRequests.find(r => String(r.id) === String(state.selectedStockRequestId)); if (stillSelected) { el.reservationPanel.classList.remove("hidden"); renderSelectedRequestDetail(stillSelected); searchProductsForRequest(el.productSearchInput.value); } } catch (err) { console.error(err); showToast(err.message || "Rezerve edilemedi", true); } finally { setLoading(false); }
 };
 window.cancelReservation = async function(requestId) { if (!requireRoleAction(["admin", "depo"], "Rezerv iptali yetkisi sadece Admin/Depo")) return; if (!(await appConfirm("Bu rezervi iptal etmek istediğine emin misin?", { danger: true, okText: "Rezervi İptal Et" }))) return; try { setLoading(true); const { error } = await supabaseClient.rpc("cancel_stock_reservation", { p_request_id: requestId }); if (error) throw error; showToast("Rezerv iptal edildi ✅"); await loadAll(); } catch (err) { console.error(err); showToast(err.message || "Rezerv iptal edilemedi", true); } finally { setLoading(false); } };
+
+async function loadCustomerSurveyStats() {
+  const box = document.getElementById("customerSurveyPanel");
+  if (!box) return;
+  box.innerHTML = `<div class="empty-state">Anket verileri yükleniyor...</div>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("customer_surveys")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+    const rows = data || [];
+    const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + Number(b || 0), 0) / arr.length).toFixed(2) : "0.00";
+    const scoreKeys = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8"];
+    const allScores = rows.flatMap(r => scoreKeys.map(k => Number(r[k] || 0)).filter(Boolean));
+    const problemRows = rows.filter(r => scoreKeys.some(k => Number(r[k] || 0) <= 2));
+    const contactRows = rows.filter(r => r.contact_allowed && r.phone);
+
+    const questionNames = [
+      "Karşılama biçimi ve nezaket",
+      "İhtiyaçların anlaşılması / bilgilendirme",
+      "Montaj kalitesi ve işçilik",
+      "Söz verilen zamanda teslim",
+      "Teslimat anındaki temizlik",
+      "Fiyat / Performans",
+      "Tavsiye etme olasılığı",
+      "Muhatap bulabilme"
+    ];
+
+    const averagesHtml = questionNames.map((name, i) => {
+      const key = `q${i + 1}`;
+      const value = avg(rows.map(r => Number(r[key] || 0)).filter(Boolean));
+      return `<tr><td>${escapeHtml(name)}</td><td><strong>${value}</strong> / 5</td></tr>`;
+    }).join("");
+
+    const commentsHtml = rows
+      .filter(r => r.suggestion || (r.contact_allowed && r.phone))
+      .slice(0, 30)
+      .map(r => {
+        const low = scoreKeys.some(k => Number(r[k] || 0) <= 2);
+        const scores = scoreKeys.map(k => Number(r[k] || 0)).filter(Boolean);
+        return `<div class="survey-comment ${low ? "danger" : ""}">
+          <strong>${formatDate(r.created_at)} · Ortalama: ${avg(scores)} / 5 ${low ? "⚠️" : ""}</strong>
+          ${r.suggestion ? `<p>${escapeHtml(r.suggestion)}</p>` : `<p class="muted">Yorum yazılmamış.</p>`}
+          ${r.contact_allowed && r.phone ? `<small>Geri dönüş izni var: ${escapeHtml(r.phone)}</small>` : `<small>Anonim değerlendirme</small>`}
+        </div>`;
+      }).join("") || `<div class="empty-state">Henüz yorum yok.</div>`;
+
+    box.innerHTML = `
+      <div class="survey-stats">
+        <div class="stat-card"><b>${rows.length}</b><span>Toplam Anket</span></div>
+        <div class="stat-card"><b>${avg(allScores)}</b><span>Genel Ortalama</span></div>
+        <div class="stat-card"><b>${problemRows.length}</b><span>Düşük Puanlı Kayıt</span></div>
+        <div class="stat-card"><b>${contactRows.length}</b><span>Geri Dönüş İsteyen</span></div>
+      </div>
+      <h3>Kriter Ortalamaları</h3>
+      <table class="survey-table"><thead><tr><th>Kriter</th><th>Ortalama</th></tr></thead><tbody>${averagesHtml}</tbody></table>
+      <h3>Son Yorumlar</h3>
+      ${commentsHtml}
+    `;
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = `<div class="empty-state">Anket verileri alınamadı: ${escapeHtml(err.message || err)}</div>`;
+  }
+}
+window.loadCustomerSurveyStats = loadCustomerSurveyStats;
+
 function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
@@ -2809,7 +2880,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -2840,6 +2911,7 @@ if (tab === "sale") {
 }
 if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
+if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
 if (tab === "users") { renderUsersList(); renderRolePermissionEditor(); }
