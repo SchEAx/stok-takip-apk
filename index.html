@@ -479,17 +479,30 @@ LED"></textarea>
     </div>
 
     <style>
-      .survey-admin-note{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:14px;color:#334155}
-      .survey-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
-      .survey-stats .stat-card{padding:16px;border-radius:14px;border:1px solid #e5e7eb;background:#fff}
-      .survey-stats .stat-card b{display:block;font-size:28px}
-      .survey-stats .stat-card span{color:#64748b;font-size:13px}
-      .survey-table{width:100%;border-collapse:collapse;margin:10px 0 20px}
-      .survey-table th,.survey-table td{border-bottom:1px solid #e5e7eb;padding:10px;text-align:left}
-      .survey-comment{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff}
-      .survey-comment.danger{border-color:#fecaca;background:#fff7f7}
-      .survey-comment p{margin:8px 0 0;white-space:pre-wrap}
-      .survey-comment small{display:block;color:#64748b;margin-top:6px}
+      #page-surveys .survey-admin-note{background:#172033;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:14px;color:#dbeafe}
+      #page-surveys .survey-admin-note strong{color:#93c5fd}
+      #page-surveys .survey-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
+      #page-surveys .survey-stats .stat-card{padding:16px;border-radius:14px;border:1px solid #334155;background:#111827;color:#f8fafc;box-shadow:none}
+      #page-surveys .survey-stats .stat-card:nth-child(1){border-color:#38bdf8;background:#0f2537}
+      #page-surveys .survey-stats .stat-card:nth-child(2){border-color:#22c55e;background:#10291a}
+      #page-surveys .survey-stats .stat-card:nth-child(3){border-color:#f97316;background:#301c0d}
+      #page-surveys .survey-stats .stat-card:nth-child(4){border-color:#a78bfa;background:#221735}
+      #page-surveys .survey-stats .stat-card b{display:block;font-size:30px;color:#ffffff;line-height:1.1;margin-bottom:10px}
+      #page-surveys .survey-stats .stat-card:nth-child(1) b{color:#7dd3fc}
+      #page-surveys .survey-stats .stat-card:nth-child(2) b{color:#86efac}
+      #page-surveys .survey-stats .stat-card:nth-child(3) b{color:#fdba74}
+      #page-surveys .survey-stats .stat-card:nth-child(4) b{color:#c4b5fd}
+      #page-surveys .survey-stats .stat-card span{color:#e5e7eb;font-size:13px}
+      #page-surveys .survey-table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0 20px;background:#111827;border:1px solid #334155;border-radius:12px;overflow:hidden;color:#f8fafc}
+      #page-surveys .survey-table th{background:#1f2937;color:#93c5fd;font-weight:800}
+      #page-surveys .survey-table th,#page-surveys .survey-table td{border-bottom:1px solid #334155;padding:11px;text-align:left;color:#f8fafc}
+      #page-surveys .survey-table tr:last-child td{border-bottom:none}
+      #page-surveys .survey-table td:last-child{font-weight:800;color:#86efac}
+      #page-surveys .survey-comment{border:1px solid #334155;border-radius:12px;padding:12px;margin:10px 0;background:#111827;color:#f8fafc}
+      #page-surveys .survey-comment.danger{border-color:#ef4444;background:#2a1111}
+      #page-surveys .survey-comment strong{color:#93c5fd}
+      #page-surveys .survey-comment p{margin:8px 0 0;white-space:pre-wrap;color:#f8fafc}
+      #page-surveys .survey-comment small{display:block;color:#cbd5e1;margin-top:6px}
     </style>
     <div id="page-users" class="page hidden">
       <section class="grid-2 users-permission-grid">
