@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.1-anket';
+const APP_VERSION = '2.0.2-kategori-degerleri';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -21,6 +21,7 @@ originalTitle: document.title,
   quickQty: {},
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
+  categoryValues: [], categoryValueRows: [],
 };
 
 const el = {
@@ -42,7 +43,15 @@ productImageFile: document.getElementById("productImageFile"),
 productImagePreview: document.getElementById("productImagePreview"),
 productImageStatus: document.getElementById("productImageStatus"),
 productImageRemoveBtn: document.getElementById("productImageRemoveBtn"),
-productImageViewBtn: document.getElementById("productImageViewBtn")
+productImageViewBtn: document.getElementById("productImageViewBtn"),
+categoryValueForm: document.getElementById("categoryValueForm"),
+categoryValueId: document.getElementById("categoryValueId"),
+categoryValueCategory: document.getElementById("categoryValueCategory"),
+categoryValuePurchase: document.getElementById("categoryValuePurchase"),
+categoryValueSale: document.getElementById("categoryValueSale"),
+categoryValueList: document.getElementById("categoryValueList"),
+categoryValueSummary: document.getElementById("categoryValueSummary"),
+categoryValueDetail: document.getElementById("categoryValueDetail")
 };
 
 // Performans notu: Ürün arama ekranlarında sadece görünen/gerekli kolonları çekiyoruz.
@@ -154,6 +163,7 @@ const TAB_DEFINITIONS = [
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
+  { key: "categoryValues", label: "Kategori Değerleri" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
   { key: "logs", label: "Loglar" }
@@ -161,8 +171,8 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "surveys"],
-  kasa: ["operation", "movements", "critical", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "surveys"],
+  kasa: ["operation", "movements", "critical", "categoryValues", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
 };
@@ -2873,6 +2883,140 @@ async function loadCustomerSurveyStats() {
 }
 window.loadCustomerSurveyStats = loadCustomerSurveyStats;
 
+
+function formatTL(value) {
+  return Number(value || 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
+}
+function normalizeCategoryKey(value) {
+  return normalizeText(value || "");
+}
+function categoryValueMap() {
+  const map = new Map();
+  (state.categoryValues || []).forEach(v => map.set(normalizeCategoryKey(v.category), v));
+  return map;
+}
+async function loadCategoryValues() {
+  if (!state.products.length) {
+    try { await loadProducts(); } catch (err) { console.warn("Ürünler alınamadı:", err?.message || err); }
+  }
+  const { data, error } = await supabaseClient
+    .from("category_values")
+    .select("*")
+    .order("category", { ascending: true });
+  if (error) throw error;
+  state.categoryValues = data || [];
+  renderCategoryValues();
+}
+window.loadCategoryValues = loadCategoryValues;
+function computeCategoryValueRows() {
+  const grouped = new Map();
+  (state.products || []).forEach(p => {
+    const category = String(p.category || "Kategorisiz").trim() || "Kategorisiz";
+    const key = normalizeCategoryKey(category);
+    const old = grouped.get(key) || { category, qty: 0 };
+    old.qty += Number(p.stock || 0);
+    grouped.set(key, old);
+  });
+  const valueMap = categoryValueMap();
+  return [...grouped.values()]
+    .map(row => {
+      const prices = valueMap.get(normalizeCategoryKey(row.category)) || {};
+      const purchase = Number(prices.purchase_price || 0);
+      const sale = Number(prices.average_sale_price || 0);
+      return {
+        category: row.category,
+        qty: row.qty,
+        purchase,
+        sale,
+        totalPurchase: row.qty * purchase,
+        totalSale: row.qty * sale,
+        estimatedDiff: row.qty * (sale - purchase),
+        hasPrice: !!prices.category
+      };
+    })
+    .sort((a,b) => a.category.localeCompare(b.category, "tr"));
+}
+function renderCategoryValues() {
+  const rows = computeCategoryValueRows();
+  state.categoryValueRows = rows;
+  const totalPurchase = rows.reduce((s,r) => s + r.totalPurchase, 0);
+  const totalSale = rows.reduce((s,r) => s + r.totalSale, 0);
+  const totalDiff = totalSale - totalPurchase;
+  const missing = rows.filter(r => !r.hasPrice).length;
+  if (el.categoryValueSummary) {
+    el.categoryValueSummary.innerHTML = `
+      <div class="value-stat"><span>Toplam Alış Değeri</span><strong>${formatTL(totalPurchase)}</strong></div>
+      <div class="value-stat"><span>Ort. Satış Değeri</span><strong>${formatTL(totalSale)}</strong></div>
+      <div class="value-stat"><span>Tahmini Brüt Fark</span><strong>${formatTL(totalDiff)}</strong></div>
+      <div class="value-stat ${missing ? "warning" : ""}"><span>Fiyat Girilmeyen Kategori</span><strong>${missing}</strong></div>
+    `;
+  }
+  if (el.categoryValueList) {
+    el.categoryValueList.innerHTML = (state.categoryValues || []).length ? state.categoryValues.map(v => `
+      <div class="category-value-item">
+        <div><strong>${escapeHtml(v.category)}</strong><div class="muted">Alış: ${formatTL(v.purchase_price)} · Ort. satış: ${formatTL(v.average_sale_price)}</div></div>
+        <div class="action-group">
+          <button class="action-btn edit" onclick="editCategoryValue('${escapeHtml(v.id)}')">Düzenle</button>
+          <button class="action-btn delete" onclick="deleteCategoryValue('${escapeHtml(v.id)}')">Sil</button>
+        </div>
+      </div>
+    `).join("") : `<div class="empty-state">Henüz kategori fiyatı girilmedi.</div>`;
+  }
+  if (el.categoryValueDetail) {
+    el.categoryValueDetail.innerHTML = rows.length ? `
+      <div class="table-wrap"><table class="category-value-table">
+        <thead><tr><th>Kategori</th><th>Stok</th><th>Alış</th><th>Ort. Satış</th><th>Alış Toplam</th><th>Satış Toplam</th><th>Fark</th></tr></thead>
+        <tbody>${rows.map(r => `<tr class="${r.hasPrice ? "" : "missing-price"}"><td>${escapeHtml(r.category)}${r.hasPrice ? "" : " <span class='muted'>(fiyat yok)</span>"}</td><td>${r.qty}</td><td>${formatTL(r.purchase)}</td><td>${formatTL(r.sale)}</td><td>${formatTL(r.totalPurchase)}</td><td>${formatTL(r.totalSale)}</td><td>${formatTL(r.estimatedDiff)}</td></tr>`).join("")}</tbody>
+      </table></div>
+    ` : `<div class="empty-state">Hesaplanacak stok bulunamadı.</div>`;
+  }
+}
+window.renderCategoryValues = renderCategoryValues;
+window.editCategoryValue = function(id) {
+  const row = (state.categoryValues || []).find(v => String(v.id) === String(id));
+  if (!row) return;
+  if (el.categoryValueId) el.categoryValueId.value = row.id;
+  if (el.categoryValueCategory) el.categoryValueCategory.value = row.category || "";
+  if (el.categoryValuePurchase) el.categoryValuePurchase.value = row.purchase_price || 0;
+  if (el.categoryValueSale) el.categoryValueSale.value = row.average_sale_price || 0;
+  el.categoryValueCategory?.focus();
+};
+window.clearCategoryValueForm = function() {
+  if (el.categoryValueId) el.categoryValueId.value = "";
+  if (el.categoryValueCategory) el.categoryValueCategory.value = "";
+  if (el.categoryValuePurchase) el.categoryValuePurchase.value = "";
+  if (el.categoryValueSale) el.categoryValueSale.value = "";
+};
+async function saveCategoryValueFromForm(e) {
+  e?.preventDefault?.();
+  const category = String(el.categoryValueCategory?.value || "").trim();
+  if (!category) return showToast("Kategori adı boş olamaz", true);
+  const payload = {
+    category,
+    purchase_price: Number(el.categoryValuePurchase?.value || 0),
+    average_sale_price: Number(el.categoryValueSale?.value || 0)
+  };
+  const id = el.categoryValueId?.value || "";
+  let error;
+  if (id) {
+    ({ error } = await supabaseClient.from("category_values").update(payload).eq("id", id));
+  } else {
+    ({ error } = await supabaseClient.from("category_values").upsert(payload, { onConflict: "category" }));
+  }
+  if (error) return showToast(error.message || "Kategori değeri kaydedilemedi", true);
+  clearCategoryValueForm();
+  await loadCategoryValues();
+  showToast("Kategori değeri kaydedildi ✅");
+}
+window.saveCategoryValueFromForm = saveCategoryValueFromForm;
+window.deleteCategoryValue = async function(id) {
+  if (!(await appConfirm("Bu kategori fiyat kaydı silinsin mi? Stok ürünleri silinmez, sadece fiyat tanımı gider.", { danger: true }))) return;
+  const { error } = await supabaseClient.from("category_values").delete().eq("id", id);
+  if (error) return showToast(error.message || "Silinemedi", true);
+  await loadCategoryValues();
+  showToast("Kategori fiyatı silindi");
+};
+
 function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
@@ -2880,7 +3024,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -2911,6 +3055,7 @@ if (tab === "sale") {
 }
 if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
+if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
 if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
@@ -3327,6 +3472,7 @@ if (el.criticalSearchInput) el.criticalSearchInput.addEventListener("input", ren
 if (el.historySearchInput) el.historySearchInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderPlateHistory(); });
 [el.excelCategoryFilter, el.excelCarBrandFilter]
   .filter(Boolean).forEach(select => select.addEventListener("change", updateExcelFilterSummary));
+if (el.categoryValueForm) el.categoryValueForm.addEventListener("submit", saveCategoryValueFromForm);
 initProductSuggestionInputs();
 if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.error)); }
 async function bootApp() {

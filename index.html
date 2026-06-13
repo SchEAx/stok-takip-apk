@@ -54,6 +54,7 @@
       <button id="nav-add" onclick="switchTab('add')">Ürün Ekle</button>
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
+      <button id="nav-categoryValues" onclick="switchTab('categoryValues')">Kategori Değerleri</button>
       <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
       <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
       <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
@@ -456,6 +457,59 @@ LED"></textarea>
   </div>
 
 
+
+
+    <div id="page-categoryValues" class="page hidden">
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>Kategori Değerleri</h2>
+            <p class="muted">Kategori bazlı alış ve ortalama satış fiyatı gir; stok toplam değerlerini otomatik hesapla.</p>
+          </div>
+          <button class="btn secondary" type="button" onclick="loadCategoryValues()">Yenile</button>
+        </div>
+
+        <div id="categoryValueSummary" class="category-value-summary">
+          <div class="empty-state">Hesaplama için veriler bekleniyor...</div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card">
+          <h2>Kategori Fiyatı Ekle / Güncelle</h2>
+          <form id="categoryValueForm" class="form-grid">
+            <input type="hidden" id="categoryValueId" />
+            <div class="full">
+              <label>Kategori</label>
+              <input id="categoryValueCategory" class="custom-suggest-input" list="categoryList" type="text" placeholder="Örn: Paspas, Premium Paspas" autocomplete="off" />
+            </div>
+            <div>
+              <label>Alış Fiyatı</label>
+              <input id="categoryValuePurchase" type="number" min="0" step="0.01" placeholder="0" />
+            </div>
+            <div>
+              <label>Ort. Satış Fiyatı</label>
+              <input id="categoryValueSale" type="number" min="0" step="0.01" placeholder="0" />
+            </div>
+            <div class="full row-gap">
+              <button class="btn primary" type="submit">Kaydet</button>
+              <button class="btn ghost" type="button" onclick="clearCategoryValueForm()">Temizle</button>
+            </div>
+          </form>
+          <p class="muted">Not: Kategori adı stoktaki kategoriyle birebir aynı olursa hesaplamaya dahil olur.</p>
+        </div>
+
+        <div class="card">
+          <h2>Kayıtlı Kategori Fiyatları</h2>
+          <div id="categoryValueList" class="category-value-list"><div class="empty-state">Veri bekleniyor...</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Kategori Bazlı Toplamlar</h2>
+        <div id="categoryValueDetail"><div class="empty-state">Veri bekleniyor...</div></div>
+      </section>
+    </div>
 
     <div id="page-surveys" class="page hidden">
       <section class="card">
