@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.2-kategori-degerleri';
+const APP_VERSION = '2.0.3-siparis-onerisi';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -22,6 +22,7 @@ originalTitle: document.title,
   notifications: [], notificationFilter: "all", unreadNotificationCount: 0, notificationTableReady: true,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
   categoryValues: [], categoryValueRows: [],
+  orderSuggestionRows: [],
 };
 
 const el = {
@@ -164,6 +165,7 @@ const TAB_DEFINITIONS = [
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
   { key: "categoryValues", label: "Kategori Değerleri" },
+  { key: "orderSuggestion", label: "Sipariş Önerisi" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
   { key: "logs", label: "Loglar" }
@@ -171,8 +173,8 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "categoryValues", "surveys"],
-  kasa: ["operation", "movements", "critical", "categoryValues", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
+  kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
 };
@@ -3017,6 +3019,159 @@ window.deleteCategoryValue = async function(id) {
   showToast("Kategori fiyatı silindi");
 };
 
+
+function isOutgoingMovementType(type) {
+  const t = normalizeText(type || "");
+  if (!t) return false;
+  if (t.includes("iade") || t.includes("giris") || t.includes("rezerv")) return false;
+  return t.includes("cikis") || t.includes("satis") || t.includes("satıs") || t.includes("montaj") || t === "cikis";
+}
+function orderProductLabel(p = {}) {
+  return [p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear]
+    .filter(Boolean).join(" ").replace(/\s+/g, " ").trim() || p.name || "-";
+}
+async function fetchRecentOutgoingMovements(days = 7) {
+  const start = new Date();
+  start.setDate(start.getDate() - Number(days || 7));
+  let rows = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabaseClient
+      .from("stock_movements")
+      .select("product_id,quantity,movement_type,created_at,description,stock_products(product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,location)")
+      .gte("created_at", start.toISOString())
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (error) throw error;
+    rows = rows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows.filter(m => isOutgoingMovementType(m.movement_type));
+}
+function buildOrderSuggestionRows(movements) {
+  const productMap = new Map((state.products || []).map(p => [String(p.id), p]));
+  const grouped = new Map();
+  (movements || []).forEach(m => {
+    const productId = String(m.product_id || "");
+    if (!productId) return;
+    const qty = Number(m.quantity || 0);
+    if (qty <= 0) return;
+    const current = grouped.get(productId) || { productId, outQty: 0, lastDate: "", movementCount: 0 };
+    current.outQty += qty;
+    current.movementCount += 1;
+    if (!current.lastDate || String(m.created_at || "") > String(current.lastDate || "")) current.lastDate = m.created_at || "";
+    const localProduct = productMap.get(productId);
+    const joined = m.stock_products || {};
+    current.product = localProduct || {
+      id: productId,
+      name: joined.product_name || "-",
+      productBrand: joined.product_brand || "",
+      category: joined.category || "",
+      carBrand: joined.vehicle_brand || "",
+      carModel: joined.vehicle_model || "",
+      carType: joined.vehicle_type || "",
+      vehicleYear: joined.vehicle_year || "",
+      stock: Number(joined.quantity || 0),
+      location: joined.location || ""
+    };
+    grouped.set(productId, current);
+  });
+  return [...grouped.values()].map(row => {
+    const p = row.product || {};
+    const currentStock = Number(p.stock || 0);
+    const suggestedQty = Math.max(0, Number(row.outQty || 0) - currentStock);
+    return {
+      productId: row.productId,
+      productName: orderProductLabel(p),
+      productBrand: p.productBrand || "",
+      category: p.category || "",
+      carBrand: p.carBrand || "",
+      carModel: p.carModel || "",
+      carType: p.carType || "",
+      vehicleYear: p.vehicleYear || "",
+      location: p.location || "",
+      outQty: Number(row.outQty || 0),
+      currentStock,
+      suggestedQty,
+      lastDate: row.lastDate || "",
+      movementCount: row.movementCount || 0
+    };
+  }).sort((a, b) => (b.suggestedQty - a.suggestedQty) || (b.outQty - a.outQty) || a.productName.localeCompare(b.productName, "tr"));
+}
+function renderOrderSuggestionRows() {
+  const box = document.getElementById("orderSuggestionList");
+  const summary = document.getElementById("orderSuggestionSummary");
+  if (!box) return;
+  const rows = state.orderSuggestionRows || [];
+  const needRows = rows.filter(r => Number(r.suggestedQty || 0) > 0);
+  const totalOut = rows.reduce((s, r) => s + Number(r.outQty || 0), 0);
+  const totalSuggested = needRows.reduce((s, r) => s + Number(r.suggestedQty || 0), 0);
+  if (summary) {
+    summary.innerHTML = `
+      <div class="value-stat"><span>Son 7 Gün Çıkış</span><strong>${totalOut}</strong></div>
+      <div class="value-stat"><span>Sipariş Önerilen Ürün</span><strong>${needRows.length}</strong></div>
+      <div class="value-stat"><span>Önerilen Toplam Adet</span><strong>${totalSuggested}</strong></div>
+      <div class="value-stat"><span>Hesap</span><strong>Çıkış - Stok</strong></div>
+    `;
+  }
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty-state">Son 7 günde çıkış hareketi bulunamadı.</div>`;
+    return;
+  }
+  box.innerHTML = `
+    <div class="table-wrap"><table class="order-suggestion-table">
+      <thead><tr><th>Ürün</th><th>Kategori</th><th>Araç</th><th>Son 7 Gün Çıkış</th><th>Mevcut Stok</th><th>Önerilen Sipariş</th><th>Raf</th><th>Son Çıkış</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="${r.suggestedQty > 0 ? "need-order" : "no-order"}">
+        <td><strong>${escapeHtml(r.productName)}</strong><div class="muted">${escapeHtml(r.productBrand || "-")}</div></td>
+        <td>${escapeHtml(r.category || "-")}</td>
+        <td>${escapeHtml([r.carBrand, r.carModel, r.carType, r.vehicleYear].filter(Boolean).join(" ") || "-")}</td>
+        <td><strong>${Number(r.outQty || 0)}</strong></td>
+        <td>${Number(r.currentStock || 0)}</td>
+        <td><strong class="${r.suggestedQty > 0 ? "stock-warning" : ""}">${Number(r.suggestedQty || 0)}</strong></td>
+        <td>${escapeHtml(r.location || "-")}</td>
+        <td>${r.lastDate ? formatDate(r.lastDate) : "-"}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+  `;
+}
+async function loadOrderSuggestions() {
+  const box = document.getElementById("orderSuggestionList");
+  if (box) box.innerHTML = `<div class="empty-state">Son 7 günlük çıkışlar hesaplanıyor...</div>`;
+  if (!state.products.length) {
+    try { await loadProducts(); } catch (err) { console.warn("Ürünler alınamadı:", err?.message || err); }
+  }
+  const movements = await fetchRecentOutgoingMovements(7);
+  state.orderSuggestionRows = buildOrderSuggestionRows(movements);
+  renderOrderSuggestionRows();
+}
+window.loadOrderSuggestions = loadOrderSuggestions;
+window.downloadOrderSuggestionExcel = function() {
+  const rows = (state.orderSuggestionRows || []).filter(r => Number(r.suggestedQty || 0) > 0);
+  if (!rows.length) return showToast("Excel'e aktarılacak sipariş önerisi yok", true);
+  const sheetRows = rows.map(r => ({
+    "Ürün": r.productName,
+    "Ürün Markası": r.productBrand,
+    "Kategori": r.category,
+    "Araç Markası": r.carBrand,
+    "Araç Modeli": r.carModel,
+    "Araç Tipi": r.carType,
+    "Model Yılı": r.vehicleYear,
+    "Son 7 Gün Çıkış": r.outQty,
+    "Mevcut Stok": r.currentStock,
+    "Önerilen Sipariş": r.suggestedQty,
+    "Raf/Konum": r.location,
+    "Son Çıkış": r.lastDate ? formatDate(r.lastDate) : ""
+  }));
+  const ws = XLSX.utils.json_to_sheet(sheetRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sipariş Önerisi");
+  const d = new Date().toLocaleDateString("tr-TR").replaceAll(".", "-");
+  XLSX.writeFile(wb, `Siparis_Onerisi_${d}.xlsx`);
+};
+
 function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
@@ -3024,7 +3179,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -3056,6 +3211,7 @@ if (tab === "sale") {
 if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
+if (tab === "orderSuggestion") loadOrderSuggestions().catch(err => showToast(err.message || "Sipariş önerisi alınamadı", true));
 if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
@@ -3431,7 +3587,7 @@ async function smartRefresh() {
     renderOperationResults();
     return;
   }
-  if (["add", "critical", "search"].includes(state.activeTab)) {
+  if (["add", "critical", "search", "orderSuggestion"].includes(state.activeTab)) {
     await Promise.all([loadProducts(), loadMovements()]);
     return;
   }

@@ -582,3 +582,21 @@ body.image-modal-open{overflow:hidden}
 .category-value-list{display:grid;gap:10px}.category-value-item{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--border);background:#0b1324;border-radius:16px;padding:12px}.category-value-table{min-width:860px}.category-value-table .missing-price td{background:rgba(245,158,11,.08)}
 @media(max-width:900px){.category-value-summary{grid-template-columns:1fr 1fr}.category-value-item{flex-direction:column;align-items:stretch}.category-value-item .action-group .action-btn{flex:1}}
 @media(max-width:560px){.category-value-summary{grid-template-columns:1fr}}
+
+
+/* === Sipariş Önerisi === */
+.order-hint{
+  border:1px solid rgba(37,99,235,.25);
+  background:rgba(37,99,235,.10);
+  border-radius:16px;
+  padding:12px 14px;
+  margin-bottom:14px;
+  color:#dbeafe;
+}
+.order-suggestion-table th,
+.order-suggestion-table td{white-space:nowrap;}
+.order-suggestion-table tr.need-order{background:rgba(22,163,74,.055);}
+.order-suggestion-table tr.no-order{opacity:.72;}
+@media(max-width:900px){
+  .order-hint{font-size:13px;}
+}

@@ -55,6 +55,7 @@
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
       <button id="nav-categoryValues" onclick="switchTab('categoryValues')">Kategori Değerleri</button>
+      <button id="nav-orderSuggestion" onclick="switchTab('orderSuggestion')">Sipariş Önerisi</button>
       <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
       <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
       <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
@@ -508,6 +509,33 @@ LED"></textarea>
       <section class="card">
         <h2>Kategori Bazlı Toplamlar</h2>
         <div id="categoryValueDetail"><div class="empty-state">Veri bekleniyor...</div></div>
+      </section>
+    </div>
+
+
+    <div id="page-orderSuggestion" class="page hidden">
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>Sipariş Önerisi</h2>
+            <p class="muted">Son 7 günlük stok çıkışlarına göre haftalık toplu sipariş listesi oluşturur.</p>
+          </div>
+          <div class="row-gap">
+            <button class="btn secondary" type="button" onclick="loadOrderSuggestions()">Yenile</button>
+            <button class="btn success" type="button" onclick="downloadOrderSuggestionExcel()">Excel İndir</button>
+          </div>
+        </div>
+        <div class="order-hint">
+          Hesap: <strong>Önerilen Sipariş = Son 7 Gün Çıkış - Mevcut Stok</strong>. Sonuç eksi çıkarsa 0 gösterilir.
+        </div>
+        <div id="orderSuggestionSummary" class="category-value-summary">
+          <div class="empty-state">Hesaplama için veriler bekleniyor...</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Haftalık Sipariş Listesi</h2>
+        <div id="orderSuggestionList"><div class="empty-state">Veri bekleniyor...</div></div>
       </section>
     </div>
 
