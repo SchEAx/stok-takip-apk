@@ -315,7 +315,8 @@ function loginWithSelectedStaff() {
   logActivity("login", `${staff.name} giriş yaptı`, "staff", staff.name);
   showToast(`Hoş geldin ${staff.name} ✅`);
 }
-function initAuthGate() {
+async function initAuthGate() {
+  await loadRolePermissionsFromSupabase();
   populateLoginStaffSelect();
   const session = currentSession();
   const staff = session ? readStaffList().find(s => s.name === session.name) : null;
