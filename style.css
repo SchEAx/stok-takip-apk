@@ -731,91 +731,14 @@ body.image-modal-open{overflow:hidden}
   }
 }
 
-/* === TABLET FIX v3: Stok Giriş/Çıkış kartı dar sütun kırılmasını düzeltir ===
-   Not: Tablet yatay ekranda sağ panel dar kaldığı için ürün bilgisi ve butonlar
-   aynı satıra sıkışıyordu. Aksiyonları alta alıp bilgi alanını genişletiyoruz. */
-@media (min-width:701px) and (max-width:1700px){
-  #page-products .operation-card,
-  .operation-result-list .operation-card{
-    display:grid !important;
-    grid-template-columns:92px minmax(0,1fr) !important;
-    align-items:start !important;
-    gap:14px 16px !important;
-  }
 
-  #page-products .operation-card .product-card-img,
-  .operation-result-list .operation-card .product-card-img{
-    width:82px !important;
-    height:82px !important;
-    border-radius:18px !important;
-    grid-column:1 !important;
-    grid-row:1 !important;
-  }
-
-  #page-products .operation-main,
-  .operation-result-list .operation-main{
-    grid-column:2 !important;
-    grid-row:1 !important;
-    min-width:0 !important;
-    width:100% !important;
-    overflow-wrap:normal !important;
-    word-break:normal !important;
-  }
-
-  #page-products .operation-title,
-  .operation-result-list .operation-title,
-  #page-products .operation-meta,
-  .operation-result-list .operation-meta,
-  #page-products .operation-stock-row,
-  .operation-result-list .operation-stock-row{
-    overflow-wrap:normal !important;
-    word-break:normal !important;
-  }
-
-  #page-products .operation-actions,
-  .operation-result-list .operation-actions{
-    grid-column:1 / -1 !important;
-    grid-row:2 !important;
-    width:100% !important;
-    min-width:0 !important;
-    display:flex !important;
-    align-items:center !important;
-    justify-content:flex-start !important;
-    flex-wrap:nowrap !important;
-    gap:10px !important;
-    margin-top:6px !important;
-  }
-
-  #page-products .operation-actions .btn,
-  .operation-result-list .operation-actions .btn,
-  #page-products .operation-actions button,
-  .operation-result-list .operation-actions button{
-    width:auto !important;
-    min-width:92px !important;
-    white-space:nowrap !important;
-  }
-
-  #page-products .operation-actions .operation-qty-row,
-  .operation-result-list .operation-actions .operation-qty-row{
-    display:flex !important;
-    align-items:center !important;
-    gap:8px !important;
-    width:auto !important;
-    flex:0 0 auto !important;
-  }
-
-  #page-products .operation-actions .operation-qty-row input,
-  .operation-result-list .operation-actions .operation-qty-row input{
-    width:88px !important;
-    min-width:88px !important;
-    text-align:center !important;
-  }
-}
-
-/* Çok dar sağ panel / WebView ölçek durumunda butonları alta ama tek satır tut */
-@media (min-width:701px) and (max-width:1300px){
-  #page-products .operation-actions,
-  .operation-result-list .operation-actions{
-    flex-wrap:wrap !important;
-  }
-}
+/* === Tablet stok giriş/çıkış kart sıkışma düzeltmesi V4 === */
+#operationResultBox .operation-card{display:grid!important;grid-template-columns:90px minmax(0,1fr)!important;align-items:start!important;gap:14px!important}
+#operationResultBox .operation-card .product-card-img{width:78px!important;height:78px!important;grid-column:1!important;grid-row:1!important;flex-shrink:0!important}
+#operationResultBox .operation-card .operation-main{grid-column:2!important;grid-row:1!important;min-width:0!important;width:100%!important;max-width:100%!important;overflow-wrap:normal!important;word-break:normal!important}
+#operationResultBox .operation-card .operation-title,#operationResultBox .operation-card .operation-meta{overflow-wrap:normal!important;word-break:normal!important;white-space:normal!important}
+#operationResultBox .operation-card .operation-actions{grid-column:1/-1!important;grid-row:2!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px!important;min-width:0!important;width:100%!important;margin-top:4px!important;flex-wrap:wrap!important}
+#operationResultBox .operation-card .operation-qty-row{display:flex!important;align-items:center!important;gap:8px!important;width:auto!important}
+#operationResultBox .operation-card .operation-qty-row input{width:90px!important;min-width:70px!important;text-align:center!important}
+#operationResultBox .operation-card .operation-actions .btn{width:auto!important;min-width:92px!important;white-space:nowrap!important}
+@media(max-width:700px){#operationResultBox .operation-card{grid-template-columns:86px minmax(0,1fr)!important}#operationResultBox .operation-card .operation-actions{flex-direction:column!important;align-items:stretch!important}#operationResultBox .operation-card .operation-actions .btn{width:100%!important}#operationResultBox .operation-card .operation-qty-row{width:100%!important;display:grid!important;grid-template-columns:64px 1fr 64px!important}#operationResultBox .operation-card .operation-qty-row input{width:100%!important}}
