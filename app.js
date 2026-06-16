@@ -1,13 +1,3 @@
-
-(function injectTabletOperationFixV6(){
-  try {
-    if (document.getElementById('tabletOperationFixV6Runtime')) return;
-    var st = document.createElement('style');
-    st.id = 'tabletOperationFixV6Runtime';
-    st.textContent = `#operationResultBox .operation-card,#operationResultBox .opfix-card{display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:14px!important;grid-template-columns:none!important}#operationResultBox .opfix-img,#operationResultBox .operation-card>.product-card-img{flex:0 0 78px!important;width:78px!important;height:78px!important;min-width:78px!important;max-width:78px!important}#operationResultBox .operation-main,#operationResultBox .opfix-main{flex:1 1 300px!important;min-width:260px!important;width:auto!important;max-width:none!important;overflow:visible!important;word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important}#operationResultBox .operation-title,#operationResultBox .operation-meta{word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;max-width:none!important}#operationResultBox .operation-actions,#operationResultBox .opfix-actions{display:flex!important;flex:0 1 auto!important;min-width:0!important;width:auto!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important}@media(max-width:1300px){#operationResultBox .operation-actions,#operationResultBox .opfix-actions{flex-basis:100%!important}}@media(max-width:700px){#operationResultBox .operation-main,#operationResultBox .opfix-main{min-width:0!important;flex-basis:calc(100% - 92px)!important}#operationResultBox .operation-actions,#operationResultBox .opfix-actions{display:grid!important;grid-template-columns:1fr!important;width:100%!important}#operationResultBox .operation-actions .operation-qty-row{display:grid!important;grid-template-columns:64px 1fr 64px!important;width:100%!important}}`;
-    document.head.appendChild(st);
-  } catch(e) {}
-})();
 const APP_VERSION = '2.0.3-siparis-onerisi';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
@@ -1478,11 +1468,11 @@ function renderOperationCards(results) {
       p.barcode ? `Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""
     ].filter(Boolean).join(" · ");
 
-    return `<div class="operation-card opfix-card" style="display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:14px!important;grid-template-columns:none!important;">
-      ${productImageHtml(p, "product-card-img opfix-img")}
-      <div class="operation-main opfix-main" style="flex:1 1 300px!important;min-width:260px!important;width:auto!important;max-width:none!important;overflow:visible!important;word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;">
-        <div class="operation-title" style="word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;max-width:none!important;">${escapeHtml(p.name || p.category || "Ürün")}</div>
-        <div class="operation-meta" style="word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;max-width:none!important;">${detailLine || "-"}</div>
+    return `<div class="operation-card">
+      ${productImageHtml(p, "product-card-img")}
+      <div class="operation-main">
+        <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
+        <div class="operation-meta">${detailLine || "-"}</div>
         ${p.note ? `<div class="operation-meta operation-note">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
         <div class="operation-stock-row">
           <span>Stok: <b>${Number(p.stock || 0)}</b></span>
@@ -1491,7 +1481,7 @@ function renderOperationCards(results) {
           <span>Min: <b>${Number(p.minStock || 0)}</b></span>
         </div>
       </div>
-      <div class="operation-actions opfix-actions" style="display:flex!important;flex:0 1 auto!important;min-width:0!important;width:auto!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;">
+      <div class="operation-actions">
         <div class="operation-qty-row">
           <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', -1)">-</button>
           <input type="number" min="1" value="${qty}" onchange="setOperationQty('${p.id}', this.value)" />

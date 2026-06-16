@@ -602,11 +602,42 @@ body.image-modal-open{overflow:hidden}
 }
 
 
-/* === V6 TABLET İŞLEM KARTI KESİN DÜZELTME === */
-#operationResultBox .operation-card,#operationResultBox .opfix-card{display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:14px!important;grid-template-columns:none!important;}
-#operationResultBox .opfix-img,#operationResultBox .operation-card>.product-card-img{flex:0 0 78px!important;width:78px!important;height:78px!important;min-width:78px!important;max-width:78px!important;}
-#operationResultBox .operation-main,#operationResultBox .opfix-main{flex:1 1 300px!important;min-width:260px!important;width:auto!important;max-width:none!important;overflow:visible!important;word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;}
-#operationResultBox .operation-title,#operationResultBox .operation-meta{word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;max-width:none!important;}
-#operationResultBox .operation-actions,#operationResultBox .opfix-actions{display:flex!important;flex:0 1 auto!important;min-width:0!important;width:auto!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;}
-@media(max-width:1300px){#operationResultBox .operation-actions,#operationResultBox .opfix-actions{flex-basis:100%!important;}}
-@media(max-width:700px){#operationResultBox .operation-main,#operationResultBox .opfix-main{min-width:0!important;flex-basis:calc(100% - 92px)!important;}#operationResultBox .operation-actions,#operationResultBox .opfix-actions{display:grid!important;grid-template-columns:1fr!important;width:100%!important;}#operationResultBox .operation-actions .operation-qty-row{display:grid!important;grid-template-columns:64px 1fr 64px!important;width:100%!important;}}
+/* === V7 Derin Tablet Fix: Ürün Ekle sekmesindeki dar Stok Giriş/Çıkış kartını kaldır === */
+#page-add > .grid-2{
+  grid-template-columns:1fr !important;
+}
+#page-add .add-stock-shortcut-card{
+  border-color:rgba(37,99,235,.28);
+  background:rgba(37,99,235,.06);
+}
+#page-add .add-stock-shortcut-card .btn{
+  width:auto;
+  margin-top:10px;
+}
+@media(max-width:700px){
+  #page-add .add-stock-shortcut-card .btn{width:100%;}
+}
+
+/* İşlem sekmesi zaten düzgün: kartlar tam genişlikte rahat aksın */
+#page-operation .operation-card{
+  grid-template-columns:78px minmax(0,1fr) auto !important;
+}
+#page-operation .operation-main{
+  min-width:0 !important;
+  width:auto !important;
+  max-width:none !important;
+}
+#page-operation .operation-title,
+#page-operation .operation-meta{
+  overflow-wrap:normal !important;
+  word-break:normal !important;
+}
+@media(max-width:980px){
+  #page-operation .operation-card{
+    grid-template-columns:86px minmax(0,1fr) !important;
+  }
+  #page-operation .operation-actions{
+    grid-column:1 / -1 !important;
+    width:100% !important;
+  }
+}
