@@ -144,7 +144,7 @@
 .operation-title{font-size:16px;font-weight:900;color:#fff;line-height:1.25}
 .operation-meta{color:var(--muted);font-size:13px;margin-top:5px;line-height:1.35}
 .operation-stock-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;color:#cbd5e1;font-size:13px}.operation-stock-row b{color:#fff}
-.operation-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:310px}
+.operation-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:220px}
 .operation-qty-row{display:flex;align-items:center;gap:6px}.operation-qty-row input{width:76px;text-align:center;padding:10px;border-radius:12px}.btn.mini{padding:10px 13px;width:auto!important}
 @media(max-width:980px){.operation-filter-grid{grid-template-columns:1fr}.operation-card{grid-template-columns:1fr}.operation-actions{min-width:0;justify-content:flex-start}.operation-actions .btn{width:auto}.operation-qty-row input{width:86px}}
 @media(max-width:640px){.operation-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.operation-qty-row{grid-column:1/-1}.operation-qty-row input{flex:1}.operation-actions .btn{width:100%!important}.operation-main{min-width:0}}
@@ -599,4 +599,53 @@ body.image-modal-open{overflow:hidden}
 .order-suggestion-table tr.no-order{opacity:.72;}
 @media(max-width:900px){
   .order-hint{font-size:13px;}
+}
+
+
+/* === TABLET FIX: Stok Giriş / Çıkış ürün kartı düzeni === */
+@media (min-width: 701px) and (max-width: 1200px){
+  .operation-card{
+    grid-template-columns:90px minmax(0,1fr) !important;
+    align-items:start !important;
+    gap:14px !important;
+  }
+
+  .operation-card .product-card-img{
+    width:78px;
+    height:78px;
+    border-radius:18px;
+    grid-column:1;
+    grid-row:1;
+  }
+
+  .operation-main{
+    grid-column:2;
+    grid-row:1;
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+
+  .operation-title{
+    font-size:16px;
+    line-height:1.28;
+  }
+
+  .operation-actions{
+    grid-column:1 / -1;
+    width:100%;
+    min-width:0 !important;
+    justify-content:flex-start !important;
+    margin-top:10px;
+  }
+
+  .operation-actions .operation-qty-row{
+    display:flex !important;
+    align-items:center;
+    gap:8px;
+  }
+
+  .operation-actions .btn,
+  .operation-actions button{
+    width:auto !important;
+  }
 }
