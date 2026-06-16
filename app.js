@@ -1468,11 +1468,11 @@ function renderOperationCards(results) {
       p.barcode ? `Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""
     ].filter(Boolean).join(" · ");
 
-    return `<div class="operation-card">
+    return `<div class="operation-card" style="display:grid!important;grid-template-columns:86px minmax(0,1fr)!important;gap:12px!important;align-items:start!important;">
       ${productImageHtml(p, "product-card-img")}
-      <div class="operation-main">
-        <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
-        <div class="operation-meta">${detailLine || "-"}</div>
+      <div class="operation-main" style="min-width:0!important;width:auto!important;max-width:none!important;overflow-wrap:normal!important;word-break:normal!important;">
+        <div class="operation-title" style="min-width:0!important;overflow-wrap:normal!important;word-break:normal!important;white-space:normal!important;">${escapeHtml(p.name || p.category || "Ürün")}</div>
+        <div class="operation-meta" style="min-width:0!important;overflow-wrap:normal!important;word-break:normal!important;white-space:normal!important;">${detailLine || "-"}</div>
         ${p.note ? `<div class="operation-meta operation-note">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
         <div class="operation-stock-row">
           <span>Stok: <b>${Number(p.stock || 0)}</b></span>
@@ -1481,8 +1481,8 @@ function renderOperationCards(results) {
           <span>Min: <b>${Number(p.minStock || 0)}</b></span>
         </div>
       </div>
-      <div class="operation-actions">
-        <div class="operation-qty-row">
+      <div class="operation-actions" style="grid-column:1 / -1!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px!important;flex-wrap:wrap!important;min-width:0!important;width:100%!important;margin-top:8px!important;">
+        <div class="operation-qty-row" style="display:flex!important;align-items:center!important;gap:8px!important;">
           <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', -1)">-</button>
           <input type="number" min="1" value="${qty}" onchange="setOperationQty('${p.id}', this.value)" />
           <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', 1)">+</button>
