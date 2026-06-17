@@ -996,7 +996,9 @@ window.clearNewRequestAlert = function() {
   updateNewRequestAlert();
   renderStockRequests();
 };
-function setLoading(flag) { state.loading = flag; el.refreshBtn.disabled = flag; el.saveProductBtn.disabled = flag; el.movementSearchInput.disabled = flag; el.refreshBtn.textContent = flag ? "Yükleniyor..." : "Yenile"; el.saveProductBtn.textContent = flag ? "Kaydediliyor..." : "Ürünü Kaydet"; }
+function setLoading(flag) { state.loading = flag; el.refreshBtn.disabled = flag; el.saveProductBtn.disabled = flag; if (el.movementSearchInput) {
+  el.movementSearchInput.disabled = flag;
+} el.refreshBtn.textContent = flag ? "Yükleniyor..." : "Yenile"; el.saveProductBtn.textContent = flag ? "Kaydediliyor..." : "Ürünü Kaydet"; }
 
 async function loadDashboardStats() {
   // Önce Supabase SQL fonksiyonunu dener. Fonksiyon yoksa eski güvenli yönteme düşer.
