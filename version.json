@@ -1,5 +1,5 @@
 {
-  "version": "5.1.1",
+  "version": "5.1.2",
   "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Görüntü iyileştirmeleri"
+  "message": "Giriş/çıkış kalktı. Bu işlemleri 'İŞLEM' sekmesinden yapınız."
 }
