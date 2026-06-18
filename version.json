@@ -1,5 +1,5 @@
 {
-  "version": "5.1.3",
+  "version": "5.1.4",
   "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Giriş/çıkış kalktı. Bu işlemleri 'İŞLEM' sekmesinden yapınız."
+  "message": "Yönetim sekmesi eklendi. Araç Markası SİLİNECEK olan ürünler tek tuşla kalıcı silinebilir."
 }

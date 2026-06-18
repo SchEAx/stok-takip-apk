@@ -641,3 +641,11 @@ body.image-modal-open{overflow:hidden}
     width:100% !important;
   }
 }
+
+
+/* === Yönetim Sekmesi / Toplu Silme === */
+.management-card{max-width:980px;margin-left:auto;margin-right:auto}
+.management-tool-card{display:flex;gap:16px;align-items:flex-start;border:1px solid rgba(255,255,255,.08);background:#0b1324;border-radius:18px;padding:18px;margin-top:12px}
+.management-tool-card.danger-zone{border-color:rgba(220,38,38,.32);background:linear-gradient(180deg,rgba(127,29,29,.22),rgba(11,19,36,.92))}
+.management-tool-icon{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:16px;background:rgba(220,38,38,.18);font-size:26px;flex:0 0 auto}
+.management-tool-content{flex:1;min-width:0}.management-tool-content h3{margin:0 0 8px;font-size:18px}.management-tool-content b{color:#fff}.management-info{margin:10px 0 14px}.delete-marked-counter{display:inline-flex;align-items:center;gap:14px;border:1px solid rgba(220,38,38,.35);background:rgba(220,38,38,.12);border-radius:16px;padding:12px 16px;margin-top:12px}.delete-marked-counter span{color:var(--muted);font-size:13px;font-weight:800}.delete-marked-counter strong{font-size:34px;line-height:1;color:#fca5a5}.management-actions{margin-top:12px}@media(max-width:700px){.management-tool-card{flex-direction:column}.management-actions .btn{width:100%}.delete-marked-counter{width:100%;justify-content:space-between}}

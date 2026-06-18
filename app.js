@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.3-siparis-onerisi';
+const APP_VERSION = '2.0.4-yonetim-toplu-silme';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -167,6 +167,7 @@ const TAB_DEFINITIONS = [
   { key: "categoryValues", label: "Kategori Değerleri" },
   { key: "orderSuggestion", label: "Sipariş Önerisi" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
+  { key: "management", label: "Yönetim" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
   { key: "logs", label: "Loglar" }
 ];
@@ -3175,6 +3176,135 @@ window.downloadOrderSuggestionExcel = function() {
   XLSX.writeFile(wb, `Siparis_Onerisi_${d}.xlsx`);
 };
 
+
+const DELETE_MARK_TEXT = "SİLİNECEK";
+const DELETE_MARK_VARIANTS = ["SİLİNECEK", "SILINECEK", "Silinecek", "silinecek"];
+
+async function loadDeleteMarkedCount() {
+  const countEl = document.getElementById("deleteMarkedCount");
+  const infoEl = document.getElementById("deleteMarkedInfo");
+  const deleteBtn = document.getElementById("deleteMarkedProductsBtn");
+  if (countEl) countEl.textContent = "...";
+  if (infoEl) infoEl.textContent = "Sayı kontrol ediliyor...";
+  if (deleteBtn) deleteBtn.disabled = true;
+
+  try {
+    const { count, error } = await supabaseClient
+      .from("stock_products")
+      .select("id", { count: "exact", head: true })
+      .in("vehicle_brand", DELETE_MARK_VARIANTS);
+
+    if (error) throw error;
+
+    const total = Number(count || 0);
+    if (countEl) countEl.textContent = String(total);
+    if (infoEl) infoEl.textContent = total
+      ? `${total} ürün kalıcı silmeye hazır. Araç Markası alanı "${DELETE_MARK_TEXT}" olanlar silinecek.`
+      : `Araç Markası alanı "${DELETE_MARK_TEXT}" olan ürün bulunamadı.`;
+    if (deleteBtn) deleteBtn.disabled = total <= 0;
+    return total;
+  } catch (err) {
+    console.error(err);
+    if (countEl) countEl.textContent = "!";
+    if (infoEl) infoEl.textContent = err.message || "Silinecek ürün sayısı alınamadı.";
+    showToast(err.message || "Silinecek ürün sayısı alınamadı", true);
+    return 0;
+  }
+}
+window.loadDeleteMarkedCount = loadDeleteMarkedCount;
+
+async function fetchDeleteMarkedProductIds() {
+  const ids = [];
+  let from = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabaseClient
+      .from("stock_products")
+      .select("id")
+      .in("vehicle_brand", DELETE_MARK_VARIANTS)
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    const batch = data || [];
+    ids.push(...batch.map(row => row.id).filter(Boolean));
+    if (batch.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return ids;
+}
+
+async function deleteMarkedProducts() {
+  if (!requireRoleAction(["admin"], "Toplu silme işlemini sadece Admin yapabilir")) return;
+
+  const count = await loadDeleteMarkedCount();
+  if (!count) return;
+
+  const ok = await appConfirm(
+    `${count} ürün kalıcı olarak silinecek. Bu işlem geri alınamaz. Devam edilsin mi?`,
+    { title: "Toplu Ürün Silme", okText: "Kalıcı Olarak Sil", cancelText: "Vazgeç", danger: true }
+  );
+  if (!ok) return;
+
+  const secondOk = await appConfirm(
+    `Son kontrol knk: Araç Markası "${DELETE_MARK_TEXT}" olan ${count} ürün tamamen silinsin mi?`,
+    { title: "Son Onay", okText: "Evet, Sil", cancelText: "İptal", danger: true }
+  );
+  if (!secondOk) return;
+
+  const deleteBtn = document.getElementById("deleteMarkedProductsBtn");
+  const infoEl = document.getElementById("deleteMarkedInfo");
+  try {
+    if (deleteBtn) deleteBtn.disabled = true;
+    if (infoEl) infoEl.textContent = "Silinecek ürünler hazırlanıyor...";
+
+    const ids = await fetchDeleteMarkedProductIds();
+    if (!ids.length) {
+      showToast("Silinecek ürün bulunamadı");
+      await loadDeleteMarkedCount();
+      return;
+    }
+
+    const chunkSize = 500;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      if (infoEl) infoEl.textContent = `Hareket kayıtları temizleniyor: ${Math.min(i + chunk.length, ids.length)} / ${ids.length}`;
+      await supabaseClient.from("stock_movements").delete().in("product_id", chunk);
+    }
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      if (infoEl) infoEl.textContent = `Ürünler siliniyor: ${Math.min(i + chunk.length, ids.length)} / ${ids.length}`;
+      const { error } = await supabaseClient.from("stock_products").delete().in("id", chunk);
+      if (error) throw error;
+    }
+
+    state.products = state.products.filter(p => !ids.includes(p.id));
+    state.operationFilterOptionsLoaded = false;
+    await Promise.all([
+      loadDashboardStats().catch(() => {}),
+      loadMovements().catch(() => {}),
+      loadOperationFilterOptions().catch(() => {})
+    ]);
+    updateStats();
+    refreshProductQuickLists();
+    refreshOperationFilters();
+    renderOperationResults();
+    await loadDeleteMarkedCount();
+
+    logActivity("bulk_delete", `${ids.length} ürün Araç Markası ${DELETE_MARK_TEXT} olduğu için kalıcı silindi`, "stock_products", DELETE_MARK_TEXT);
+    showToast(`${ids.length} ürün kalıcı olarak silindi ✅`);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Toplu silme başarısız oldu", true);
+    await loadDeleteMarkedCount();
+  } finally {
+    if (deleteBtn) deleteBtn.disabled = false;
+  }
+}
+window.deleteMarkedProducts = deleteMarkedProducts;
+
 function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
@@ -3182,7 +3312,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "surveys", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "surveys", "management", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -3204,7 +3334,7 @@ if (tab === "operation") {
     renderOperationResults();
   }
 }
-if (["add", "critical"].includes(tab) && !state.products.length) { loadProducts().catch(err => showToast(err.message || "Ürünler yüklenemedi", true)); }
+if (["add", "critical", "management"].includes(tab) && !state.products.length) { loadProducts().catch(err => showToast(err.message || "Ürünler yüklenemedi", true)); }
 if (tab === "sale") {
   renderSaleFavorites();
   renderSaleProducts();
@@ -3216,6 +3346,7 @@ if (tab === "critical") renderCriticalStock();
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
 if (tab === "orderSuggestion") loadOrderSuggestions().catch(err => showToast(err.message || "Sipariş önerisi alınamadı", true));
 if (tab === "surveys") loadCustomerSurveyStats();
+if (tab === "management") loadDeleteMarkedCount();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
 if (tab === "users") { renderUsersList(); renderRolePermissionEditor(); }
@@ -3590,7 +3721,7 @@ async function smartRefresh() {
     renderOperationResults();
     return;
   }
-  if (["add", "critical", "search", "orderSuggestion"].includes(state.activeTab)) {
+  if (["add", "critical", "search", "orderSuggestion", "management"].includes(state.activeTab)) {
     await Promise.all([loadProducts(), loadMovements()]);
     return;
   }
