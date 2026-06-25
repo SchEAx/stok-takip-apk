@@ -165,6 +165,8 @@
             <div><label>Araç Model Yılı</label><input id="vehicleYear" class="custom-suggest-input" type="text" placeholder="Örn: 2016-2020" autocomplete="off" /></div>
             <div><label>Mevcut Stok</label><input id="stock" type="number" min="0" step="1" placeholder="0" /></div>
             <div><label>Minimum Stok</label><input id="minStock" type="number" min="0" step="1" placeholder="0" /></div>
+            <div><label>Alış Fiyatı</label><input id="productPurchasePrice" type="number" min="0" step="0.01" placeholder="Örn: 22500" /></div>
+            <div><label>Ortalama Satış Fiyatı</label><input id="productAverageSalePrice" type="number" min="0" step="0.01" placeholder="Örn: 25000" /></div>
             <div><label>Raf / Konum</label><input id="location" class="custom-suggest-input" type="text" placeholder="Örn: A-12" autocomplete="off" /></div>
             <input id="productImage" type="hidden" />
             <div class="full product-image-panel">
@@ -186,12 +188,12 @@
 
 <div class="excel-panel">
   <div class="excel-panel-head">
-    <strong>Kategoriye göre Excel indir / yükle</strong>
+    <strong>Marka + kategoriye göre Excel indir / yükle</strong>
     <span class="muted">Boş bıraktığın filtreler tümünü kapsar.</span>
   </div>
 
   <div class="excel-filter-grid">
-    <select id="excelProductBrandFilter" class="hidden"><option value="">Tüm markalar</option></select>
+    <div><label>Ürün Markası</label><select id="excelProductBrandFilter"><option value="">Tüm ürün markaları</option></select></div>
     <div><label>Ürün Kategorisi</label><select id="excelCategoryFilter"><option value="">Tüm kategoriler</option></select></div>
     <div><label>Araç Markası</label><select id="excelCarBrandFilter"><option value="">Tüm araç markaları</option></select></div>
      </div>
@@ -460,7 +462,7 @@ LED"></textarea>
         <div class="section-head">
           <div>
             <h2>Kategori Değerleri</h2>
-            <p class="muted">Kategori bazlı alış ve ortalama satış fiyatı gir; stok toplam değerlerini otomatik hesapla.</p>
+            <p class="muted">Ürün kartlarına girilen alış ve ortalama satış fiyatlarına göre stok toplam değerlerini otomatik hesapla.</p>
           </div>
           <button class="btn secondary" type="button" onclick="loadCategoryValues()">Yenile</button>
         </div>
@@ -470,35 +472,9 @@ LED"></textarea>
         </div>
       </section>
 
-      <section class="grid-2">
-        <div class="card">
-          <h2>Kategori Fiyatı Ekle / Güncelle</h2>
-          <form id="categoryValueForm" class="form-grid">
-            <input type="hidden" id="categoryValueId" />
-            <div class="full">
-              <label>Kategori</label>
-              <input id="categoryValueCategory" class="custom-suggest-input" list="categoryList" type="text" placeholder="Örn: Paspas, Premium Paspas" autocomplete="off" />
-            </div>
-            <div>
-              <label>Alış Fiyatı</label>
-              <input id="categoryValuePurchase" type="number" min="0" step="0.01" placeholder="0" />
-            </div>
-            <div>
-              <label>Ort. Satış Fiyatı</label>
-              <input id="categoryValueSale" type="number" min="0" step="0.01" placeholder="0" />
-            </div>
-            <div class="full row-gap">
-              <button class="btn primary" type="submit">Kaydet</button>
-              <button class="btn ghost" type="button" onclick="clearCategoryValueForm()">Temizle</button>
-            </div>
-          </form>
-          <p class="muted">Not: Kategori adı stoktaki kategoriyle birebir aynı olursa hesaplamaya dahil olur.</p>
-        </div>
-
-        <div class="card">
-          <h2>Kayıtlı Kategori Fiyatları</h2>
-          <div id="categoryValueList" class="category-value-list"><div class="empty-state">Veri bekleniyor...</div></div>
-        </div>
+      <section class="card">
+        <h2>Ürün Bazlı Fiyat Sistemi</h2>
+        <p class="muted">Fiyatlar artık her ürün kartındaki <b>Alış Fiyatı</b> ve <b>Ortalama Satış Fiyatı</b> alanlarından alınır. Örn: B8 Far 22.500 + Golf 7 Far 25.000 ise Far kategori toplamı 47.500 olur.</p>
       </section>
 
       <section class="card">
@@ -589,9 +565,23 @@ LED"></textarea>
         <div class="section-head">
           <div>
             <h2>Yönetim</h2>
-            <p class="muted">Toplu işlemler ve ileride eklenecek yönetim araçları</p>
+            <p class="muted">Toplu işlemler, kategori/marka sayımı ve ileride eklenecek yönetim araçları</p>
           </div>
           <button type="button" class="btn secondary" onclick="loadDeleteMarkedCount()">Sayıyı Yenile</button>
+        </div>
+
+        <div class="management-tool-card">
+          <div class="management-tool-icon">📊</div>
+          <div class="management-tool-content">
+            <h3>Kategori / Ürün Markası Listesi</h3>
+            <p class="muted">Hangi kategoride hangi ürün markasından kaç ürün kartı ve kaç stok adedi var gösterir.</p>
+            <div id="managementCategoryBrandSummary" class="category-value-summary">
+              <div class="empty-state">Liste hazırlanıyor...</div>
+            </div>
+            <div id="managementCategoryBrandList">
+              <div class="empty-state">Liste için Yönetim sekmesini yenile.</div>
+            </div>
+          </div>
         </div>
 
         <div class="management-tool-card danger-zone">

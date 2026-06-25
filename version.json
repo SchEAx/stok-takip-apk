@@ -1,5 +1,5 @@
 {
-  "version": "5.1.4",
+  "version": "5.1.5",
   "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Yönetim sekmesi eklendi. Araç Markası SİLİNECEK olan ürünler tek tuşla kalıcı silinebilir."
+  "message": "Ürün markası Excel filtresi, ürün bazlı alış/satış fiyatı ve Yönetim kategori/marka listesi eklendi."
 }
