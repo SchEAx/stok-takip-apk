@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.5-urun-fiyat-marka-filtre';
+const APP_VERSION = '2.0.7-islem-fiyat-duzeltme';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -1376,6 +1376,7 @@ function renderMovementCards(results) {
         <div class="muted">Araç: <strong>${escapeHtml(vehicle || "-")}</strong> · Raf: <strong>${escapeHtml(p.location || "-")}</strong>${p.barcode ? ` · Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""}</div>
         ${p.note ? `<div class="muted">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
         <div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div>
+        <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
       </div>
       <div class="movement-search-actions">
         <div class="operation-qty-row quick-qty-row">
@@ -1492,6 +1493,7 @@ function renderOperationCards(results) {
           <span>Kullanılabilir: <b class="${available <= 0 ? "stock-warning" : ""}">${available}</b></span>
           <span>Min: <b>${Number(p.minStock || 0)}</b></span>
         </div>
+        <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
       </div>
       <div class="operation-actions">
         <div class="operation-qty-row">
@@ -1556,7 +1558,24 @@ async function searchStockProducts({ brand = "", category = "", search = "", lim
       p_limit: Number(limit || 120)
     });
     if (error) throw error;
-    return data || [];
+    const rpcRows = data || [];
+    const needsFullPriceRows = rpcRows.some(row =>
+      row && !(Object.prototype.hasOwnProperty.call(row, "average_sale_price") || Object.prototype.hasOwnProperty.call(row, "purchase_price"))
+    );
+    if (needsFullPriceRows && rpcRows.length) {
+      const ids = rpcRows.map(row => row.id).filter(Boolean);
+      if (ids.length) {
+        const { data: fullRows, error: fullError } = await supabaseClient
+          .from("stock_products")
+          .select(STOCK_PRODUCT_SELECT)
+          .in("id", ids);
+        if (!fullError && fullRows) {
+          const order = new Map(ids.map((id, index) => [String(id), index]));
+          return fullRows.sort((a, b) => (order.get(String(a.id)) ?? 999999) - (order.get(String(b.id)) ?? 999999));
+        }
+      }
+    }
+    return rpcRows;
   } catch (rpcErr) {
     console.warn("search_stock_products RPC yok/çalışmadı, eski arama yöntemine düşüldü:", rpcErr?.message || rpcErr);
   }

@@ -1,5 +1,1 @@
-{
-  "version": "5.1.5",
-  "apkUrl": "https://test-ivory-pi-95.vercel.app/garage-istanbul.apk",
-  "message": "Ürün markası Excel filtresi, ürün bazlı alış/satış fiyatı ve Yönetim kategori/marka listesi eklendi."
-}
+{"version":"2.0.7","label":"İşlem fiyat düzeltme","notes":"İşlem sekmesinde RPC aramasından gelen ürünlerde satış fiyatı görünür."}
