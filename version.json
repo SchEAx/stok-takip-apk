@@ -1,1 +1,7 @@
-{"version":"2.0.8","label":"Rezerve ve Bildirimler geri eklendi","notes":"Araç kabulden gelen depo talepleri, rezerve ekranı, bildirim merkezi, sayaçlar ve realtime uyarılar tekrar aktif."}
+{
+  "version": "2.0.9",
+  "label": "Rezerve ve Bildirimler geri eklendi",
+  "notes": "Araç kabulden gelen depo talepleri, rezerve ekranı, bildirim merkezi, sayaçlar ve realtime uyarılar tekrar aktif.",
+  "build": "2.0.9",
+  "note": "Rezerve ürün arama, diğer aramalar gibi çok kelimeli ve içerik eşleşmeli hale getirildi."
+}

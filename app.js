@@ -2767,7 +2767,19 @@ async function searchProductsForRequest(query = "", autoSuggest = false) {
     r => String(r.id) === String(state.selectedStockRequestId)
   );
 
-  const q = softText(query);
+  const rawQuery = String(query || "").trim();
+  const q = softText(rawQuery);
+
+  if (!state.products.length) {
+    el.productMatchBox.innerHTML = `<div class="empty-state">Stok listesi yükleniyor...</div>`;
+    try {
+      await loadProducts();
+    } catch (err) {
+      console.error("Rezerve ürün arama için stoklar yüklenemedi:", err);
+      el.productMatchBox.innerHTML = `<div class="empty-state">Stok listesi alınamadı: ${escapeHtml(err.message || err)}</div>`;
+      return;
+    }
+  }
 
   const reqBrand = softText(selectedReq?.vehicle_brand);
   const reqModel = softText(selectedReq?.vehicle_model);
@@ -2787,7 +2799,7 @@ async function searchProductsForRequest(query = "", autoSuggest = false) {
   const words = searchSource
     .split(/\s+/)
     .filter(w => w.length >= 2)
-    .map(w => w.replace(/ligi$|ligi$|lik$|ligi$|ligi$/g, ""));
+    .map(w => w.replace(/ligi$|liği$|lik$|lık$|luk$|lük$/g, ""));
 
   const results = state.products
     .map((p) => {
@@ -2800,27 +2812,34 @@ async function searchProductsForRequest(query = "", autoSuggest = false) {
         p.carType,
         p.vehicleYear,
         p.location,
-        p.note
+        p.note,
+        p.barcode
       ].join(" "));
 
-      let score = 0;
+      const manualMatch = !autoSuggest && rawQuery
+        ? (productSmartSearch(p, rawQuery) || barcodeSmartSearch(p, rawQuery))
+        : false;
+
+      let score = manualMatch ? 80 : 0;
 
       words.forEach(w => {
-        if (text.includes(w)) score += 2;
+        if (text.includes(w)) score += 6;
       });
 
-      if (q && text.includes(q)) score += 8;
+      if (q && text.includes(q)) score += 20;
 
-      if (reqBrand && softText(p.carBrand).includes(reqBrand)) score += 30;
-      if (reqModel && softText(p.carModel).includes(reqModel)) score += 25;
-      if (reqType && softText(p.carType).includes(reqType)) score += 15;
-      if (reqYear && softText(p.vehicleYear).includes(reqYear)) score += 6;
+      // Araç kabulden gelen araç bilgisi sonuç sıralamasını güçlendirir,
+      // ama manuel aramada tek başına alakasız ürünleri öne çıkarmaz.
+      if (reqBrand && softText(p.carBrand).includes(reqBrand)) score += 12;
+      if (reqModel && softText(p.carModel).includes(reqModel)) score += 18;
+      if (reqType && softText(p.carType).includes(reqType)) score += 8;
+      if (reqYear && softText(p.vehicleYear).includes(reqYear)) score += 4;
 
-      return { p, score };
+      return { p, score, manualMatch };
     })
-    .filter(x => x.score > 0)
+    .filter(x => autoSuggest ? x.score > 0 : x.manualMatch)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 25)
+    .slice(0, 50)
     .map(x => x.p);
 
   if (!results.length) {
