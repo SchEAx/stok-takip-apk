@@ -667,3 +667,10 @@ body.image-modal-open{overflow:hidden}
   color: #ffffff;
   font-size: 14px;
 }
+
+/* === Rezerve / Bildirim sekmeleri geri aktif === */
+.top-nav .nav-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:900;vertical-align:middle}
+.new-request-alert{position:sticky;top:8px;z-index:80;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:12px 14px;border:1px solid rgba(245,158,11,.45);border-radius:16px;background:linear-gradient(90deg,rgba(245,158,11,.22),rgba(11,19,36,.96));box-shadow:0 16px 35px rgba(0,0,0,.25)}
+.new-request-alert span{font-weight:900;color:#fde68a}.btn.mini{width:auto!important;padding:8px 12px;font-size:12px}.new-request-glow{border-color:rgba(245,158,11,.8)!important;box-shadow:0 0 0 3px rgba(245,158,11,.18),0 0 24px rgba(245,158,11,.18)}
+#nav-requests.active,#nav-notifications.active{background:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+@media(max-width:960px){.new-request-alert{position:static;flex-direction:column;align-items:stretch}.new-request-alert .row-gap .btn{flex:1}.notification-item{grid-template-columns:1fr}.notification-icon{display:none}.notification-actions{justify-content:flex-start}.top-actions .notification-bell{width:auto;min-width:54px}}

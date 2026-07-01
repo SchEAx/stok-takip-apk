@@ -45,12 +45,16 @@
       </div>
       <div class="top-actions">
         <div class="user-pill" id="activeUserPill">👤 <strong id="activeUserName">-</strong><span id="activeUserRole">-</span></div>
+        <button id="enableNotifyBtn" class="btn ghost" type="button">Bildirim Aç</button>
+        <button id="notificationBellBtn" class="btn secondary notification-bell" type="button" onclick="switchTab('notifications')">🔔<span id="notificationUnreadCount" class="notification-count hidden">0</span></button>
         <button id="refreshBtn" class="btn secondary">Yenile</button>
         <button id="logoutBtn" class="btn danger" type="button">Çıkış</button>
       </div>
     </header>
     <nav class="top-nav">
       <button id="nav-operation" onclick="switchTab('operation')">İşlem</button>
+      <button id="nav-requests" onclick="switchTab('requests')">Rezerve <span id="requestPendingCount" class="nav-count hidden">0</span></button>
+      <button id="nav-notifications" onclick="switchTab('notifications')">Bildirimler <span id="navNotificationCount" class="nav-count hidden">0</span></button>
       <button id="nav-add" onclick="switchTab('add')">Ürün Ekle</button>
       <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
       <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
@@ -65,10 +69,19 @@
     <section class="stats-grid stats-grid-4">
       <div class="card stat-card"><span class="stat-label">Toplam Ürün</span><strong id="totalProductCount">0</strong></div>
       <div class="card stat-card"><span class="stat-label">Toplam Stok</span><strong id="totalStockCount">0</strong></div>
+      <div class="card stat-card"><span class="stat-label">Rezerve Stok</span><strong id="reservedStockCount">0</strong></div>
       <div class="card stat-card danger"><span class="stat-label">Kritik Stok</span><strong id="criticalStockCount">0</strong></div>
     </section>
 
-    <div id="page-requests" class="page hidden legacy-page">
+    <div id="newRequestAlert" class="new-request-alert hidden">
+      <span id="newRequestAlertText">Yeni depo talebi var</span>
+      <div class="row-gap">
+        <button class="btn primary mini" type="button" onclick="switchTab('requests'); clearNewRequestAlert();">Talepleri Aç</button>
+        <button class="btn secondary mini" type="button" onclick="clearNewRequestAlert()">Kapat</button>
+      </div>
+    </div>
+
+    <div id="page-requests" class="page hidden">
       <section class="grid-2">
         <div class="card">
           <div class="section-head">
@@ -386,7 +399,7 @@
     </div>
 
 
-    <div id="page-notifications" class="page hidden legacy-page">
+    <div id="page-notifications" class="page hidden">
       <section class="card">
         <div class="section-head">
           <div>

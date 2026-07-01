@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.7-islem-fiyat-duzeltme';
+const APP_VERSION = '2.0.8-rezerve-bildirim-geri';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -165,6 +165,8 @@ const ACTIVITY_STORE_KEY = "garage_activity_logs_v2";
 const ROLE_PERMISSION_STORE_KEY = "garage_role_permissions_v1";
 const TAB_DEFINITIONS = [
   { key: "operation", label: "İşlem" },
+  { key: "requests", label: "Rezerve / Depo Talepleri" },
+  { key: "notifications", label: "Bildirimler" },
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
@@ -178,7 +180,7 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
+  depo: ["operation", "requests", "notifications", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
   kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
@@ -190,6 +192,7 @@ function normalizeRolePermissions(data) {
     const incoming = Array.isArray(data?.[role]) ? data[role] : DEFAULT_ROLE_PERMISSIONS[role];
     output[role] = [...new Set(incoming.filter(tab => ALL_TAB_KEYS.includes(tab)))];
     if (role === "admin") output[role] = [...ALL_TAB_KEYS];
+    if (role === "depo") output[role] = [...new Set([...output[role], "requests", "notifications"])];
     if (!output[role].length) output[role] = [...DEFAULT_ROLE_PERMISSIONS[role]];
   });
   return output;
@@ -541,15 +544,29 @@ function notificationIcon(type) {
 }
 function updateNotificationBadge() {
   const count = Number(state.unreadNotificationCount || 0);
-  if (!el.notificationUnreadCount) return;
-  if (count > 0) {
-    el.notificationUnreadCount.textContent = count > 99 ? "99+" : String(count);
-    el.notificationUnreadCount.classList.remove("hidden");
-    if (el.notificationBellBtn) el.notificationBellBtn.classList.add("has-unread");
-  } else {
-    el.notificationUnreadCount.classList.add("hidden");
-    if (el.notificationBellBtn) el.notificationBellBtn.classList.remove("has-unread");
+  const text = count > 99 ? "99+" : String(count);
+  if (el.notificationUnreadCount) {
+    if (count > 0) {
+      el.notificationUnreadCount.textContent = text;
+      el.notificationUnreadCount.classList.remove("hidden");
+      if (el.notificationBellBtn) el.notificationBellBtn.classList.add("has-unread");
+    } else {
+      el.notificationUnreadCount.classList.add("hidden");
+      if (el.notificationBellBtn) el.notificationBellBtn.classList.remove("has-unread");
+    }
   }
+  const navCount = document.getElementById("navNotificationCount");
+  if (navCount) {
+    navCount.textContent = text;
+    navCount.classList.toggle("hidden", count <= 0);
+  }
+}
+function updateRequestBadge() {
+  const count = (state.stockRequests || []).filter(r => ["bekliyor", "rezerve_edildi", "teslim_edildi"].includes(String(r.status || ""))).length;
+  const badge = document.getElementById("requestPendingCount");
+  if (!badge) return;
+  badge.textContent = count > 99 ? "99+" : String(count);
+  badge.classList.toggle("hidden", count <= 0);
 }
 function renderNotifications() {
   if (!el.notificationList) return;
@@ -1149,10 +1166,13 @@ state.stockRequests = state.stockRequests.filter(req => {
 
   return reqDateTR === todayTR;
 });
-  state.stockRequests.forEach((r) => state.seenRequestIds.add(r.id)); renderStockRequests();
+  state.stockRequests.forEach((r) => state.seenRequestIds.add(r.id));
+  updateRequestBadge();
+  renderStockRequests();
 }
+
 window.loadStockRequests = loadStockRequests;
-async function loadAll() { try { setLoading(true); await Promise.all([loadDashboardStats(), loadMovements()]); } catch (err) { console.error(err); showToast(err.message || "Veriler yüklenemedi", true); } finally { setLoading(false); } }
+async function loadAll() { try { setLoading(true); await Promise.all([loadDashboardStats(), loadMovements(), loadStockRequests().catch(() => {}), loadNotifications().catch(() => {})]); } catch (err) { console.error(err); showToast(err.message || "Veriler yüklenemedi", true); } finally { setLoading(false); } }
 function updateStats() {
   const totalProduct = state.products.length;
   const totalStock = state.products.reduce((sum, p) => sum + Number(p.stock || 0), 0);
@@ -1716,6 +1736,8 @@ window.operationStockAction = async function(id, type) { if (!requireRoleAction(
 };
 
 function renderStockRequests() {
+  updateRequestBadge();
+  if (!el.stockRequestsBox) return;
   let list = state.stockRequests || []; if (state.requestFilter !== "all") list = list.filter(req => req.status === state.requestFilter);
   if (!list.length) { el.stockRequestsBox.innerHTML = `<div class="empty-state">Bu filtrede talep yok</div>`; return; }
   el.stockRequestsBox.innerHTML = list.map((req) => `<div class="movement-item ${state.highlightRequestIds.has(req.id) ? "new-request-glow" : ""}"><div class="movement-top"><div><strong>${escapeHtml(req.plate || "Plaka yok")}</strong><div class="muted">${escapeHtml(req.customer_name || "-")}</div></div><span class="badge status-${escapeHtml(req.status || "bos")}">${formatRequestStatus(req.status)}</span></div><div>Usta: <strong>${escapeHtml(req.technician_name || "-")}</strong></div><div>İstenen: <strong>${escapeHtml(req.requested_text || "-")}</strong></div><div>Araç: <strong>${escapeHtml([
@@ -3402,6 +3424,7 @@ if (tab === "sale") {
   renderSaleCart();
   renderSaleDashboard();
 }
+if (tab === "requests") { clearNewRequestAlert(); loadStockRequests(); }
 if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
@@ -3779,6 +3802,8 @@ if (el.productImageFile) el.productImageFile.addEventListener("change", handlePr
 if (el.productImageRemoveBtn) el.productImageRemoveBtn.addEventListener("click", removeSelectedProductImage);
 if (el.productImageViewBtn) el.productImageViewBtn.addEventListener("click", () => openProductImage());
 async function smartRefresh() {
+  if (state.activeTab === "requests") { await loadStockRequests(); return; }
+  if (state.activeTab === "notifications") { await loadNotifications(); return; }
   if (state.activeTab === "operation") {
     await Promise.all([loadDashboardStats(), loadMovements()]);
     renderOperationResults();
@@ -3836,6 +3861,9 @@ async function bootApp() {
   loadActivityLogs();
   loadDashboardStats().catch(err => console.error(err));
   loadMovements().catch(err => console.error(err));
+  loadStockRequests().catch(err => console.error(err));
+  loadNotifications().catch(err => console.error(err));
+  initRealtimeNotifications();
   initUpdateChecker();
 }
 bootApp();
