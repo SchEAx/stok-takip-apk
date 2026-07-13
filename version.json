@@ -1,7 +1,7 @@
 {
-  "version": "3.1.0",
-  "label": "Kategori Filtreleri - 2. Adım",
-  "notes": "Kritik Stok ve Sipariş Önerisi ekranlarına kategori filtresi eklendi. Sipariş önerileri kategori kartlarıyla toplu olarak gösterilir. Kategori fiyatları ve mevcut stok verileri korunmuştur.",
-  "build": "3.1.0",
-  "note": "SQL değişikliği yoktur; veritabanı kayıtlarına dokunulmaz."
+  "version": "3.2.0",
+  "label": "Marka Filtreleri - 3. Adım",
+  "notes": "Kritik Stok ve Sipariş Önerisi ekranlarına ürün markası ve araç markası filtreleri eklendi. Excel çıktısı aktif filtrelere uyar.",
+  "build": "3.2.0",
+  "note": "SQL değişikliği yoktur; stok adetleri ve kategori fiyatları korunur."
 }

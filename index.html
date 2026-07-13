@@ -322,6 +322,11 @@
 <div><h2>Kritik Stok Merkezi</h2><p class="muted">Minimum stok seviyesine yaklaşan veya altına düşen ürünler</p></div>
 <button class="btn secondary" onclick="renderCriticalStock()">Yenile</button>
 </div>
+<div class="stock-filter-row order-filter-row">
+<select id="criticalCategoryFilter" class="search-input stock-category-select" onchange="setCriticalCategoryFilter(this.value)"><option value="all">Tüm Kategoriler</option></select>
+<select id="criticalProductBrandFilter" class="search-input stock-category-select" onchange="setCriticalProductBrandFilter(this.value)"><option value="all">Tüm Ürün Markaları</option></select>
+<select id="criticalCarBrandFilter" class="search-input stock-category-select" onchange="setCriticalCarBrandFilter(this.value)"><option value="all">Tüm Araç Markaları</option></select>
+</div>
 <input class="search-input" id="criticalSearchInput" placeholder="Kritik ürünlerde ara..." type="text"/>
 <div class="sale-product-list" id="criticalStockList"><div class="empty-state">Kritik stok bekleniyor</div></div>
 </section>
@@ -400,9 +405,9 @@ LED" rows="8"></textarea>
 </div>
 </div>
 <div class="stock-filter-row order-filter-row">
-          <select id="orderSuggestionCategoryFilter" class="search-input stock-category-select" onchange="setOrderSuggestionCategoryFilter(this.value)">
-            <option value="all">Tüm Kategoriler</option>
-          </select>
+          <select id="orderSuggestionCategoryFilter" class="search-input stock-category-select" onchange="setOrderSuggestionCategoryFilter(this.value)"><option value="all">Tüm Kategoriler</option></select>
+<select id="orderSuggestionProductBrandFilter" class="search-input stock-category-select" onchange="setOrderSuggestionProductBrandFilter(this.value)"><option value="all">Tüm Ürün Markaları</option></select>
+<select id="orderSuggestionCarBrandFilter" class="search-input stock-category-select" onchange="setOrderSuggestionCarBrandFilter(this.value)"><option value="all">Tüm Araç Markaları</option></select>
         </div>
 <div class="order-hint">
           Hesap: <strong>Önerilen Sipariş = Son 7 Gün Çıkış - Mevcut Stok</strong>. Sonuç eksi çıkarsa 0 gösterilir.

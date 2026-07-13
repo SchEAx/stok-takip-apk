@@ -1,4 +1,4 @@
-const APP_VERSION = '3.1.0-kategori-filtreleri';
+const APP_VERSION = '3.2.0-marka-filtreleri';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -23,7 +23,8 @@ originalTitle: document.title,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
   categoryValues: [], categoryValueRows: [],
   orderSuggestionRows: [],
-  criticalCategoryFilter: "all", orderSuggestionCategoryFilter: "all",
+  criticalCategoryFilter: "all", criticalProductBrandFilter: "all", criticalCarBrandFilter: "all",
+  orderSuggestionCategoryFilter: "all", orderSuggestionProductBrandFilter: "all", orderSuggestionCarBrandFilter: "all",
 };
 
 const el = {
@@ -3078,32 +3079,36 @@ window.deleteCategoryValue = async function(id) {
 
 
 
-function uniqueProductCategories() {
+function uniqueProductFieldValues(field, fallbackLabel) {
   return [...new Set((state.products || [])
-    .map(p => String(p.category || "Kategorisiz").trim() || "Kategorisiz"))]
+    .map(p => String(p?.[field] || fallbackLabel).trim() || fallbackLabel))]
     .sort((a, b) => a.localeCompare(b, "tr"));
 }
-function fillCategoryFilterSelect(selectId, selectedValue = "all") {
+function fillStockFilterSelect(selectId, values, selectedValue = "all", allLabel = "Tümü") {
   const select = document.getElementById(selectId);
   if (!select) return;
-  const categories = uniqueProductCategories();
-  const safeSelected = categories.includes(selectedValue) ? selectedValue : "all";
-  select.innerHTML = `<option value="all">Tüm Kategoriler</option>` + categories.map(category =>
-    `<option value="${escapeHtml(category)}" ${category === safeSelected ? "selected" : ""}>${escapeHtml(category)}</option>`
+  const safeSelected = values.includes(selectedValue) ? selectedValue : "all";
+  select.innerHTML = `<option value="all">${escapeHtml(allLabel)}</option>` + values.map(value =>
+    `<option value="${escapeHtml(value)}" ${value === safeSelected ? "selected" : ""}>${escapeHtml(value)}</option>`
   ).join("");
 }
 function refreshStockCategoryFilters() {
-  fillCategoryFilterSelect("criticalCategoryFilter", state.criticalCategoryFilter || "all");
-  fillCategoryFilterSelect("orderSuggestionCategoryFilter", state.orderSuggestionCategoryFilter || "all");
+  const categories = uniqueProductFieldValues("category", "Kategorisiz");
+  const productBrands = uniqueProductFieldValues("productBrand", "Markasız");
+  const carBrands = uniqueProductFieldValues("carBrand", "Araç Markası Yok");
+  fillStockFilterSelect("criticalCategoryFilter", categories, state.criticalCategoryFilter || "all", "Tüm Kategoriler");
+  fillStockFilterSelect("criticalProductBrandFilter", productBrands, state.criticalProductBrandFilter || "all", "Tüm Ürün Markaları");
+  fillStockFilterSelect("criticalCarBrandFilter", carBrands, state.criticalCarBrandFilter || "all", "Tüm Araç Markaları");
+  fillStockFilterSelect("orderSuggestionCategoryFilter", categories, state.orderSuggestionCategoryFilter || "all", "Tüm Kategoriler");
+  fillStockFilterSelect("orderSuggestionProductBrandFilter", productBrands, state.orderSuggestionProductBrandFilter || "all", "Tüm Ürün Markaları");
+  fillStockFilterSelect("orderSuggestionCarBrandFilter", carBrands, state.orderSuggestionCarBrandFilter || "all", "Tüm Araç Markaları");
 }
-window.setCriticalCategoryFilter = function(value) {
-  state.criticalCategoryFilter = value || "all";
-  renderCriticalStock();
-};
-window.setOrderSuggestionCategoryFilter = function(value) {
-  state.orderSuggestionCategoryFilter = value || "all";
-  renderOrderSuggestionRows();
-};
+window.setCriticalCategoryFilter = function(value) { state.criticalCategoryFilter = value || "all"; renderCriticalStock(); };
+window.setCriticalProductBrandFilter = function(value) { state.criticalProductBrandFilter = value || "all"; renderCriticalStock(); };
+window.setCriticalCarBrandFilter = function(value) { state.criticalCarBrandFilter = value || "all"; renderCriticalStock(); };
+window.setOrderSuggestionCategoryFilter = function(value) { state.orderSuggestionCategoryFilter = value || "all"; renderOrderSuggestionRows(); };
+window.setOrderSuggestionProductBrandFilter = function(value) { state.orderSuggestionProductBrandFilter = value || "all"; renderOrderSuggestionRows(); };
+window.setOrderSuggestionCarBrandFilter = function(value) { state.orderSuggestionCarBrandFilter = value || "all"; renderOrderSuggestionRows(); };
 
 function isOutgoingMovementType(type) {
   const t = normalizeText(type || "");
@@ -3192,8 +3197,14 @@ function renderOrderSuggestionRows() {
   if (!box) return;
   refreshStockCategoryFilters();
   const selectedCategory = state.orderSuggestionCategoryFilter || "all";
+  const selectedProductBrand = state.orderSuggestionProductBrandFilter || "all";
+  const selectedCarBrand = state.orderSuggestionCarBrandFilter || "all";
   const allRows = state.orderSuggestionRows || [];
-  const rows = selectedCategory === "all" ? allRows : allRows.filter(r => String(r.category || "Kategorisiz") === selectedCategory);
+  const rows = allRows.filter(r =>
+    (selectedCategory === "all" || String(r.category || "Kategorisiz") === selectedCategory) &&
+    (selectedProductBrand === "all" || String(r.productBrand || "Markasız") === selectedProductBrand) &&
+    (selectedCarBrand === "all" || String(r.carBrand || "Araç Markası Yok") === selectedCarBrand)
+  );
   const needRows = rows.filter(r => Number(r.suggestedQty || 0) > 0);
   const totalOut = rows.reduce((s, r) => s + Number(r.outQty || 0), 0);
   const totalSuggested = needRows.reduce((s, r) => s + Number(r.suggestedQty || 0), 0);
@@ -3202,7 +3213,9 @@ function renderOrderSuggestionRows() {
       <div class="value-stat"><span>Son 7 Gün Çıkış</span><strong>${totalOut}</strong></div>
       <div class="value-stat"><span>Sipariş Önerilen Ürün</span><strong>${needRows.length}</strong></div>
       <div class="value-stat"><span>Önerilen Toplam Adet</span><strong>${totalSuggested}</strong></div>
-      <div class="value-stat"><span>Seçili Kategori</span><strong>${escapeHtml(selectedCategory === "all" ? "Tümü" : selectedCategory)}</strong></div>
+      <div class="value-stat"><span>Kategori</span><strong>${escapeHtml(selectedCategory === "all" ? "Tümü" : selectedCategory)}</strong></div>
+      <div class="value-stat"><span>Ürün Markası</span><strong>${escapeHtml(selectedProductBrand === "all" ? "Tümü" : selectedProductBrand)}</strong></div>
+      <div class="value-stat"><span>Araç Markası</span><strong>${escapeHtml(selectedCarBrand === "all" ? "Tümü" : selectedCarBrand)}</strong></div>
       <div class="value-stat"><span>Hesap</span><strong>Çıkış - Stok</strong></div>
     `;
   }
@@ -3257,7 +3270,14 @@ async function loadOrderSuggestions() {
 window.loadOrderSuggestions = loadOrderSuggestions;
 window.downloadOrderSuggestionExcel = function() {
   const selectedCategory = state.orderSuggestionCategoryFilter || "all";
-  const rows = (state.orderSuggestionRows || []).filter(r => Number(r.suggestedQty || 0) > 0 && (selectedCategory === "all" || String(r.category || "Kategorisiz") === selectedCategory));
+  const selectedProductBrand = state.orderSuggestionProductBrandFilter || "all";
+  const selectedCarBrand = state.orderSuggestionCarBrandFilter || "all";
+  const rows = (state.orderSuggestionRows || []).filter(r =>
+    Number(r.suggestedQty || 0) > 0 &&
+    (selectedCategory === "all" || String(r.category || "Kategorisiz") === selectedCategory) &&
+    (selectedProductBrand === "all" || String(r.productBrand || "Markasız") === selectedProductBrand) &&
+    (selectedCarBrand === "all" || String(r.carBrand || "Araç Markası Yok") === selectedCarBrand)
+  );
   if (!rows.length) return showToast("Excel'e aktarılacak sipariş önerisi yok", true);
   const sheetRows = rows.map(r => ({
     "Ürün": r.productName,
@@ -3774,8 +3794,12 @@ window.renderCriticalStock = function() {
   refreshStockCategoryFilters();
   const q = normalizeText(document.getElementById("criticalSearchInput")?.value || "");
   const selectedCategory = state.criticalCategoryFilter || "all";
+  const selectedProductBrand = state.criticalProductBrandFilter || "all";
+  const selectedCarBrand = state.criticalCarBrandFilter || "all";
   let items = (state.products || []).filter(p => (Number(p.stock || 0) - Number(p.reserved || 0)) <= Number(p.minStock || 0));
   if (selectedCategory !== "all") items = items.filter(p => String(p.category || "Kategorisiz") === selectedCategory);
+  if (selectedProductBrand !== "all") items = items.filter(p => String(p.productBrand || "Markasız") === selectedProductBrand);
+  if (selectedCarBrand !== "all") items = items.filter(p => String(p.carBrand || "Araç Markası Yok") === selectedCarBrand);
   if (q) items = items.filter(p => productSmartSearch(p, q));
   items.sort((a, b) => (saleAvailable(a) - Number(a.minStock || 0)) - (saleAvailable(b) - Number(b.minStock || 0)));
   box.innerHTML = items.length ? items.map(p => {
