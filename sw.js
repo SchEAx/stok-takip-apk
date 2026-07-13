@@ -1,4 +1,4 @@
-const CACHE_NAME = "stok-takip-v30-sade-stok";
+const CACHE_NAME = "stok-takip-v31-kategori-filtreleri";
 const ASSETS = [
   "./",
   "./index.html",

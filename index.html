@@ -399,6 +399,11 @@ LED" rows="8"></textarea>
 <button class="btn success" onclick="downloadOrderSuggestionExcel()" type="button">Excel İndir</button>
 </div>
 </div>
+<div class="stock-filter-row order-filter-row">
+          <select id="orderSuggestionCategoryFilter" class="search-input stock-category-select" onchange="setOrderSuggestionCategoryFilter(this.value)">
+            <option value="all">Tüm Kategoriler</option>
+          </select>
+        </div>
 <div class="order-hint">
           Hesap: <strong>Önerilen Sipariş = Son 7 Gün Çıkış - Mevcut Stok</strong>. Sonuç eksi çıkarsa 0 gösterilir.
         </div>

@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.0-sade-stok';
+const APP_VERSION = '3.1.0-kategori-filtreleri';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -23,6 +23,7 @@ originalTitle: document.title,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
   categoryValues: [], categoryValueRows: [],
   orderSuggestionRows: [],
+  criticalCategoryFilter: "all", orderSuggestionCategoryFilter: "all",
 };
 
 const el = {
@@ -3076,6 +3077,34 @@ window.deleteCategoryValue = async function(id) {
 };
 
 
+
+function uniqueProductCategories() {
+  return [...new Set((state.products || [])
+    .map(p => String(p.category || "Kategorisiz").trim() || "Kategorisiz"))]
+    .sort((a, b) => a.localeCompare(b, "tr"));
+}
+function fillCategoryFilterSelect(selectId, selectedValue = "all") {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const categories = uniqueProductCategories();
+  const safeSelected = categories.includes(selectedValue) ? selectedValue : "all";
+  select.innerHTML = `<option value="all">Tüm Kategoriler</option>` + categories.map(category =>
+    `<option value="${escapeHtml(category)}" ${category === safeSelected ? "selected" : ""}>${escapeHtml(category)}</option>`
+  ).join("");
+}
+function refreshStockCategoryFilters() {
+  fillCategoryFilterSelect("criticalCategoryFilter", state.criticalCategoryFilter || "all");
+  fillCategoryFilterSelect("orderSuggestionCategoryFilter", state.orderSuggestionCategoryFilter || "all");
+}
+window.setCriticalCategoryFilter = function(value) {
+  state.criticalCategoryFilter = value || "all";
+  renderCriticalStock();
+};
+window.setOrderSuggestionCategoryFilter = function(value) {
+  state.orderSuggestionCategoryFilter = value || "all";
+  renderOrderSuggestionRows();
+};
+
 function isOutgoingMovementType(type) {
   const t = normalizeText(type || "");
   if (!t) return false;
@@ -3161,7 +3190,10 @@ function renderOrderSuggestionRows() {
   const box = document.getElementById("orderSuggestionList");
   const summary = document.getElementById("orderSuggestionSummary");
   if (!box) return;
-  const rows = state.orderSuggestionRows || [];
+  refreshStockCategoryFilters();
+  const selectedCategory = state.orderSuggestionCategoryFilter || "all";
+  const allRows = state.orderSuggestionRows || [];
+  const rows = selectedCategory === "all" ? allRows : allRows.filter(r => String(r.category || "Kategorisiz") === selectedCategory);
   const needRows = rows.filter(r => Number(r.suggestedQty || 0) > 0);
   const totalOut = rows.reduce((s, r) => s + Number(r.outQty || 0), 0);
   const totalSuggested = needRows.reduce((s, r) => s + Number(r.suggestedQty || 0), 0);
@@ -3170,6 +3202,7 @@ function renderOrderSuggestionRows() {
       <div class="value-stat"><span>Son 7 Gün Çıkış</span><strong>${totalOut}</strong></div>
       <div class="value-stat"><span>Sipariş Önerilen Ürün</span><strong>${needRows.length}</strong></div>
       <div class="value-stat"><span>Önerilen Toplam Adet</span><strong>${totalSuggested}</strong></div>
+      <div class="value-stat"><span>Seçili Kategori</span><strong>${escapeHtml(selectedCategory === "all" ? "Tümü" : selectedCategory)}</strong></div>
       <div class="value-stat"><span>Hesap</span><strong>Çıkış - Stok</strong></div>
     `;
   }
@@ -3177,7 +3210,25 @@ function renderOrderSuggestionRows() {
     box.innerHTML = `<div class="empty-state">Son 7 günde çıkış hareketi bulunamadı.</div>`;
     return;
   }
-  box.innerHTML = `
+  const categoryMap = new Map();
+  rows.forEach(r => {
+    const key = String(r.category || "Kategorisiz");
+    const old = categoryMap.get(key) || { category: key, outQty: 0, currentStock: 0, suggestedQty: 0, productCount: 0 };
+    old.outQty += Number(r.outQty || 0);
+    old.currentStock += Number(r.currentStock || 0);
+    old.suggestedQty += Number(r.suggestedQty || 0);
+    old.productCount += 1;
+    categoryMap.set(key, old);
+  });
+  const categoryRows = [...categoryMap.values()].sort((a,b) => (b.suggestedQty-a.suggestedQty) || (b.outQty-a.outQty));
+  const categoryHtml = categoryRows.length ? `
+    <div class="category-order-grid">${categoryRows.map(c => `
+      <button type="button" class="category-order-card ${c.suggestedQty > 0 ? "need" : "ok"}" onclick="document.getElementById('orderSuggestionCategoryFilter').value='${escapeHtml(c.category)}'; setOrderSuggestionCategoryFilter('${escapeHtml(c.category)}')">
+        <strong>${escapeHtml(c.category)}</strong>
+        <span>${c.productCount} ürün · ${c.outQty} çıkış</span>
+        <b>${c.suggestedQty} adet öneri</b>
+      </button>`).join("")}</div>` : "";
+  box.innerHTML = categoryHtml + `
     <div class="table-wrap"><table class="order-suggestion-table">
       <thead><tr><th>Ürün</th><th>Kategori</th><th>Araç</th><th>Son 7 Gün Çıkış</th><th>Mevcut Stok</th><th>Önerilen Sipariş</th><th>Raf</th><th>Son Çıkış</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="${r.suggestedQty > 0 ? "need-order" : "no-order"}">
@@ -3205,7 +3256,8 @@ async function loadOrderSuggestions() {
 }
 window.loadOrderSuggestions = loadOrderSuggestions;
 window.downloadOrderSuggestionExcel = function() {
-  const rows = (state.orderSuggestionRows || []).filter(r => Number(r.suggestedQty || 0) > 0);
+  const selectedCategory = state.orderSuggestionCategoryFilter || "all";
+  const rows = (state.orderSuggestionRows || []).filter(r => Number(r.suggestedQty || 0) > 0 && (selectedCategory === "all" || String(r.category || "Kategorisiz") === selectedCategory));
   if (!rows.length) return showToast("Excel'e aktarılacak sipariş önerisi yok", true);
   const sheetRows = rows.map(r => ({
     "Ürün": r.productName,
@@ -3719,8 +3771,11 @@ window.exportReportCsv = function() {
 window.renderCriticalStock = function() {
   const box = document.getElementById("criticalStockList");
   if (!box) return;
+  refreshStockCategoryFilters();
   const q = normalizeText(document.getElementById("criticalSearchInput")?.value || "");
+  const selectedCategory = state.criticalCategoryFilter || "all";
   let items = (state.products || []).filter(p => (Number(p.stock || 0) - Number(p.reserved || 0)) <= Number(p.minStock || 0));
+  if (selectedCategory !== "all") items = items.filter(p => String(p.category || "Kategorisiz") === selectedCategory);
   if (q) items = items.filter(p => productSmartSearch(p, q));
   items.sort((a, b) => (saleAvailable(a) - Number(a.minStock || 0)) - (saleAvailable(b) - Number(b.minStock || 0)));
   box.innerHTML = items.length ? items.map(p => {

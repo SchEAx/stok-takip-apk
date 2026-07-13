@@ -1,7 +1,7 @@
 {
-  "version": "3.0.0",
-  "label": "Sade Stok - 1. Adım",
-  "notes": "Rezerve ve Bildirimler sayfaları menüden kaldırıldı; bu özelliklerin arka plan yüklemeleri kapatıldı. Kategori Değerleri, kategori fiyatları ve mevcut stok alanları korunmuştur.",
-  "build": "3.0.0",
-  "note": "Veritabanı ve mevcut stok kayıtlarında değişiklik yoktur."
+  "version": "3.1.0",
+  "label": "Kategori Filtreleri - 2. Adım",
+  "notes": "Kritik Stok ve Sipariş Önerisi ekranlarına kategori filtresi eklendi. Sipariş önerileri kategori kartlarıyla toplu olarak gösterilir. Kategori fiyatları ve mevcut stok verileri korunmuştur.",
+  "build": "3.1.0",
+  "note": "SQL değişikliği yoktur; veritabanı kayıtlarına dokunulmaz."
 }
