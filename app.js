@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.8-rezerve-bildirim-geri';
+const APP_VERSION = '3.0.0-sade-stok';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -165,8 +165,6 @@ const ACTIVITY_STORE_KEY = "garage_activity_logs_v2";
 const ROLE_PERMISSION_STORE_KEY = "garage_role_permissions_v1";
 const TAB_DEFINITIONS = [
   { key: "operation", label: "İşlem" },
-  { key: "requests", label: "Rezerve / Depo Talepleri" },
-  { key: "notifications", label: "Bildirimler" },
   { key: "add", label: "Ürün Ekle" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
@@ -180,7 +178,7 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "requests", "notifications", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
   kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
@@ -192,7 +190,6 @@ function normalizeRolePermissions(data) {
     const incoming = Array.isArray(data?.[role]) ? data[role] : DEFAULT_ROLE_PERMISSIONS[role];
     output[role] = [...new Set(incoming.filter(tab => ALL_TAB_KEYS.includes(tab)))];
     if (role === "admin") output[role] = [...ALL_TAB_KEYS];
-    if (role === "depo") output[role] = [...new Set([...output[role], "requests", "notifications"])];
     if (!output[role].length) output[role] = [...DEFAULT_ROLE_PERMISSIONS[role]];
   });
   return output;
@@ -1172,7 +1169,7 @@ state.stockRequests = state.stockRequests.filter(req => {
 }
 
 window.loadStockRequests = loadStockRequests;
-async function loadAll() { try { setLoading(true); await Promise.all([loadDashboardStats(), loadMovements(), loadStockRequests().catch(() => {}), loadNotifications().catch(() => {})]); } catch (err) { console.error(err); showToast(err.message || "Veriler yüklenemedi", true); } finally { setLoading(false); } }
+async function loadAll() { try { setLoading(true); await Promise.all([loadDashboardStats(), loadMovements()]); } catch (err) { console.error(err); showToast(err.message || "Veriler yüklenemedi", true); } finally { setLoading(false); } }
 function updateStats() {
   const totalProduct = state.products.length;
   const totalStock = state.products.reduce((sum, p) => sum + Number(p.stock || 0), 0);
@@ -3407,7 +3404,7 @@ function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
     showToast(`${roleLabel(staff.role)} yetkisi bu sayfayı açamaz`, true);
-    tab = ROLE_DEFAULT_TAB[staff.role] || "requests";
+    tab = ROLE_DEFAULT_TAB[staff.role] || "operation";
   }
   state.activeTab = tab;
   ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "surveys", "management", "notifications", "history", "users", "logs"].forEach((key) => {
@@ -3880,9 +3877,7 @@ async function bootApp() {
   loadActivityLogs();
   loadDashboardStats().catch(err => console.error(err));
   loadMovements().catch(err => console.error(err));
-  loadStockRequests().catch(err => console.error(err));
-  loadNotifications().catch(err => console.error(err));
-  initRealtimeNotifications();
+  // Araç kabul entegrasyonu askıda: talepler/bildirimler arka planda yüklenmiyor.
   initUpdateChecker();
 }
 bootApp();

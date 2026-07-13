@@ -1,7 +1,7 @@
 {
-  "version": "2.0.9",
-  "label": "Rezerve ve Bildirimler geri eklendi",
-  "notes": "Araç kabulden gelen depo talepleri, rezerve ekranı, bildirim merkezi, sayaçlar ve realtime uyarılar tekrar aktif.",
-  "build": "2.0.9",
-  "note": "Rezerve ürün arama, diğer aramalar gibi çok kelimeli ve içerik eşleşmeli hale getirildi."
+  "version": "3.0.0",
+  "label": "Sade Stok - 1. Adım",
+  "notes": "Rezerve ve Bildirimler sayfaları menüden kaldırıldı; bu özelliklerin arka plan yüklemeleri kapatıldı. Kategori Değerleri, kategori fiyatları ve mevcut stok alanları korunmuştur.",
+  "build": "3.0.0",
+  "note": "Veritabanı ve mevcut stok kayıtlarında değişiklik yoktur."
 }

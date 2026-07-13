@@ -674,3 +674,5 @@ body.image-modal-open{overflow:hidden}
 .new-request-alert span{font-weight:900;color:#fde68a}.btn.mini{width:auto!important;padding:8px 12px;font-size:12px}.new-request-glow{border-color:rgba(245,158,11,.8)!important;box-shadow:0 0 0 3px rgba(245,158,11,.18),0 0 24px rgba(245,158,11,.18)}
 #nav-requests.active,#nav-notifications.active{background:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.18)}
 @media(max-width:960px){.new-request-alert{position:static;flex-direction:column;align-items:stretch}.new-request-alert .row-gap .btn{flex:1}.notification-item{grid-template-columns:1fr}.notification-icon{display:none}.notification-actions{justify-content:flex-start}.top-actions .notification-bell{width:auto;min-width:54px}}
+
+/* v3.0: Rezerve ve Bildirimler arayüzden kaldırıldı. Kategori Değerleri/fiyat alanları korunmuştur. */
