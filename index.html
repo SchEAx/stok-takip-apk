@@ -6,6 +6,16 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Stok Takip</title>
 <meta content="#111827" name="theme-color"/>
+<script>
+(function(){
+  try {
+    var saved = localStorage.getItem('garage_stock_theme') || 'garage-dark';
+    document.documentElement.setAttribute('data-theme', saved);
+  } catch(e) {
+    document.documentElement.setAttribute('data-theme', 'garage-dark');
+  }
+})();
+</script>
 <link href="/logo.png" rel="apple-touch-icon"/>
 <link href="manifest.webmanifest" rel="manifest"/>
 <link href="style.css" rel="stylesheet"/>
@@ -498,6 +508,22 @@ LED" rows="8"></textarea>
 <p class="muted">Toplu işlemler, kategori/marka sayımı ve ileride eklenecek yönetim araçları</p>
 </div>
 <button class="btn secondary" onclick="loadDeleteMarkedCount()" type="button">Sayıyı Yenile</button>
+</div>
+<div class="management-tool-card theme-management-card">
+<div class="management-tool-icon">🎨</div>
+<div class="management-tool-content">
+<h3>Program Teması</h3>
+<p class="muted">Tema değişince kart, kutu ve yazı renkleri birlikte uyarlanır. Açık zeminde koyu, koyu zeminde açık yazı kullanılır.</p>
+<div class="theme-picker" id="themePicker">
+<button class="theme-option" data-theme-value="garage-dark" onclick="setStockTheme('garage-dark')" type="button"><span class="theme-preview garage-dark-preview"><i></i><b></b><em></em></span><strong>Garage Dark</strong><small>Koyu lacivert</small></button>
+<button class="theme-option" data-theme-value="garage-exclusive" onclick="setStockTheme('garage-exclusive')" type="button"><span class="theme-preview garage-exclusive-preview"><i></i><b></b><em></em></span><strong>Garage Exclusive</strong><small>Siyah & kırmızı</small></button>
+<button class="theme-option" data-theme-value="midnight-blue" onclick="setStockTheme('midnight-blue')" type="button"><span class="theme-preview midnight-preview"><i></i><b></b><em></em></span><strong>Midnight Blue</strong><small>Lacivert & mavi</small></button>
+<button class="theme-option" data-theme-value="emerald" onclick="setStockTheme('emerald')" type="button"><span class="theme-preview emerald-preview"><i></i><b></b><em></em></span><strong>Emerald</strong><small>Koyu yeşil</small></button>
+<button class="theme-option" data-theme-value="carbon-orange" onclick="setStockTheme('carbon-orange')" type="button"><span class="theme-preview carbon-preview"><i></i><b></b><em></em></span><strong>Carbon Orange</strong><small>Karbon & turuncu</small></button>
+<button class="theme-option" data-theme-value="light" onclick="setStockTheme('light')" type="button"><span class="theme-preview light-preview"><i></i><b></b><em></em></span><strong>Light</strong><small>Açık tema</small></button>
+</div>
+<div class="theme-current-text" id="themeCurrentText">Seçili tema: Garage Dark</div>
+</div>
 </div>
 <div class="management-tool-card">
 <div class="management-tool-icon">📊</div>

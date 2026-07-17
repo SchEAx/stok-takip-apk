@@ -1,4 +1,4 @@
-const APP_VERSION = '3.3.0-satin-alma-modulu';
+const APP_VERSION = '3.4.0-akilli-tema-sistemi';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -4384,3 +4384,47 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 checkVersion();
+
+
+// === v3.4 Akıllı Tema Sistemi ===
+const STOCK_THEME_KEY = 'garage_stock_theme';
+const STOCK_THEME_NAMES = {
+  'garage-dark': 'Garage Dark',
+  'garage-exclusive': 'Garage Exclusive',
+  'midnight-blue': 'Midnight Blue',
+  'emerald': 'Emerald',
+  'carbon-orange': 'Carbon Orange',
+  'light': 'Light'
+};
+
+function setStockTheme(themeName, showMessage = true) {
+  const safeTheme = STOCK_THEME_NAMES[themeName] ? themeName : 'garage-dark';
+  document.documentElement.setAttribute('data-theme', safeTheme);
+  try { localStorage.setItem(STOCK_THEME_KEY, safeTheme); } catch (err) { console.warn(err); }
+
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#08101d';
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', themeColor);
+
+  document.querySelectorAll('.theme-option').forEach(btn => {
+    const active = btn.dataset.themeValue === safeTheme;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+
+  const text = document.getElementById('themeCurrentText');
+  if (text) text.textContent = `Seçili tema: ${STOCK_THEME_NAMES[safeTheme]}`;
+  if (showMessage && typeof showToast === 'function') showToast(`${STOCK_THEME_NAMES[safeTheme]} teması uygulandı ✅`);
+}
+
+function initializeStockTheme() {
+  let saved = 'garage-dark';
+  try { saved = localStorage.getItem(STOCK_THEME_KEY) || 'garage-dark'; } catch (err) { console.warn(err); }
+  setStockTheme(saved, false);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeStockTheme, { once: true });
+} else {
+  initializeStockTheme();
+}
