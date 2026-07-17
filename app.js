@@ -1,4 +1,4 @@
-const APP_VERSION = '3.2.0-marka-filtreleri';
+const APP_VERSION = '3.3.0-satin-alma-modulu';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -23,6 +23,7 @@ originalTitle: document.title,
   activityLogs: [], activityLogTableReady: true, authReady: false, currentUser: null,
   categoryValues: [], categoryValueRows: [],
   orderSuggestionRows: [],
+  purchaseOrderDraft: [], purchaseOrders: [],
   criticalCategoryFilter: "all", criticalProductBrandFilter: "all", criticalCarBrandFilter: "all",
   orderSuggestionCategoryFilter: "all", orderSuggestionProductBrandFilter: "all", orderSuggestionCarBrandFilter: "all",
 };
@@ -58,7 +59,8 @@ categoryValueDetail: document.getElementById("categoryValueDetail"),
 productPurchasePrice: document.getElementById("productPurchasePrice"),
 productAverageSalePrice: document.getElementById("productAverageSalePrice"),
 managementCategoryBrandSummary: document.getElementById("managementCategoryBrandSummary"),
-managementCategoryBrandList: document.getElementById("managementCategoryBrandList")
+managementCategoryBrandList: document.getElementById("managementCategoryBrandList"),
+purchaseSupplier: document.getElementById("purchaseSupplier"), purchaseExpectedDate: document.getElementById("purchaseExpectedDate"), purchaseOrderNote: document.getElementById("purchaseOrderNote"), purchaseDraftList: document.getElementById("purchaseDraftList"), purchaseDraftTotal: document.getElementById("purchaseDraftTotal"), purchaseOrderList: document.getElementById("purchaseOrderList"), purchaseOrderBadge: document.getElementById("purchaseOrderBadge"), savePurchaseOrderBtn: document.getElementById("savePurchaseOrderBtn")
 };
 
 // Performans notu: Ürün arama ekranlarında sadece görünen/gerekli kolonları çekiyoruz.
@@ -172,6 +174,7 @@ const TAB_DEFINITIONS = [
   { key: "critical", label: "Kritik Stok" },
   { key: "categoryValues", label: "Kategori Değerleri" },
   { key: "orderSuggestion", label: "Sipariş Önerisi" },
+  { key: "purchaseOrders", label: "Verilen Siparişler" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
   { key: "management", label: "Yönetim" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
@@ -180,8 +183,8 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
-  kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys"],
+  kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
 };
@@ -1522,6 +1525,7 @@ function renderOperationCards(results) {
         </div>
         <button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>
         <button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
+        <button class="btn primary" onclick="addProductToPurchaseOrder('${p.id}')">📦 Siparişe Ekle</button>
         ${p.imageUrl ? `<button class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
         <button class="btn secondary" onclick="editProduct('${p.id}')">Düzenle</button>
         <button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button>
@@ -3472,6 +3476,159 @@ async function deleteMarkedProducts() {
 }
 window.deleteMarkedProducts = deleteMarkedProducts;
 
+
+// ==================== SATIN ALMA / VERİLEN SİPARİŞLER ====================
+function purchaseProductById(id) {
+  return [...(state.operationResults || []), ...(state.products || [])].find(p => String(p.id) === String(id));
+}
+function renderPurchaseOrderDraft() {
+  if (!el.purchaseDraftList) return;
+  const rows = state.purchaseOrderDraft || [];
+  if (!rows.length) {
+    el.purchaseDraftList.innerHTML = `<div class="empty-state">Henüz siparişe ürün eklenmedi</div>`;
+    if (el.purchaseDraftTotal) el.purchaseDraftTotal.textContent = "0";
+    return;
+  }
+  el.purchaseDraftList.innerHTML = rows.map(item => `<div class="purchase-draft-item">
+    <div><strong>${escapeHtml(item.name)}</strong><div class="muted">${escapeHtml(item.detail || "-")}</div></div>
+    <input type="number" min="1" value="${Number(item.quantity || 1)}" onchange="setPurchaseOrderItemQty('${item.productId}', this.value)" aria-label="Sipariş miktarı"/>
+    <button class="btn danger mini remove-order-item" type="button" onclick="removePurchaseOrderItem('${item.productId}')">Kaldır</button>
+  </div>`).join("");
+  if (el.purchaseDraftTotal) el.purchaseDraftTotal.textContent = rows.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+}
+window.addProductToPurchaseOrder = function(productId) {
+  if (!requireRoleAction(["admin", "depo", "kasa"], "Sipariş oluşturma yetkin yok")) return;
+  const p = purchaseProductById(productId);
+  if (!p) return showToast("Ürün bulunamadı", true);
+  const qty = getOperationQty(productId);
+  const existing = state.purchaseOrderDraft.find(i => String(i.productId) === String(productId));
+  if (existing) existing.quantity += qty;
+  else state.purchaseOrderDraft.push({
+    productId: p.id,
+    name: p.name || p.category || "Ürün",
+    detail: [p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" · "),
+    quantity: qty
+  });
+  renderPurchaseOrderDraft();
+  showToast(`${p.name || p.category || "Ürün"} sipariş listesine eklendi ✅`);
+};
+window.setPurchaseOrderItemQty = function(productId, value) {
+  const row = state.purchaseOrderDraft.find(i => String(i.productId) === String(productId));
+  if (!row) return;
+  row.quantity = Math.max(1, Number(value || 1));
+  renderPurchaseOrderDraft();
+};
+window.removePurchaseOrderItem = function(productId) {
+  state.purchaseOrderDraft = state.purchaseOrderDraft.filter(i => String(i.productId) !== String(productId));
+  renderPurchaseOrderDraft();
+};
+window.clearPurchaseOrderDraft = async function() {
+  if (!state.purchaseOrderDraft.length) return;
+  if (!(await appConfirm("Hazırladığın sipariş listesi temizlensin mi?", { danger: true, okText: "Temizle" }))) return;
+  state.purchaseOrderDraft = [];
+  renderPurchaseOrderDraft();
+};
+function purchaseOrderNo() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `TS${yy}${mm}${String(Date.now()).slice(-6)}`;
+}
+window.savePurchaseOrder = async function() {
+  if (!requireRoleAction(["admin", "depo", "kasa"], "Sipariş oluşturma yetkin yok")) return;
+  if (!state.purchaseOrderDraft.length) return showToast("Önce siparişe ürün ekle", true);
+  const supplier = String(el.purchaseSupplier?.value || "").trim();
+  if (!supplier) return showToast("Tedarikçi adını yaz", true);
+  if (!(await appConfirm(`${supplier} için ${state.purchaseOrderDraft.length} kalem sipariş kaydedilsin mi?`, { okText: "Kaydet" }))) return;
+  try {
+    setLoading(true);
+    const orderNo = purchaseOrderNo();
+    const { data: order, error: orderError } = await supabaseClient.from("purchase_orders").insert({
+      order_no: orderNo, supplier, expected_date: el.purchaseExpectedDate?.value || null,
+      note: String(el.purchaseOrderNote?.value || "").trim() || null,
+      status: "bekleniyor", created_by: currentStaff().name
+    }).select("id").single();
+    if (orderError) throw orderError;
+    const items = state.purchaseOrderDraft.map(i => ({ order_id: order.id, product_id: i.productId, ordered_quantity: Number(i.quantity), received_quantity: 0 }));
+    const { error: itemError } = await supabaseClient.from("purchase_order_items").insert(items);
+    if (itemError) throw itemError;
+    await logActivity("purchase_order_create", `${orderNo} - ${supplier} - ${items.length} kalem`, "purchase_orders", order.id);
+    state.purchaseOrderDraft = [];
+    if (el.purchaseSupplier) el.purchaseSupplier.value = "";
+    if (el.purchaseExpectedDate) el.purchaseExpectedDate.value = "";
+    if (el.purchaseOrderNote) el.purchaseOrderNote.value = "";
+    renderPurchaseOrderDraft();
+    await loadPurchaseOrders();
+    showToast(`Sipariş kaydedildi: ${orderNo} ✅`);
+  } catch (err) {
+    console.error(err); showToast(err.message || "Sipariş kaydedilemedi. SQL dosyasını çalıştırdın mı?", true);
+  } finally { setLoading(false); }
+};
+function purchaseOrderStatusLabel(status) {
+  return status === "tamamlandi" ? "Tamamlandı" : status === "iptal" ? "İptal" : "Bekleniyor";
+}
+function renderPurchaseOrders() {
+  if (!el.purchaseOrderList) return;
+  const rows = state.purchaseOrders || [];
+  const waiting = rows.filter(o => o.status === "bekleniyor");
+  if (el.purchaseOrderBadge) {
+    el.purchaseOrderBadge.textContent = String(waiting.length);
+    el.purchaseOrderBadge.classList.toggle("hidden", waiting.length === 0);
+  }
+  if (!rows.length) { el.purchaseOrderList.innerHTML = `<div class="empty-state">Henüz kayıtlı sipariş yok</div>`; return; }
+  el.purchaseOrderList.innerHTML = rows.map(o => {
+    const items = o.purchase_order_items || [];
+    return `<div class="purchase-order-card">
+      <div class="movement-top"><div><strong>${escapeHtml(o.order_no || "Sipariş")}</strong><div class="muted">${escapeHtml(o.supplier || "-")} · ${formatDate(o.created_at)}</div></div><span class="badge ${o.status === "tamamlandi" ? "giris" : "status-bekliyor"}">${purchaseOrderStatusLabel(o.status)}</span></div>
+      ${o.expected_date ? `<div>Tahmini geliş: <strong>${escapeHtml(o.expected_date)}</strong></div>` : ""}
+      ${o.note ? `<div>Not: <strong>${escapeHtml(o.note)}</strong></div>` : ""}
+      <div class="order-items">${items.map(i => `<div class="order-line"><span>${escapeHtml(i.stock_products?.product_name || "Ürün")}</span><strong>${Number(i.ordered_quantity || 0)} adet</strong></div>`).join("")}</div>
+      ${o.status === "bekleniyor" ? `<div class="purchase-order-actions"><button class="btn success" onclick="receivePurchaseOrder('${o.id}')">📦 Tamamını Stoğa İşle</button><button class="btn danger" onclick="cancelPurchaseOrder('${o.id}')">İptal Et</button></div>` : ""}
+    </div>`;
+  }).join("");
+}
+window.loadPurchaseOrders = async function() {
+  if (!el.purchaseOrderList) return;
+  try {
+    const { data, error } = await supabaseClient.from("purchase_orders")
+      .select("id,order_no,supplier,expected_date,note,status,created_at,completed_at,purchase_order_items(id,product_id,ordered_quantity,received_quantity,stock_products(product_name,category,vehicle_brand,vehicle_model))")
+      .order("created_at", { ascending: false }).limit(100);
+    if (error) throw error;
+    state.purchaseOrders = data || [];
+    renderPurchaseOrders();
+  } catch (err) {
+    console.error(err);
+    el.purchaseOrderList.innerHTML = `<div class="empty-state">Siparişler alınamadı. Önce paket içindeki SQL dosyasını Supabase'de çalıştır.</div>`;
+  }
+};
+window.receivePurchaseOrder = async function(orderId) {
+  const order = state.purchaseOrders.find(o => String(o.id) === String(orderId));
+  if (!order) return;
+  const total = (order.purchase_order_items || []).reduce((s, i) => s + Number(i.ordered_quantity || 0), 0);
+  if (!(await appConfirm(`${order.order_no} içindeki toplam ${total} ürün stoklara eklensin mi? Bu işlem yalnızca bir kez yapılabilir.`, { okText: "Stoğa İşle" }))) return;
+  try {
+    setLoading(true);
+    const { error } = await supabaseClient.rpc("receive_purchase_order", { p_order_id: orderId, p_actor: currentStaff().name });
+    if (error) throw error;
+    await logActivity("purchase_order_receive", `${order.order_no} stoğa işlendi`, "purchase_orders", orderId);
+    state.operationCacheKey = "";
+    await Promise.all([loadPurchaseOrders(), loadDashboardStats(), loadMovements()]);
+    if (state.activeTab === "operation") await queryOperationProducts();
+    showToast(`${order.order_no} tamamen stoğa işlendi ✅`);
+  } catch (err) { console.error(err); showToast(err.message || "Sipariş stoğa işlenemedi", true); }
+  finally { setLoading(false); }
+};
+window.cancelPurchaseOrder = async function(orderId) {
+  const order = state.purchaseOrders.find(o => String(o.id) === String(orderId));
+  if (!order || !(await appConfirm(`${order.order_no} iptal edilsin mi? Stok değişmeyecek.`, { danger: true, okText: "İptal Et" }))) return;
+  try {
+    const { error } = await supabaseClient.from("purchase_orders").update({ status: "iptal" }).eq("id", orderId).eq("status", "bekleniyor");
+    if (error) throw error;
+    await logActivity("purchase_order_cancel", `${order.order_no} iptal edildi`, "purchase_orders", orderId);
+    await loadPurchaseOrders(); showToast("Sipariş iptal edildi");
+  } catch (err) { showToast(err.message || "Sipariş iptal edilemedi", true); }
+};
+
 function switchTab(tab) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
@@ -3479,7 +3636,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "operation";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "surveys", "management", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys", "management", "notifications", "history", "users", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -3517,6 +3674,7 @@ if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
 if (tab === "orderSuggestion") loadOrderSuggestions().catch(err => showToast(err.message || "Sipariş önerisi alınamadı", true));
+if (tab === "purchaseOrders") { renderPurchaseOrderDraft(); loadPurchaseOrders(); }
 if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "management") loadDeleteMarkedCount();
 if (tab === "notifications") { loadNotifications(); }

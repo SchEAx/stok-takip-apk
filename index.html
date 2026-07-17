@@ -61,6 +61,7 @@
 <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
 <button id="nav-categoryValues" onclick="switchTab('categoryValues')">Kategori Değerleri</button>
 <button id="nav-orderSuggestion" onclick="switchTab('orderSuggestion')">Sipariş Önerisi</button>
+<button id="nav-purchaseOrders" onclick="switchTab('purchaseOrders')">Verilen Siparişler <span id="purchaseOrderBadge" class="nav-count hidden">0</span></button>
 <button id="nav-management" onclick="switchTab('management')">Yönetim</button>
 <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
 <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
@@ -107,6 +108,24 @@
 <div class="operation-result-list" id="operationResultBox">
 <div class="empty-state">Filtre seç veya ürün ara</div>
 </div>
+</section>
+</div>
+<div class="page hidden" id="page-purchaseOrders">
+<section class="grid-2 purchase-order-grid">
+  <div class="card">
+    <div class="section-head"><div><h2>Yeni Tedarikçi Siparişi</h2><p class="muted">İşlem ekranındaki “Siparişe Ekle” butonuyla ürünleri buraya topla.</p></div><button class="btn secondary" type="button" onclick="clearPurchaseOrderDraft()">Listeyi Temizle</button></div>
+    <div class="form-grid purchase-order-head-fields">
+      <div><label>Tedarikçi</label><input id="purchaseSupplier" placeholder="Örn: ABC Otomotiv" type="text"/></div>
+      <div><label>Tahmini Geliş Tarihi</label><input id="purchaseExpectedDate" type="date"/></div>
+      <div class="full"><label>Sipariş Notu</label><input id="purchaseOrderNote" placeholder="Kargo, ödeme, eksik ürün vb." type="text"/></div>
+    </div>
+    <div id="purchaseDraftList" class="movement-list"><div class="empty-state">Henüz siparişe ürün eklenmedi</div></div>
+    <div class="purchase-order-footer"><strong>Toplam ürün: <span id="purchaseDraftTotal">0</span></strong><button class="btn success" id="savePurchaseOrderBtn" type="button" onclick="savePurchaseOrder()">Siparişi Kaydet</button></div>
+  </div>
+  <div class="card">
+    <div class="section-head"><div><h2>Bekleyen Siparişler</h2><p class="muted">Sipariş geldiğinde tek tuşla tüm kalemleri stoklara ekle.</p></div><button class="btn secondary" type="button" onclick="loadPurchaseOrders()">Yenile</button></div>
+    <div id="purchaseOrderList" class="movement-list"><div class="empty-state">Siparişler yükleniyor...</div></div>
+  </div>
 </section>
 </div>
 <div class="page hidden legacy-page" id="page-search">
@@ -468,7 +487,9 @@ LED" rows="8"></textarea>
       #page-surveys .survey-comment strong{color:#93c5fd}
       #page-surveys .survey-comment p{margin:8px 0 0;white-space:pre-wrap;color:#f8fafc}
       #page-surveys .survey-comment small{display:block;color:#cbd5e1;margin-top:6px}
-    </style>
+    
+.purchase-order-grid{align-items:start}.purchase-order-head-fields{margin:14px 0}.purchase-order-head-fields .full{grid-column:1/-1}.purchase-order-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border,#dfe5ec)}.purchase-draft-item,.purchase-order-card{border:1px solid var(--border,#dfe5ec);border-radius:14px;padding:12px;background:var(--card,#fff)}.purchase-draft-item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}.purchase-draft-item input{width:84px}.purchase-order-card .order-items{margin-top:10px;display:grid;gap:7px}.purchase-order-card .order-line{display:flex;justify-content:space-between;gap:12px;padding:7px 9px;border-radius:9px;background:rgba(127,127,127,.08)}.purchase-order-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.nav-count{display:inline-flex;min-width:20px;height:20px;padding:0 6px;align-items:center;justify-content:center;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;margin-left:4px}.nav-count.hidden{display:none}@media(max-width:720px){.purchase-draft-item{grid-template-columns:1fr auto}.purchase-draft-item .remove-order-item{grid-column:1/-1}.purchase-order-footer{align-items:stretch;flex-direction:column}}
+</style>
 <div class="page hidden" id="page-management">
 <section class="card management-card">
 <div class="section-head">

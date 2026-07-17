@@ -1,7 +1,1 @@
-{
-  "version": "3.2.0",
-  "label": "Marka Filtreleri - 3. Adım",
-  "notes": "Kritik Stok ve Sipariş Önerisi ekranlarına ürün markası ve araç markası filtreleri eklendi. Excel çıktısı aktif filtrelere uyar.",
-  "build": "3.2.0",
-  "note": "SQL değişikliği yoktur; stok adetleri ve kategori fiyatları korunur."
-}
+{"version":"3.3.0","name":"Satın Alma Modülü"}
