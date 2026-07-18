@@ -3478,8 +3478,40 @@ window.deleteMarkedProducts = deleteMarkedProducts;
 
 
 // ==================== SATIN ALMA / VERİLEN SİPARİŞLER ====================
+let purchaseDraftRealtimeChannel = null;
 function purchaseProductById(id) {
   return [...(state.operationResults || []), ...(state.products || [])].find(p => String(p.id) === String(id));
+}
+async function loadSharedPurchaseOrderDraft() {
+  try {
+    const { data, error } = await supabaseClient
+      .from("purchase_order_draft_items")
+      .select("product_id,quantity,updated_at,stock_products(product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year)")
+      .order("updated_at", { ascending: true });
+    if (error) throw error;
+    state.purchaseOrderDraft = (data || []).map(row => {
+      const p = row.stock_products || {};
+      return {
+        productId: row.product_id,
+        name: p.product_name || p.category || "Ürün",
+        detail: [p.product_brand, p.category, p.vehicle_brand, p.vehicle_model, p.vehicle_type, p.vehicle_year].filter(Boolean).join(" · "),
+        quantity: Number(row.quantity || 1)
+      };
+    });
+    renderPurchaseOrderDraft();
+  } catch (err) {
+    console.error(err);
+    showToast("Ortak sipariş listesi alınamadı. Yeni SQL dosyasını çalıştır.", true);
+  }
+}
+function subscribeSharedPurchaseOrderDraft() {
+  if (purchaseDraftRealtimeChannel || !supabaseClient?.channel) return;
+  purchaseDraftRealtimeChannel = supabaseClient
+    .channel("shared-purchase-order-draft")
+    .on("postgres_changes", { event: "*", schema: "public", table: "purchase_order_draft_items" }, () => {
+      loadSharedPurchaseOrderDraft().catch(() => {});
+    })
+    .subscribe();
 }
 function renderPurchaseOrderDraft() {
   if (!el.purchaseDraftList) return;
@@ -3496,37 +3528,50 @@ function renderPurchaseOrderDraft() {
   </div>`).join("");
   if (el.purchaseDraftTotal) el.purchaseDraftTotal.textContent = rows.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
 }
-window.addProductToPurchaseOrder = function(productId) {
+window.addProductToPurchaseOrder = async function(productId) {
   if (!requireRoleAction(["admin", "depo", "kasa"], "Sipariş oluşturma yetkin yok")) return;
   const p = purchaseProductById(productId);
   if (!p) return showToast("Ürün bulunamadı", true);
   const qty = getOperationQty(productId);
-  const existing = state.purchaseOrderDraft.find(i => String(i.productId) === String(productId));
-  if (existing) existing.quantity += qty;
-  else state.purchaseOrderDraft.push({
-    productId: p.id,
-    name: p.name || p.category || "Ürün",
-    detail: [p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" · "),
-    quantity: qty
-  });
-  renderPurchaseOrderDraft();
-  showToast(`${p.name || p.category || "Ürün"} sipariş listesine eklendi ✅`);
+  try {
+    const { error } = await supabaseClient.rpc("add_purchase_order_draft_item", {
+      p_product_id: productId,
+      p_quantity: qty,
+      p_actor: currentStaff().name
+    });
+    if (error) throw error;
+    await loadSharedPurchaseOrderDraft();
+    showToast(`${p.name || p.category || "Ürün"} ortak sipariş listesine eklendi ✅`);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Ürün sipariş listesine eklenemedi", true);
+  }
 };
-window.setPurchaseOrderItemQty = function(productId, value) {
-  const row = state.purchaseOrderDraft.find(i => String(i.productId) === String(productId));
-  if (!row) return;
-  row.quantity = Math.max(1, Number(value || 1));
-  renderPurchaseOrderDraft();
+window.setPurchaseOrderItemQty = async function(productId, value) {
+  const qty = Math.max(1, Number(value || 1));
+  try {
+    const { error } = await supabaseClient.from("purchase_order_draft_items").update({
+      quantity: qty, updated_at: new Date().toISOString(), added_by: currentStaff().name
+    }).eq("product_id", productId);
+    if (error) throw error;
+    await loadSharedPurchaseOrderDraft();
+  } catch (err) { showToast(err.message || "Miktar güncellenemedi", true); }
 };
-window.removePurchaseOrderItem = function(productId) {
-  state.purchaseOrderDraft = state.purchaseOrderDraft.filter(i => String(i.productId) !== String(productId));
-  renderPurchaseOrderDraft();
+window.removePurchaseOrderItem = async function(productId) {
+  try {
+    const { error } = await supabaseClient.from("purchase_order_draft_items").delete().eq("product_id", productId);
+    if (error) throw error;
+    await loadSharedPurchaseOrderDraft();
+  } catch (err) { showToast(err.message || "Ürün listeden kaldırılamadı", true); }
 };
 window.clearPurchaseOrderDraft = async function() {
   if (!state.purchaseOrderDraft.length) return;
-  if (!(await appConfirm("Hazırladığın sipariş listesi temizlensin mi?", { danger: true, okText: "Temizle" }))) return;
-  state.purchaseOrderDraft = [];
-  renderPurchaseOrderDraft();
+  if (!(await appConfirm("Ortak sipariş listesi bütün cihazlarda temizlensin mi?", { danger: true, okText: "Temizle" }))) return;
+  try {
+    const { error } = await supabaseClient.from("purchase_order_draft_items").delete().not("product_id", "is", null);
+    if (error) throw error;
+    await loadSharedPurchaseOrderDraft();
+  } catch (err) { showToast(err.message || "Liste temizlenemedi", true); }
 };
 function purchaseOrderNo() {
   const now = new Date();
@@ -3536,6 +3581,7 @@ function purchaseOrderNo() {
 }
 window.savePurchaseOrder = async function() {
   if (!requireRoleAction(["admin", "depo", "kasa"], "Sipariş oluşturma yetkin yok")) return;
+  await loadSharedPurchaseOrderDraft();
   if (!state.purchaseOrderDraft.length) return showToast("Önce siparişe ürün ekle", true);
   const supplier = String(el.purchaseSupplier?.value || "").trim();
   if (!supplier) return showToast("Tedarikçi adını yaz", true);
@@ -3552,6 +3598,8 @@ window.savePurchaseOrder = async function() {
     const items = state.purchaseOrderDraft.map(i => ({ order_id: order.id, product_id: i.productId, ordered_quantity: Number(i.quantity), received_quantity: 0 }));
     const { error: itemError } = await supabaseClient.from("purchase_order_items").insert(items);
     if (itemError) throw itemError;
+    const { error: clearError } = await supabaseClient.from("purchase_order_draft_items").delete().not("product_id", "is", null);
+    if (clearError) throw clearError;
     await logActivity("purchase_order_create", `${orderNo} - ${supplier} - ${items.length} kalem`, "purchase_orders", order.id);
     state.purchaseOrderDraft = [];
     if (el.purchaseSupplier) el.purchaseSupplier.value = "";
@@ -3674,7 +3722,7 @@ if (tab === "reports") renderReports();
 if (tab === "critical") renderCriticalStock();
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));
 if (tab === "orderSuggestion") loadOrderSuggestions().catch(err => showToast(err.message || "Sipariş önerisi alınamadı", true));
-if (tab === "purchaseOrders") { renderPurchaseOrderDraft(); loadPurchaseOrders(); }
+if (tab === "purchaseOrders") { loadSharedPurchaseOrderDraft(); loadPurchaseOrders(); subscribeSharedPurchaseOrderDraft(); }
 if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "management") loadDeleteMarkedCount();
 if (tab === "notifications") { loadNotifications(); }
