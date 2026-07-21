@@ -787,3 +787,6 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 .theme-current-text{margin-top:12px;color:var(--muted);font-size:13px;font-weight:700}
 @media(max-width:900px){.theme-picker{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.theme-picker{grid-template-columns:1fr}}
+
+/* v3.6 kategori fiyat güncelleme ve kamera */
+.category-price-update-grid{align-items:end}.category-price-update-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.category-price-update-actions .btn{min-width:190px}.product-image-actions{flex-wrap:wrap}.product-image-picker{display:inline-flex;align-items:center;justify-content:center}@media(max-width:720px){.category-price-update-actions{align-items:stretch;flex-direction:column}.category-price-update-actions .btn{width:100%}.product-image-actions .product-image-picker{flex:1 1 100%}}

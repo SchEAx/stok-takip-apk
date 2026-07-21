@@ -1,4 +1,4 @@
-const APP_VERSION = '3.4.0-akilli-tema-sistemi';
+const APP_VERSION = '3.6.0-kategori-fiyat-kamera';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -44,6 +44,7 @@ excelCategoryFilter: document.getElementById("excelCategoryFilter"),
 excelCarBrandFilter: document.getElementById("excelCarBrandFilter"),
 excelFilterSummary: document.getElementById("excelFilterSummary"),
 productImageFile: document.getElementById("productImageFile"),
+productCameraFile: document.getElementById("productCameraFile"),
 productImagePreview: document.getElementById("productImagePreview"),
 productImageStatus: document.getElementById("productImageStatus"),
 productImageRemoveBtn: document.getElementById("productImageRemoveBtn"),
@@ -56,6 +57,11 @@ categoryValueSale: document.getElementById("categoryValueSale"),
 categoryValueList: document.getElementById("categoryValueList"),
 categoryValueSummary: document.getElementById("categoryValueSummary"),
 categoryValueDetail: document.getElementById("categoryValueDetail"),
+bulkPriceCategory: document.getElementById("bulkPriceCategory"),
+bulkPriceField: document.getElementById("bulkPriceField"),
+bulkPriceMode: document.getElementById("bulkPriceMode"),
+bulkPriceAmount: document.getElementById("bulkPriceAmount"),
+bulkPricePreview: document.getElementById("bulkPricePreview"),
 productPurchasePrice: document.getElementById("productPurchasePrice"),
 productAverageSalePrice: document.getElementById("productAverageSalePrice"),
 managementCategoryBrandSummary: document.getElementById("managementCategoryBrandSummary"),
@@ -830,7 +836,7 @@ function resetProductImageState() {
   productImageRemoveRequested = false;
   selectedProductImageBlob = null;
   selectedProductImageExt = "webp";
-  if (el.productImageFile) el.productImageFile.value = "";
+  if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = "";
   if (el.productImage) el.productImage.value = "";
   updateProductImagePreview("");
 }
@@ -932,7 +938,7 @@ async function uploadProductImageIfNeeded(productId) {
 window.removeSelectedProductImage = async function() {
   productImageRemoveRequested = true;
   selectedProductImageBlob = null;
-  if (el.productImageFile) el.productImageFile.value = "";
+  if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = "";
   if (el.productImage) el.productImage.value = "";
   updateProductImagePreview("");
   if (el.productImageStatus) el.productImageStatus.textContent = "Resim silinecek";
@@ -1751,7 +1757,7 @@ function renderStockRequests() {
 }
 window.setRequestFilter = function(status) { state.requestFilter = status; renderStockRequests(); };
 function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.productPurchasePrice, el.productAverageSalePrice, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); }
-function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
@@ -2982,6 +2988,74 @@ async function loadCategoryValues() {
   state.categoryValues = [];
   renderCategoryValues();
 }
+
+function updateBulkPricePreview() {
+  if (!el.bulkPricePreview) return;
+  const category = el.bulkPriceCategory?.value || "";
+  const field = el.bulkPriceField?.value || "average_sale_price";
+  const mode = el.bulkPriceMode?.value || "percent";
+  const amount = Number(el.bulkPriceAmount?.value || 0);
+  if (!category || !(amount > 0)) {
+    el.bulkPricePreview.textContent = "Kategori ve tutar seçildiğinde işlem özeti burada görünür.";
+    return;
+  }
+  const count = (state.products || []).filter(p => normalizeText(p.category) === normalizeText(category)).length;
+  const fieldLabel = field === "purchase_price" ? "alış fiyatı" : field === "both" ? "alış ve satış fiyatları" : "ortalama satış fiyatı";
+  el.bulkPricePreview.textContent = `${count} ürünün ${fieldLabel} ${mode === "percent" ? `%${amount}` : formatTL(amount)} artırılacak.`;
+}
+
+async function applyCategoryPriceUpdate() {
+  const category = String(el.bulkPriceCategory?.value || "").trim();
+  const field = el.bulkPriceField?.value || "average_sale_price";
+  const mode = el.bulkPriceMode?.value || "percent";
+  const amount = Number(el.bulkPriceAmount?.value || 0);
+  if (!category) return showToast("Önce kategori seç", true);
+  if (!(amount > 0)) return showToast("Artış miktarı 0'dan büyük olmalı", true);
+
+  const { data, error } = await supabaseClient
+    .from("stock_products")
+    .select("id,product_name,category,purchase_price,average_sale_price")
+    .eq("category", category);
+  if (error) return showToast(error.message || "Kategori ürünleri alınamadı", true);
+  if (!data?.length) return showToast("Bu kategoride ürün bulunamadı", true);
+
+  const fieldLabel = field === "purchase_price" ? "alış fiyatı" : field === "both" ? "alış ve satış fiyatları" : "ortalama satış fiyatı";
+  const increaseLabel = mode === "percent" ? `%${amount}` : formatTL(amount);
+  const zeroCount = data.filter(row => {
+    const values = field === "both" ? [row.purchase_price, row.average_sale_price] : [row[field]];
+    return values.some(v => Number(v || 0) <= 0);
+  }).length;
+  const warning = zeroCount ? `\n\n${zeroCount} üründe mevcut fiyat 0. Yüzde artışta bu fiyatlar 0 kalır; sabit artışta girilen tutar eklenir.` : "";
+  const ok = await appConfirm(`${category} kategorisindeki ${data.length} ürünün ${fieldLabel} ${increaseLabel} artırılacak.${warning}\n\nDevam edilsin mi?`, { title: "Toplu fiyat güncelleme", okText: "Güncelle" });
+  if (!ok) return;
+
+  const calc = (oldValue) => {
+    const old = Number(oldValue || 0);
+    const next = mode === "percent" ? old * (1 + amount / 100) : old + amount;
+    return Math.max(0, Math.round((next + Number.EPSILON) * 100) / 100);
+  };
+  const updates = data.map(row => {
+    const out = { id: row.id };
+    if (field === "purchase_price" || field === "both") out.purchase_price = calc(row.purchase_price);
+    if (field === "average_sale_price" || field === "both") out.average_sale_price = calc(row.average_sale_price);
+    return out;
+  });
+
+  const chunkSize = 200;
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    const { error: updateError } = await supabaseClient.from("stock_products").upsert(chunk, { onConflict: "id" });
+    if (updateError) return showToast(`Fiyat güncelleme yarıda kaldı: ${updateError.message}`, true);
+  }
+
+  showToast(`${updates.length} ürünün fiyatı güncellendi`);
+  if (el.bulkPriceAmount) el.bulkPriceAmount.value = "";
+  await loadProducts();
+  await loadCategoryValues();
+  updateBulkPricePreview();
+}
+window.applyCategoryPriceUpdate = applyCategoryPriceUpdate;
+
 window.loadCategoryValues = loadCategoryValues;
 function computeCategoryValueRows() {
   const grouped = new Map();
@@ -3011,6 +3085,13 @@ function computeCategoryValueRows() {
 function renderCategoryValues() {
   const rows = computeCategoryValueRows();
   state.categoryValueRows = rows;
+  if (el.bulkPriceCategory) {
+    const current = el.bulkPriceCategory.value;
+    el.bulkPriceCategory.innerHTML = `<option value="">Kategori seç</option>` + rows
+      .filter(r => r.category && r.category !== "Kategorisiz")
+      .map(r => `<option value="${escapeHtml(r.category)}">${escapeHtml(r.category)}</option>`).join("");
+    if ([...el.bulkPriceCategory.options].some(o => o.value === current)) el.bulkPriceCategory.value = current;
+  }
   const totalPurchase = rows.reduce((s,r) => s + r.totalPurchase, 0);
   const totalSale = rows.reduce((s,r) => s + r.totalSale, 0);
   const totalDiff = totalSale - totalPurchase;
@@ -4476,3 +4557,8 @@ if (document.readyState === 'loading') {
 } else {
   initializeStockTheme();
 }
+
+[el.bulkPriceCategory, el.bulkPriceField, el.bulkPriceMode, el.bulkPriceAmount].filter(Boolean).forEach(node => {
+  node.addEventListener("change", updateBulkPricePreview);
+  node.addEventListener("input", updateBulkPricePreview);
+});

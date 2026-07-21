@@ -175,8 +175,11 @@
 <label>Ürün Resmi <span class="muted">(isteğe bağlı)</span></label>
 <div class="product-image-preview" id="productImagePreview"><div class="product-image-empty">📷<span>Resim yok</span></div></div>
 <div class="product-image-actions row-gap">
-<label class="btn secondary file-picker-label product-image-picker">📷 Resim Seç
+<label class="btn secondary file-picker-label product-image-picker">🖼️ Galeriden Seç
                   <input accept="image/*" class="native-file-input" id="productImageFile" onchange="handleProductImageFile(event)" type="file"/>
+</label>
+<label class="btn secondary file-picker-label product-image-picker">📸 Kamerayı Aç
+                  <input accept="image/*" capture="environment" class="native-file-input" id="productCameraFile" onchange="handleProductImageFile(event)" type="file"/>
 </label>
 <button class="btn ghost" disabled="" id="productImageViewBtn" type="button">Resmi Gör</button>
 <button class="btn danger" disabled="" id="productImageRemoveBtn" type="button">Resmi Sil</button>
@@ -410,6 +413,24 @@ LED" rows="8"></textarea>
 </div>
 <div class="category-value-summary" id="categoryValueSummary">
 <div class="empty-state">Hesaplama için veriler bekleniyor...</div>
+</div>
+</section>
+<section class="card category-price-update-card">
+<div class="section-head compact">
+<div>
+<h2>Kategori Bazlı Fiyat Güncelleme</h2>
+<p class="muted">Seçilen kategorideki ürünlerin alış veya ortalama satış fiyatını yüzde ya da sabit TL tutarıyla topluca artır.</p>
+</div>
+</div>
+<div class="form-grid category-price-update-grid">
+<div><label>Kategori *</label><select id="bulkPriceCategory"><option value="">Kategori seç</option></select></div>
+<div><label>Güncellenecek Fiyat *</label><select id="bulkPriceField"><option value="average_sale_price">Ortalama Satış Fiyatı</option><option value="purchase_price">Alış Fiyatı</option><option value="both">Alış + Satış Fiyatı</option></select></div>
+<div><label>Artış Türü *</label><select id="bulkPriceMode"><option value="percent">Yüzde (%)</option><option value="fixed">Sabit Tutar (₺)</option></select></div>
+<div><label>Artış Miktarı *</label><input id="bulkPriceAmount" min="0" step="0.01" type="number" placeholder="Örn: 10 veya 500"/></div>
+<div class="full category-price-update-actions">
+<button class="btn success" onclick="applyCategoryPriceUpdate()" type="button">Fiyatları Güncelle</button>
+<span class="muted" id="bulkPricePreview">Kategori ve tutar seçildiğinde işlem özeti burada görünür.</span>
+</div>
 </div>
 </section>
 <section class="card">
