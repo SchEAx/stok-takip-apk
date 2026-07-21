@@ -45,6 +45,12 @@ excelCarBrandFilter: document.getElementById("excelCarBrandFilter"),
 excelFilterSummary: document.getElementById("excelFilterSummary"),
 productImageFile: document.getElementById("productImageFile"),
 productCameraFile: document.getElementById("productCameraFile"),
+productCameraModal: document.getElementById("productCameraModal"),
+productCameraVideo: document.getElementById("productCameraVideo"),
+productCameraCanvas: document.getElementById("productCameraCanvas"),
+productCameraMessage: document.getElementById("productCameraMessage"),
+productCameraSwitchBtn: document.getElementById("productCameraSwitchBtn"),
+productCameraCaptureBtn: document.getElementById("productCameraCaptureBtn"),
 productImagePreview: document.getElementById("productImagePreview"),
 productImageStatus: document.getElementById("productImageStatus"),
 productImageRemoveBtn: document.getElementById("productImageRemoveBtn"),
@@ -911,6 +917,118 @@ async function handleProductImageFile(event) {
   }
 }
 window.handleProductImageFile = handleProductImageFile;
+
+
+let productCameraStream = null;
+let productCameraFacingMode = "environment";
+
+function stopProductCameraStream() {
+  if (productCameraStream) {
+    productCameraStream.getTracks().forEach(track => track.stop());
+    productCameraStream = null;
+  }
+  if (el.productCameraVideo) el.productCameraVideo.srcObject = null;
+}
+
+async function startProductCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error("Bu tarayıcı doğrudan kamera açmayı desteklemiyor");
+  }
+  stopProductCameraStream();
+  if (el.productCameraMessage) el.productCameraMessage.textContent = "Kamera hazırlanıyor...";
+  const constraints = {
+    audio: false,
+    video: {
+      facingMode: { ideal: productCameraFacingMode },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    }
+  };
+  productCameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+  if (!el.productCameraVideo) throw new Error("Kamera ekranı bulunamadı");
+  el.productCameraVideo.srcObject = productCameraStream;
+  await el.productCameraVideo.play();
+  if (el.productCameraMessage) {
+    el.productCameraMessage.textContent = productCameraFacingMode === "environment"
+      ? "Arka kamera hazır"
+      : "Ön kamera hazır";
+  }
+}
+
+async function openProductCamera() {
+  if (location.protocol !== "https:" && location.hostname !== "localhost") {
+    showToast("Kamera için uygulamayı HTTPS üzerinden açmalısın", true);
+    return;
+  }
+  if (!el.productCameraModal) return;
+  el.productCameraModal.classList.remove("hidden");
+  document.body.classList.add("image-modal-open");
+  try {
+    await startProductCamera();
+  } catch (err) {
+    console.error(err);
+    const denied = err?.name === "NotAllowedError" || err?.name === "SecurityError";
+    if (el.productCameraMessage) {
+      el.productCameraMessage.textContent = denied
+        ? "Kamera izni verilmedi. Tarayıcı ayarlarından kamera iznini aç."
+        : (err.message || "Kamera açılamadı");
+    }
+    showToast(denied ? "Kamera izni verilmedi" : "Kamera açılamadı", true);
+  }
+}
+
+function closeProductCamera() {
+  stopProductCameraStream();
+  if (el.productCameraModal) el.productCameraModal.classList.add("hidden");
+  document.body.classList.remove("image-modal-open");
+}
+
+async function switchProductCamera() {
+  productCameraFacingMode = productCameraFacingMode === "environment" ? "user" : "environment";
+  try {
+    await startProductCamera();
+  } catch (err) {
+    console.error(err);
+    showToast("Diğer kamera açılamadı", true);
+  }
+}
+
+async function captureProductCameraPhoto() {
+  const video = el.productCameraVideo;
+  const canvas = el.productCameraCanvas;
+  if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+    showToast("Kamera henüz hazır değil", true);
+    return;
+  }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  try {
+    if (el.productImageStatus) el.productImageStatus.textContent = "Fotoğraf hazırlanıyor...";
+    const rawBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!rawBlob) throw new Error("Fotoğraf oluşturulamadı");
+    const cameraFile = new File([rawBlob], `kamera-${Date.now()}.jpg`, { type: "image/jpeg" });
+    const optimized = await compressProductImage(cameraFile);
+    selectedProductImageBlob = optimized.blob;
+    selectedProductImageExt = optimized.ext;
+    productImageRemoveRequested = false;
+    const previewUrl = URL.createObjectURL(selectedProductImageBlob);
+    updateProductImagePreview(previewUrl);
+    const kb = Math.round(selectedProductImageBlob.size / 1024);
+    if (el.productImageStatus) el.productImageStatus.textContent = `Kameradan fotoğraf hazır (${kb} KB)`;
+    closeProductCamera();
+    showToast("Fotoğraf çekildi ✅");
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Fotoğraf hazırlanamadı", true);
+  }
+}
+
+window.openProductCamera = openProductCamera;
+window.closeProductCamera = closeProductCamera;
+window.switchProductCamera = switchProductCamera;
+window.captureProductCameraPhoto = captureProductCameraPhoto;
 
 async function uploadProductImageIfNeeded(productId) {
   if (productImageRemoveRequested) return { imageUrl: "", imageThumbUrl: "" };

@@ -790,3 +790,14 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 
 /* v3.6 kategori fiyat güncelleme ve kamera */
 .category-price-update-grid{align-items:end}.category-price-update-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.category-price-update-actions .btn{min-width:190px}.product-image-actions{flex-wrap:wrap}.product-image-picker{display:inline-flex;align-items:center;justify-content:center}@media(max-width:720px){.category-price-update-actions{align-items:stretch;flex-direction:column}.category-price-update-actions .btn{width:100%}.product-image-actions .product-image-picker{flex:1 1 100%}}
+
+
+/* v3.6.1 - Gerçek kamera ekranı */
+.camera-capture-modal{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:18px}
+.camera-capture-modal.hidden{display:none!important}
+.camera-capture-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}
+.camera-capture-card{position:relative;width:min(760px,100%);max-height:94vh;overflow:auto;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.camera-capture-card video{display:block;width:100%;max-height:68vh;object-fit:contain;background:#000;border-radius:16px;border:1px solid var(--border);transform:none}
+.camera-capture-actions{justify-content:center;margin-top:14px}
+.camera-capture-actions .btn{min-width:180px}
+@media(max-width:700px){.camera-capture-modal{padding:0;align-items:stretch}.camera-capture-card{width:100%;max-height:none;height:100%;border-radius:0;padding:14px;display:flex;flex-direction:column}.camera-capture-card video{flex:1;min-height:0;max-height:none}.camera-capture-actions{flex-direction:column}.camera-capture-actions .btn{width:100%}}

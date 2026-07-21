@@ -178,9 +178,7 @@
 <label class="btn secondary file-picker-label product-image-picker">🖼️ Galeriden Seç
                   <input accept="image/*" class="native-file-input" id="productImageFile" onchange="handleProductImageFile(event)" type="file"/>
 </label>
-<label class="btn secondary file-picker-label product-image-picker">📸 Kamerayı Aç
-                  <input accept="image/*" capture="environment" class="native-file-input" id="productCameraFile" onchange="handleProductImageFile(event)" type="file"/>
-</label>
+<button class="btn secondary product-image-picker" id="productCameraOpenBtn" onclick="openProductCamera()" type="button">📸 Kamerayı Aç</button>
 <button class="btn ghost" disabled="" id="productImageViewBtn" type="button">Resmi Gör</button>
 <button class="btn danger" disabled="" id="productImageRemoveBtn" type="button">Resmi Sil</button>
 </div>
@@ -632,6 +630,25 @@ LED" rows="8"></textarea>
 <button class="btn danger" onclick="resetStaffEditor()" type="button">Varsayılana Dön</button>
 </div>
 </div>
+</div>
+
+<div class="camera-capture-modal hidden" id="productCameraModal" aria-modal="true" role="dialog" aria-label="Ürün fotoğrafı çek">
+  <div class="camera-capture-backdrop" onclick="closeProductCamera()"></div>
+  <div class="camera-capture-card">
+    <div class="section-head compact">
+      <div>
+        <h2>📸 Ürün Fotoğrafı Çek</h2>
+        <p class="muted" id="productCameraMessage">Kamera hazırlanıyor...</p>
+      </div>
+      <button class="btn ghost" onclick="closeProductCamera()" type="button">Kapat</button>
+    </div>
+    <video id="productCameraVideo" autoplay playsinline muted></video>
+    <canvas id="productCameraCanvas" class="hidden"></canvas>
+    <div class="row-gap camera-capture-actions">
+      <button class="btn secondary" onclick="switchProductCamera()" id="productCameraSwitchBtn" type="button">🔄 Kamerayı Çevir</button>
+      <button class="btn success" onclick="captureProductCameraPhoto()" id="productCameraCaptureBtn" type="button">📷 Fotoğrafı Çek</button>
+    </div>
+  </div>
 </div>
 <div class="toast hidden" id="toast"></div>
 <div aria-modal="true" class="app-confirm-overlay hidden" id="appConfirmOverlay" role="dialog">
