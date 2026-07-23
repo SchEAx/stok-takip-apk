@@ -123,17 +123,17 @@
 <div class="page hidden" id="page-purchaseOrders">
 <section class="grid-2 purchase-order-grid">
   <div class="card">
-    <div class="section-head"><div><h2>Yeni Tedarikçi Siparişi</h2><p class="muted">İşlem ekranındaki “Siparişe Ekle” butonuyla ürünleri buraya topla.</p></div><button class="btn secondary" type="button" onclick="clearPurchaseOrderDraft()">Listeyi Temizle</button></div>
+    <div class="section-head"><div><h2>Sipariş Havuzu</h2><p class="muted">Ürünleri burada beklet; aynı tedarikçiye ait kalemleri seçip tek sipariş oluştur.</p></div><button class="btn secondary" type="button" onclick="clearPurchaseOrderDraft()">Havuzu Temizle</button></div>
     <div class="form-grid purchase-order-head-fields">
       <div><label>Tedarikçi</label><input id="purchaseSupplier" placeholder="Örn: ABC Otomotiv" type="text"/></div>
       <div><label>Tahmini Geliş Tarihi</label><input id="purchaseExpectedDate" type="date"/></div>
       <div class="full"><label>Sipariş Notu</label><input id="purchaseOrderNote" placeholder="Kargo, ödeme, eksik ürün vb." type="text"/></div>
     </div>
     <div id="purchaseDraftList" class="movement-list"><div class="empty-state">Henüz siparişe ürün eklenmedi</div></div>
-    <div class="purchase-order-footer"><strong>Toplam ürün: <span id="purchaseDraftTotal">0</span></strong><button class="btn success" id="savePurchaseOrderBtn" type="button" onclick="savePurchaseOrder()">Siparişi Kaydet</button></div>
+    <div class="purchase-order-footer"><strong>Havuz toplamı: <span id="purchaseDraftTotal">0</span></strong><button class="btn success" id="savePurchaseOrderBtn" type="button" onclick="openPurchaseOrderGroupModal()">Seçerek Sipariş Oluştur</button></div>
   </div>
   <div class="card">
-    <div class="section-head"><div><h2>Bekleyen Siparişler</h2><p class="muted">Sipariş geldiğinde tek tuşla tüm kalemleri stoklara ekle.</p></div><button class="btn secondary" type="button" onclick="loadPurchaseOrders()">Yenile</button></div>
+    <div class="section-head"><div><h2>Oluşturulan Siparişler</h2><p class="muted">Kısmi gelen miktarları kalem kalem stoğa işle veya tamamını al.</p></div><button class="btn secondary" type="button" onclick="loadPurchaseOrders()">Yenile</button></div>
     <div id="purchaseOrderList" class="movement-list"><div class="empty-state">Siparişler yükleniyor...</div></div>
   </div>
 </section>
@@ -630,6 +630,26 @@ LED" rows="8"></textarea>
 <button class="btn danger" onclick="resetStaffEditor()" type="button">Varsayılana Dön</button>
 </div>
 </div>
+</div>
+
+
+<div class="modal-backdrop hidden" id="purchaseGroupModal">
+  <div class="modal-card wide purchase-group-modal-card">
+    <div class="section-head compact">
+      <div><h2>📦 Sipariş Oluştur</h2><p class="muted">Bu siparişe eklenecek ürünleri seç.</p></div>
+      <button class="btn ghost" type="button" onclick="closePurchaseOrderGroupModal()">Kapat</button>
+    </div>
+    <div class="form-grid purchase-order-head-fields">
+      <div><label>Tedarikçi</label><input id="purchaseGroupSupplier" placeholder="Örn: Rizline" type="text"/></div>
+      <div><label>Tahmini Geliş</label><input id="purchaseGroupExpectedDate" type="date"/></div>
+      <div class="full"><label>Not</label><input id="purchaseGroupNote" placeholder="Sipariş notu" type="text"/></div>
+    </div>
+    <div id="purchaseGroupItemList" class="purchase-group-list"></div>
+    <div class="purchase-order-footer">
+      <strong>Seçilen: <span id="purchaseGroupSelectedCount">0</span> kalem</strong>
+      <button class="btn success" type="button" onclick="createGroupedPurchaseOrder()">Seçilenlerle Sipariş Oluştur</button>
+    </div>
+  </div>
 </div>
 
 <div class="camera-capture-modal hidden" id="productCameraModal" aria-modal="true" role="dialog" aria-label="Ürün fotoğrafı çek">

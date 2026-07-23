@@ -1,4 +1,4 @@
-const CACHE_NAME = "stok-takip-v36-kategori-fiyat-kamera";
+const CACHE_NAME = "garage-stock-pro-v3.7-siparis-havuzu";
 const ASSETS = [
   "./",
   "./index.html",

@@ -801,3 +801,15 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 .camera-capture-actions{justify-content:center;margin-top:14px}
 .camera-capture-actions .btn{min-width:180px}
 @media(max-width:700px){.camera-capture-modal{padding:0;align-items:stretch}.camera-capture-card{width:100%;max-height:none;height:100%;border-radius:0;padding:14px;display:flex;flex-direction:column}.camera-capture-card video{flex:1;min-height:0;max-height:none}.camera-capture-actions{flex-direction:column}.camera-capture-actions .btn{width:100%}}
+
+/* v3.7 Sipariş Havuzu / Kısmi Teslim */
+.purchase-draft-item{grid-template-columns:1fr minmax(90px,120px) minmax(120px,170px) auto auto!important}
+.purchase-draft-item .draft-supplier{min-width:0}
+.purchase-group-list{display:grid;gap:10px;max-height:52vh;overflow:auto;margin-top:14px}
+.purchase-group-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--card-soft)}
+.purchase-group-row input[type=checkbox]{width:22px;height:22px}
+.partial-receive-grid{display:grid;gap:8px;margin-top:10px}
+.partial-receive-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:9px;border-radius:11px;background:var(--card-soft);border:1px solid var(--border)}
+.partial-receive-row input{width:90px}
+.order-progress{font-size:12px;color:var(--muted)}
+@media(max-width:760px){.purchase-draft-item{grid-template-columns:1fr 90px!important}.purchase-draft-item .draft-supplier,.purchase-draft-item .remove-order-item,.purchase-draft-item .create-order-item{grid-column:1/-1}.partial-receive-row{grid-template-columns:1fr auto}.partial-receive-row input{width:100%}.purchase-group-row{grid-template-columns:auto 1fr}}
