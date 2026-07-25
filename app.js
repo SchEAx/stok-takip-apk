@@ -1,4 +1,4 @@
-const APP_VERSION = '3.8.0-kategori-yetki-ayarlar';
+const APP_VERSION = '3.9.0-supabase-auth-rls';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -269,7 +269,7 @@ function setCurrentSession(staff) {
     last_seen_at: new Date().toISOString(),
     last_login_at: new Date().toISOString()
   })
-  .eq("name", staff.name);
+  .eq("auth_user_id", staff.authUserId || "00000000-0000-0000-0000-000000000000");
   return session;
 }
 async function setUserOffline() {
@@ -282,7 +282,7 @@ async function setUserOffline() {
       .update({
         last_seen_at: null
       })
-      .eq("name", session.name);
+      .eq("auth_user_id", state.currentUser?.authUserId || "00000000-0000-0000-0000-000000000000");
 
   } catch (err) {
     console.warn("Offline güncellenemedi:", err);
@@ -294,10 +294,42 @@ function clearCurrentSession() {
   localStorage.removeItem(SESSION_STORE_KEY);
   state.currentUser = null;
 }
+function authEmailForUsername(username) {
+  const slug = String(username || "")
+    .trim().toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9._-]+/g, ".").replace(/^\.+|\.+$/g, "");
+  return `${slug || "personel"}@garage.local`;
+}
 function populateLoginStaffSelect() {
-  if (!el.loginStaffSelect) return;
-  const staff = readStaffList();
-  el.loginStaffSelect.innerHTML = staff.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} — ${roleLabel(s.role)}</option>`).join("");
+  // Supabase Auth + RLS modunda kullanıcı listesi girişten önce veritabanından gösterilmez.
+  // Alan artık serbest kullanıcı adı girişidir.
+}
+async function loadAuthenticatedProfile() {
+  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !authData?.user) throw authError || new Error("Oturum bulunamadı");
+  const { data, error } = await supabaseClient
+    .from("app_users")
+    .select("auth_user_id,username,name,role,is_active,last_seen_at,last_login_at,allowed_categories,permissions")
+    .eq("auth_user_id", authData.user.id)
+    .single();
+  if (error) throw error;
+  if (!data?.is_active) throw new Error("Bu personel hesabı pasif");
+  const profile = normalizeStaffItem({
+    authUserId: data.auth_user_id,
+    username: data.username,
+    name: data.name,
+    role: data.role,
+    allowedCategories: data.allowed_categories || [],
+    permissions: data.permissions || {},
+    lastSeenAt: data.last_seen_at,
+    lastLoginAt: data.last_login_at
+  });
+  localStorage.setItem(STAFF_STORE_KEY, JSON.stringify([profile]));
+  localStorage.setItem(CURRENT_STAFF_STORE_KEY, profile.name);
+  state.currentUser = profile;
+  return profile;
 }
 function updateUserPill() {
   const staff = currentStaff();
@@ -316,59 +348,60 @@ function applyRoleVisibility() {
   document.body.dataset.role = staff.role || "kasa";
 }
 function showLogin() {
-  populateLoginStaffSelect();
   if (el.loginOverlay) el.loginOverlay.classList.remove("hidden");
   if (el.appShell) el.appShell.classList.add("locked");
-  setTimeout(() => el.loginPasswordInput?.focus(), 100);
+  setTimeout(() => el.loginStaffSelect?.focus(), 100);
 }
 function hideLogin() {
   if (el.loginOverlay) el.loginOverlay.classList.add("hidden");
   if (el.appShell) el.appShell.classList.remove("locked");
 }
-function loginWithSelectedStaff() {
-  const name = el.loginStaffSelect?.value || "";
-  const pass = String(el.loginPasswordInput?.value || "").trim();
-  const staff = readStaffList().find(s => s.name === name);
-  if (!staff) return showToast("Personel bulunamadı", true);
-  if (pass !== normalizeStaffPassword(staff.password, defaultPasswordForRole(staff.role))) {
-    return showToast("Şifre hatalı", true);
-  }
-  setCurrentSession(staff);
-  if (el.loginPasswordInput) el.loginPasswordInput.value = "";
-  hideLogin();
-  updateUserPill();
-  renderStaffSelector();
-  applyRoleVisibility();
-  const target = canAccessTab(state.activeTab, staff.role) ? state.activeTab : (ROLE_DEFAULT_TAB[staff.role] || "requests");
-  switchTab(target);
-  logActivity("login", `${staff.name} giriş yaptı`, "staff", staff.name);
-  showToast(`Hoş geldin ${staff.name} ✅`);
+async function loginWithSelectedStaff() {
+  const username = String(el.loginStaffSelect?.value || "").trim();
+  const pass = String(el.loginPasswordInput?.value || "");
+  if (!username || !pass) return showToast("Kullanıcı adı ve şifre gerekli", true);
+  try {
+    setLoading(true);
+    const { error } = await supabaseClient.auth.signInWithPassword({ email: authEmailForUsername(username), password: pass });
+    if (error) throw error;
+    const staff = await loadAuthenticatedProfile();
+    if (el.loginPasswordInput) el.loginPasswordInput.value = "";
+    hideLogin(); updateUserPill(); applyRoleVisibility();
+    await loadStaffListFromSupabase();
+    renderStaffSelector(); renderUsersList(); renderRolePermissionEditor(); renderUserCategoryPermissions();
+    const target = canAccessTab(state.activeTab, staff.role) ? state.activeTab : (ROLE_DEFAULT_TAB[staff.role] || "operation");
+    switchTab(target);
+    await logActivity("login", `${staff.name} giriş yaptı`, "staff", staff.name);
+    showToast(`Hoş geldin ${staff.name} ✅`);
+  } catch (err) {
+    await supabaseClient.auth.signOut({ scope: "local" }).catch(() => {});
+    showToast(err?.message === "Invalid login credentials" ? "Kullanıcı adı veya şifre hatalı" : (err?.message || "Giriş yapılamadı"), true);
+  } finally { setLoading(false); }
 }
 async function initAuthGate() {
-  await loadRolePermissionsFromSupabase();
-  populateLoginStaffSelect();
-  const session = currentSession();
-  const staff = session ? readStaffList().find(s => s.name === session.name) : null;
-  if (staff) {
-    localStorage.setItem(CURRENT_STAFF_STORE_KEY, staff.name);
-    state.currentUser = session;
+  const { data } = await supabaseClient.auth.getSession();
+  if (!data?.session) { showLogin(); return; }
+  try {
+    const staff = await loadAuthenticatedProfile();
     hideLogin();
-    updateStaffMeta(staff.name, { lastSeenAt: new Date().toISOString(), role: staff.role });
-  } else {
+    await loadRolePermissionsFromSupabase();
+    await loadStaffListFromSupabase();
+    updateUserPill(); applyRoleVisibility(); renderUsersList(); renderRolePermissionEditor(); renderUserCategoryPermissions();
+  } catch (err) {
+    console.warn("Güvenli oturum açılamadı:", err);
+    await supabaseClient.auth.signOut({ scope: "local" });
     showLogin();
   }
-  updateUserPill();
-  applyRoleVisibility();
-  renderUsersList();
-  renderRolePermissionEditor();
-  renderUserCategoryPermissions();
 }
-window.logoutCurrentUser = function() {
+window.logoutCurrentUser = async function() {
   const staff = currentStaff();
-  logActivity("logout", `${staff.name} çıkış yaptı`, "staff", staff.name);
-  clearCurrentSession();
-  showLogin();
-  showToast("Çıkış yapıldı");
+  await logActivity("logout", `${staff.name} çıkış yaptı`, "staff", staff.name).catch(() => {});
+  await supabaseClient.auth.signOut({ scope: "local" });
+  localStorage.removeItem(SESSION_STORE_KEY);
+  localStorage.removeItem(CURRENT_STAFF_STORE_KEY);
+  localStorage.removeItem(STAFF_STORE_KEY);
+  state.currentUser = null;
+  showLogin(); showToast("Çıkış yapıldı");
 };
 function localActivityPush(item) {
   const logs = readLocalActivityLogs();
@@ -2159,7 +2192,7 @@ async function loadStaffListFromSupabase() {
   try {
     const { data, error } = await supabaseClient
       .from("app_users")
-      .select("name, role, password, is_active, last_seen_at, last_login_at, allowed_categories, permissions")
+      .select("auth_user_id, username, name, role, is_active, last_seen_at, last_login_at, allowed_categories, permissions")
       .eq("is_active", true)
       .order("name", { ascending: true });
     if (error) throw error;
@@ -2167,7 +2200,8 @@ async function loadStaffListFromSupabase() {
       const mapped = data.map(row => ({
   name: row.name,
   role: row.role,
-  password: row.password,
+  authUserId: row.auth_user_id,
+  username: row.username,
   lastSeenAt: row.last_seen_at,
   lastLoginAt: row.last_login_at,
   allowedCategories: row.allowed_categories || [],
@@ -2183,7 +2217,7 @@ async function loadStaffListFromSupabase() {
 }
 async function saveStaffListToSupabase(list) {
   try {
-    const rows = cleanStaffList(list).map(item => ({ name: item.name, role: item.role, password: item.password, allowed_categories: item.allowedCategories || [], permissions: item.permissions || {}, is_active: true, updated_at: new Date().toISOString() }));
+    const rows = cleanStaffList(list).filter(item => item.authUserId).map(item => ({ auth_user_id: item.authUserId, username: item.username, name: item.name, role: item.role, allowed_categories: item.allowedCategories || [], permissions: item.permissions || {}, is_active: true, updated_at: new Date().toISOString() }));
     const names = rows.map(r => r.name);
     const { error: upsertError } = await supabaseClient.from("app_users").upsert(rows, { onConflict: "name" });
     if (upsertError) throw upsertError;
@@ -4443,29 +4477,30 @@ if (el.categoryValueForm) el.categoryValueForm.addEventListener("submit", saveCa
 initProductSuggestionInputs();
 if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.error)); }
 async function bootApp() {
-  await Promise.all([loadStaffListFromSupabase(), loadRolePermissionsFromSupabase()]);
-  initAuthGate();
-  renderStaffSelector();
-  switchTab(canAccessTab("operation") ? "operation" : (ROLE_DEFAULT_TAB[currentStaff().role] || "operation"));
-  loadActivityLogs();
-  loadDashboardStats().catch(err => console.error(err));
-  loadMovements().catch(err => console.error(err));
+  await initAuthGate();
+  const { data } = await supabaseClient.auth.getSession();
+  if (data?.session && state.currentUser) {
+    renderStaffSelector();
+    switchTab(canAccessTab("operation") ? "operation" : (ROLE_DEFAULT_TAB[currentStaff().role] || "operation"));
+    loadActivityLogs();
+    loadDashboardStats().catch(err => console.error(err));
+    loadMovements().catch(err => console.error(err));
+  }
   // Araç kabul entegrasyonu askıda: talepler/bildirimler arka planda yüklenmiyor.
   initUpdateChecker();
 }
 bootApp();
 async function heartbeatCurrentUser() {
   try {
-    const session = currentSession();
-
-    if (!session?.name) return;
+    const { data } = await supabaseClient.auth.getSession();
+    if (!data?.session || !state.currentUser?.authUserId) return;
 
     await supabaseClient
       .from("app_users")
       .update({
         last_seen_at: new Date().toISOString()
       })
-      .eq("name", session.name);
+      .eq("auth_user_id", state.currentUser?.authUserId || "00000000-0000-0000-0000-000000000000");
 
   } catch (err) {
     console.warn("Heartbeat hatası:", err);
@@ -4769,3 +4804,8 @@ if (document.readyState === 'loading') {
   node.addEventListener("change", updateBulkPricePreview);
   node.addEventListener("input", updateBulkPricePreview);
 });
+// Oturum başka sekmede kapanırsa uygulamayı da kilitle.
+supabaseClient.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") { state.currentUser = null; showLogin(); }
+});
+
