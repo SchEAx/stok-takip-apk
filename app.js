@@ -1,4 +1,4 @@
-const APP_VERSION = '3.9.0-supabase-auth-rls';
+const APP_VERSION = '3.9.1-password-settings-tab-fix';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -4026,7 +4026,7 @@ function switchTab(tab) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "operation";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys", "management", "notifications", "history", "users", "logs"].forEach((key) => {
+  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys", "management", "notifications", "history", "users", "settings", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -4074,6 +4074,48 @@ if (tab === "settings") initializeStockTheme();
 if (tab === "logs") { loadActivityLogs(); }
 }
 window.switchTab = switchTab;
+async function changeOwnPassword() {
+  const currentInput = document.getElementById("currentPasswordInput");
+  const newInput = document.getElementById("newPasswordInput");
+  const repeatInput = document.getElementById("repeatPasswordInput");
+  const button = document.getElementById("changePasswordBtn");
+  const currentPassword = String(currentInput?.value || "");
+  const newPassword = String(newInput?.value || "");
+  const repeatPassword = String(repeatInput?.value || "");
+
+  if (!currentPassword || !newPassword || !repeatPassword) return showToast("Şifre alanlarının tamamını doldur", true);
+  if (newPassword.length < 6) return showToast("Yeni şifre en az 6 karakter olmalı", true);
+  if (newPassword !== repeatPassword) return showToast("Yeni şifreler aynı değil", true);
+  if (currentPassword === newPassword) return showToast("Yeni şifre mevcut şifreden farklı olmalı", true);
+
+  try {
+    if (button) button.disabled = true;
+    const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+    if (userError) throw userError;
+    const email = userData?.user?.email;
+    if (!email) throw new Error("Oturum bilgisi alınamadı");
+
+    const { error: verifyError } = await supabaseClient.auth.signInWithPassword({ email, password: currentPassword });
+    if (verifyError) throw new Error("Mevcut şifre yanlış");
+
+    const { error: updateError } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if (updateError) throw updateError;
+
+    if (currentInput) currentInput.value = "";
+    if (newInput) newInput.value = "";
+    if (repeatInput) repeatInput.value = "";
+    await logActivity("password_change", "Kullanıcı kendi şifresini değiştirdi", "auth.users", state.currentUser?.authUserId || null);
+    showToast("Şifre güncellendi. Yeni şifrenle tekrar giriş yap");
+    setTimeout(() => logoutCurrentStaff(), 900);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Şifre değiştirilemedi", true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+window.changeOwnPassword = changeOwnPassword;
+
 function showUpdateNotice(newVersion) {
   document.querySelectorAll(".update-notice").forEach((node, index) => { if (index > 0) node.remove(); });
   let notice = document.getElementById("updateNotice");

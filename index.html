@@ -563,6 +563,20 @@ LED" rows="8"></textarea>
 <div class="page hidden" id="page-settings">
 <section class="card settings-card">
 <div class="section-head"><div><h2>Ayarlar</h2><p class="muted">Program görünümünü kişiselleştir. Bu sekme Admin tarafından personele özel açılabilir.</p></div></div>
+<div class="management-tool-card account-management-card">
+<div class="management-tool-icon">🔐</div>
+<div class="management-tool-content">
+<h3>Hesabım ve Şifre</h3>
+<p class="muted">Mevcut şifreni doğrulayarak Supabase Auth hesabındaki giriş şifreni değiştirebilirsin.</p>
+<div class="form-grid password-change-grid">
+<div><label for="currentPasswordInput">Mevcut şifre</label><input id="currentPasswordInput" type="password" autocomplete="current-password" inputmode="text" /></div>
+<div><label for="newPasswordInput">Yeni şifre</label><input id="newPasswordInput" type="password" autocomplete="new-password" minlength="6" /></div>
+<div><label for="repeatPasswordInput">Yeni şifre tekrar</label><input id="repeatPasswordInput" type="password" autocomplete="new-password" minlength="6" /></div>
+<div class="password-change-action"><button class="btn success" id="changePasswordBtn" onclick="changeOwnPassword()" type="button">Şifreyi Güncelle</button></div>
+</div>
+<small class="muted">Şifre değişince güvenlik için oturum kapatılır ve yeni şifreyle tekrar giriş yapılır.</small>
+</div>
+</div>
 <div class="management-tool-card theme-management-card">
 <div class="management-tool-icon">🎨</div>
 <div class="management-tool-content">

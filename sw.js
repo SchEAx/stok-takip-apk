@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-stock-pro-v3.8-kategori-yetki";
+const CACHE_NAME = "garage-stock-pro-v3.9.1-password-settings-tab-fix";
 const ASSETS = [
   "./",
   "./index.html",

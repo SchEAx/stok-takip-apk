@@ -816,3 +816,5 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 
 /* === v3.8 Personel bazlı kategori / işlem yetkileri === */
 .users-permission-grid .full-span{grid-column:1/-1}.user-category-card{margin-bottom:14px}.category-permission-head{display:flex;align-items:center;gap:8px;margin:14px 0 8px}.category-permission-head b{margin-right:auto}.category-permission-grid{max-height:260px;overflow:auto;padding-right:4px}.action-permission-grid{margin-top:10px}.settings-card .theme-management-card{margin-top:0}.settings-card .management-tool-content{width:100%}
+
+.account-management-card{margin:0 0 14px}.password-change-grid{align-items:end}.password-change-action{display:flex;align-items:end}.password-change-action .btn{width:100%;min-height:44px}@media(max-width:960px){.password-change-action{display:block}}
