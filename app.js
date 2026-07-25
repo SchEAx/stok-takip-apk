@@ -1,4 +1,4 @@
-const APP_VERSION = '3.7.0-siparis-havuzu-kismi-teslim';
+const APP_VERSION = '3.8.0-kategori-yetki-ayarlar';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -189,13 +189,14 @@ const TAB_DEFINITIONS = [
   { key: "purchaseOrders", label: "Verilen Siparişler" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
   { key: "management", label: "Yönetim" },
+  { key: "settings", label: "Ayarlar" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
   { key: "logs", label: "Loglar" }
 ];
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "settings", "surveys"],
   kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
@@ -241,7 +242,11 @@ async function saveRolePermissionsToSupabase(permissions) {
   }
 }
 function permissionsForRole(role) { return readRolePermissions()[role] || readRolePermissions().kasa; }
-function canAccessTab(tab, role = currentStaff().role) { return permissionsForRole(role).includes(tab); }
+function canAccessTab(tab, role = currentStaff().role) {
+  const staff = currentStaff();
+  if (tab === "settings") return role === "admin" || staff.permissions?.themeSettings === true;
+  return permissionsForRole(role).includes(tab);
+}
 function readStaffMeta() { try { return JSON.parse(localStorage.getItem(STAFF_META_STORE_KEY) || "{}"); } catch { return {}; } }
 function writeStaffMeta(meta) { localStorage.setItem(STAFF_META_STORE_KEY, JSON.stringify(meta || {})); }
 function updateStaffMeta(name, patch) {
@@ -304,7 +309,9 @@ function applyRoleVisibility() {
   const allowed = new Set(permissionsForRole(staff.role));
   ALL_TAB_KEYS.forEach(tab => {
     const nav = document.getElementById("nav-" + tab);
-    if (nav) nav.classList.toggle("hidden", !allowed.has(tab));
+    let visible = allowed.has(tab);
+    if (tab === "settings") visible = staff.role === "admin" || staff.permissions?.themeSettings === true;
+    if (nav) nav.classList.toggle("hidden", !visible);
   });
   document.body.dataset.role = staff.role || "kasa";
 }
@@ -354,6 +361,7 @@ async function initAuthGate() {
   applyRoleVisibility();
   renderUsersList();
   renderRolePermissionEditor();
+  renderUserCategoryPermissions();
 }
 window.logoutCurrentUser = function() {
   const staff = currentStaff();
@@ -448,6 +456,49 @@ function renderRolePermissionEditor() {
 }
 window.renderRolePermissionEditor = renderRolePermissionEditor;
 
+function allKnownCategories() {
+  return uniqueCleanValues([...(state.products || []).map(p => p.category), ...getSuggestionValues("category")]);
+}
+function renderUserCategoryPermissions() {
+  const box = document.getElementById("userCategoryPermissionEditor");
+  if (!box) return;
+  if (currentStaff().role !== "admin") { box.innerHTML = `<div class="empty-state">Kategori yetkilerini sadece Admin düzenleyebilir.</div>`; return; }
+  const categories = allKnownCategories();
+  box.innerHTML = readStaffList().filter(s => s.role !== "admin").map(s => `
+    <div class="permission-role-card user-category-card" data-user-permission-card="${escapeHtml(s.name)}">
+      <div class="permission-role-head"><strong>${escapeHtml(s.name)}</strong><small>${roleLabel(s.role)}</small></div>
+      <div class="permission-check-grid action-permission-grid">
+        <label class="permission-check"><input type="checkbox" data-user-action="stockIn" ${s.permissions?.stockIn ? "checked" : ""}><span>Stok Giriş</span></label>
+        <label class="permission-check"><input type="checkbox" data-user-action="stockOut" ${s.permissions?.stockOut ? "checked" : ""}><span>Stok Çıkış</span></label>
+        <label class="permission-check"><input type="checkbox" data-user-action="addToOrderPool" ${s.permissions?.addToOrderPool ? "checked" : ""}><span>Sipariş Havuzuna At</span></label>
+        <label class="permission-check"><input type="checkbox" data-user-action="themeSettings" ${s.permissions?.themeSettings ? "checked" : ""}><span>Tema Ayarları</span></label>
+      </div>
+      <div class="category-permission-head"><b>Görebileceği kategoriler</b><button class="btn secondary mini" type="button" onclick="toggleAllUserCategories('${escapeHtml(s.name)}', true)">Tümü</button><button class="btn ghost mini" type="button" onclick="toggleAllUserCategories('${escapeHtml(s.name)}', false)">Temizle</button></div>
+      <div class="permission-check-grid category-permission-grid">${categories.map(c => `<label class="permission-check"><input type="checkbox" data-user-category value="${escapeHtml(c)}" ${(s.allowedCategories || []).some(x => normalizeText(x) === normalizeText(c)) ? "checked" : ""}><span>${escapeHtml(c)}</span></label>`).join("") || `<div class="muted">Kategori listesi için ürünleri bir kez yükle.</div>`}</div>
+    </div>`).join("");
+}
+window.toggleAllUserCategories = function(name, checked) {
+  const card = [...document.querySelectorAll('[data-user-permission-card]')].find(x => x.dataset.userPermissionCard === name);
+  card?.querySelectorAll('[data-user-category]').forEach(x => x.checked = checked);
+};
+window.saveUserCategoryPermissions = async function() {
+  if (!requireRoleAction(["admin"], "Kategori yetkilerini sadece Admin düzenleyebilir")) return;
+  const list = readStaffList();
+  document.querySelectorAll('[data-user-permission-card]').forEach(card => {
+    const user = list.find(s => s.name === card.dataset.userPermissionCard);
+    if (!user) return;
+    user.allowedCategories = [...card.querySelectorAll('[data-user-category]:checked')].map(x => x.value);
+    user.permissions = {};
+    card.querySelectorAll('[data-user-action]').forEach(x => user.permissions[x.dataset.userAction] = x.checked);
+  });
+  localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(list)));
+  const ok = await saveStaffListToSupabase(list);
+  if (!ok) return;
+  renderUserCategoryPermissions(); applyRoleVisibility();
+  await logActivity("user_category_permissions", "Personel kategori ve işlem yetkileri güncellendi", "app_users", "permissions");
+  showToast("Kategori ve işlem yetkileri kaydedildi ✅");
+};
+
 window.saveRolePermissions = function() {
   if (!requireRoleAction(["admin"], "Menü yetkilerini sadece Admin düzenleyebilir")) return;
   const current = readRolePermissions();
@@ -471,6 +522,30 @@ window.resetRolePermissions = async function() {
   showToast("Menü yetkileri varsayılana döndü ✅");
 };
 
+function currentUserCategoryPermissions() {
+  const staff = currentStaff();
+  if (staff.role === "admin") return [];
+  return Array.isArray(staff.allowedCategories) ? staff.allowedCategories : [];
+}
+function canAccessCategory(category) {
+  const staff = currentStaff();
+  if (staff.role === "admin") return true;
+  const allowed = currentUserCategoryPermissions();
+  if (!allowed.length) return false;
+  return allowed.some(v => normalizeText(v) === normalizeText(category));
+}
+function filterProductsByCurrentUser(rows) {
+  return currentStaff().role === "admin" ? (rows || []) : (rows || []).filter(row => canAccessCategory(row.category || row.stock_products?.category || ""));
+}
+function userActionAllowed(action) {
+  const staff = currentStaff();
+  if (staff.role === "admin") return true;
+  return staff.permissions?.[action] === true;
+}
+function requireUserAction(action, message) {
+  if (!userActionAllowed(action)) { showToast(message || "Bu işlem için kişisel yetkin yok", true); return false; }
+  return true;
+}
 function requireRoleAction(allowedRoles, message = "Bu işlem için yetkin yok") {
   const staff = currentStaff();
   if (!allowedRoles.includes(staff.role)) {
@@ -1259,7 +1334,7 @@ async function loadProducts() {
     from += pageSize;
   }
 
-  state.products = allRows.map(mapProduct);
+  state.products = filterProductsByCurrentUser(allRows.map(mapProduct));
 
   applySearch();
   updateStats();
@@ -1275,7 +1350,7 @@ async function loadProducts() {
   if (state.activeTab === "management") renderCategoryBrandManagement();
   if (state.activeTab === "categoryValues") renderCategoryValues();
 }
-async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = data || []; renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
+async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode, category)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = (data || []).filter(row => currentStaff().role === "admin" || canAccessCategory(row.stock_products?.category || "")); renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
 async function loadStockRequests() {
   const { data, error } = await supabaseClient.from("stock_requests").select("*").in("status", ["bekliyor", "rezerve_edildi", "teslim_edildi", "montaj_bitti", "iptal"]).order("created_at", { ascending: false }).limit(150);
   if (error) { el.stockRequestsBox.innerHTML = `<div class="empty-state">Talep alınamadı: ${escapeHtml(error.message)}</div>`; return; }
@@ -1647,9 +1722,9 @@ function renderOperationCards(results) {
           <input type="number" min="1" value="${qty}" onchange="setOperationQty('${p.id}', this.value)" />
           <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', 1)">+</button>
         </div>
-        <button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>
-        <button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
-        <button class="btn primary" onclick="addProductToPurchaseOrder('${p.id}')">📦 Siparişe Ekle</button>
+        ${userActionAllowed("stockIn") ? `<button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>` : ""}
+        ${userActionAllowed("stockOut") ? `<button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>` : ""}
+        ${userActionAllowed("addToOrderPool") ? `<button class="btn primary" onclick="addProductToPurchaseOrder('${p.id}')">📦 Siparişe Ekle</button>` : ""}
         ${p.imageUrl ? `<button class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
         <button class="btn secondary" onclick="editProduct('${p.id}')">Düzenle</button>
         <button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button>
@@ -1769,7 +1844,7 @@ async function queryOperationProducts() {
 
     if (seq !== state.operationQuerySeq) return;
 
-    let results = rows.map(mapProduct).filter(p =>
+    let results = filterProductsByCurrentUser(rows.map(mapProduct)).filter(p =>
       operationProductMatches(p, brand, category, rawSearch) ||
       barcodeSmartSearch(p, rawSearch)
     );
@@ -1808,9 +1883,12 @@ window.clearOperationFilters = function() {
   state.operationCacheKey = "";
   if (el.operationResultBox) el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
 };
-window.operationStockAction = async function(id, type) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
+window.operationStockAction = async function(id, type) {
   const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id));
   if (!product) return showToast("Ürün bulunamadı", true);
+  if (!canAccessCategory(product.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
+  if (type === "giris" && !requireUserAction("stockIn", "Stok giriş yetkin yok")) return;
+  if (type === "cikis" && !requireUserAction("stockOut", "Stok çıkış yetkin yok")) return;
   const quantity = getOperationQty(id);
   const available = Number(product.stock || 0) - Number(product.reserved || 0);
   if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
@@ -2031,10 +2109,19 @@ function defaultPasswordForRole(role) {
 
 function normalizeStaffItem(item) {
   const role = String(item?.role || "kasa");
+  const allowedCategories = Array.isArray(item?.allowedCategories) ? item.allowedCategories : (Array.isArray(item?.allowed_categories) ? item.allowed_categories : []);
+  const permissions = item?.permissions && typeof item.permissions === "object" ? item.permissions : {};
   return {
     name: normalizeStaffName(item?.name),
     role,
-    password: normalizeStaffPassword(item?.password, defaultPasswordForRole(role))
+    password: normalizeStaffPassword(item?.password, defaultPasswordForRole(role)),
+    allowedCategories: [...new Set(allowedCategories.map(v => String(v || "").trim()).filter(Boolean))],
+    permissions: {
+      stockIn: permissions.stockIn !== false,
+      stockOut: permissions.stockOut !== false,
+      addToOrderPool: permissions.addToOrderPool !== false,
+      themeSettings: permissions.themeSettings === true
+    }
   };
 }
 
@@ -2072,7 +2159,7 @@ async function loadStaffListFromSupabase() {
   try {
     const { data, error } = await supabaseClient
       .from("app_users")
-      .select("name, role, password, is_active, last_seen_at, last_login_at")
+      .select("name, role, password, is_active, last_seen_at, last_login_at, allowed_categories, permissions")
       .eq("is_active", true)
       .order("name", { ascending: true });
     if (error) throw error;
@@ -2082,7 +2169,9 @@ async function loadStaffListFromSupabase() {
   role: row.role,
   password: row.password,
   lastSeenAt: row.last_seen_at,
-  lastLoginAt: row.last_login_at
+  lastLoginAt: row.last_login_at,
+  allowedCategories: row.allowed_categories || [],
+  permissions: row.permissions || {}
 }));
       localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(mapped)));
     } else {
@@ -2094,7 +2183,7 @@ async function loadStaffListFromSupabase() {
 }
 async function saveStaffListToSupabase(list) {
   try {
-    const rows = cleanStaffList(list).map(item => ({ name: item.name, role: item.role, password: item.password, is_active: true, updated_at: new Date().toISOString() }));
+    const rows = cleanStaffList(list).map(item => ({ name: item.name, role: item.role, password: item.password, allowed_categories: item.allowedCategories || [], permissions: item.permissions || {}, is_active: true, updated_at: new Date().toISOString() }));
     const names = rows.map(r => r.name);
     const { error: upsertError } = await supabaseClient.from("app_users").upsert(rows, { onConflict: "name" });
     if (upsertError) throw upsertError;
@@ -3732,9 +3821,10 @@ function renderPurchaseOrderDraft() {
   if (el.purchaseDraftTotal) el.purchaseDraftTotal.textContent = rows.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
 }
 window.addProductToPurchaseOrder = async function(productId) {
-  if (!requireRoleAction(["admin", "depo", "kasa"], "Sipariş oluşturma yetkin yok")) return;
+  if (!requireUserAction("addToOrderPool", "Sipariş havuzuna ekleme yetkin yok")) return;
   const p = purchaseProductById(productId);
   if (!p) return showToast("Ürün bulunamadı", true);
+  if (!canAccessCategory(p.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
   const qty = getOperationQty(productId);
   try {
     const { error } = await supabaseClient.rpc("add_purchase_order_draft_item", { p_product_id: productId, p_quantity: qty, p_actor: currentStaff().name });
@@ -3945,54 +4035,34 @@ if (tab === "surveys") loadCustomerSurveyStats();
 if (tab === "management") loadDeleteMarkedCount();
 if (tab === "notifications") { loadNotifications(); }
 if (tab === "history") renderPlateHistory();
-if (tab === "users") { renderUsersList(); renderRolePermissionEditor(); }
+if (tab === "users") { if (!state.products.length) loadProducts().then(renderUserCategoryPermissions).catch(() => renderUserCategoryPermissions()); renderUsersList(); renderRolePermissionEditor(); renderUserCategoryPermissions(); }
+if (tab === "settings") initializeStockTheme();
 if (tab === "logs") { loadActivityLogs(); }
 }
 window.switchTab = switchTab;
 function showUpdateNotice(newVersion) {
-  if (document.getElementById("updateNotice")) return;
-
-  const notice = document.createElement("div");
-  notice.id = "updateNotice";
-  notice.className = "update-notice";
-  notice.innerHTML = `
-    <div class="update-notice-text">
-      <strong>⚡ Yeni sürüm hazır</strong>
-      <span>${escapeHtml(newVersion || "")}</span>
-    </div>
-    <button type="button" id="updateNowBtn" class="update-now-btn">Güncelle</button>
-  `;
-
-  const runUpdate = async () => {
-    notice.classList.add("is-updating");
-    notice.innerHTML = `<strong>⚡ Güncelleniyor...</strong>`;
-
+  document.querySelectorAll(".update-notice").forEach((node, index) => { if (index > 0) node.remove(); });
+  let notice = document.getElementById("updateNotice");
+  if (notice) {
+    notice.querySelector(".update-notice-text span")?.replaceChildren(document.createTextNode(String(newVersion || "")));
+    return;
+  }
+  notice = document.createElement("div");
+  notice.id = "updateNotice"; notice.className = "update-notice";
+  notice.innerHTML = `<div class="update-notice-text"><strong>⚡ Yeni sürüm hazır</strong><span>${escapeHtml(newVersion || "")}</span></div><button type="button" id="updateNowBtn" class="update-now-btn">Güncelle</button>`;
+  let updateStarted = false;
+  const runUpdate = async (event) => {
+    event?.preventDefault(); event?.stopPropagation();
+    if (updateStarted) return; updateStarted = true;
+    notice.classList.add("is-updating"); notice.innerHTML = `<strong>⚡ Güncelleniyor...</strong>`;
     try {
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(key => caches.delete(key)));
-      }
-
-      if ("serviceWorker" in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(reg => reg.unregister()));
-      }
-
+      if ("caches" in window) await Promise.all((await caches.keys()).map(key => caches.delete(key)));
+      if ("serviceWorker" in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(reg => reg.unregister()));
       localStorage.setItem("stok_app_version", String(newVersion || Date.now()));
-    } catch (err) {
-      console.warn("Güncelleme temizliği yapılamadı:", err);
-    }
-
-    window.location.reload(true);
+    } catch (err) { console.warn("Güncelleme temizliği yapılamadı:", err); }
+    window.location.replace(window.location.pathname + "?v=" + encodeURIComponent(newVersion || Date.now()));
   };
-
-  notice.querySelector("#updateNowBtn")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    runUpdate();
-  });
-
-  notice.addEventListener("click", runUpdate);
+  notice.querySelector("#updateNowBtn")?.addEventListener("click", runUpdate, { once: true });
   document.body.appendChild(notice);
   showToast("Yeni sürüm mevcut ⚡ Güncelle butonuna basabilirsin.");
 }

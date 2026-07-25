@@ -73,6 +73,7 @@
 <button id="nav-orderSuggestion" onclick="switchTab('orderSuggestion')">Sipariş Önerisi</button>
 <button id="nav-purchaseOrders" onclick="switchTab('purchaseOrders')">Verilen Siparişler <span id="purchaseOrderBadge" class="nav-count hidden">0</span></button>
 <button id="nav-management" onclick="switchTab('management')">Yönetim</button>
+<button id="nav-settings" onclick="switchTab('settings')">Ayarlar</button>
 <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
 <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
 <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
@@ -528,22 +529,6 @@ LED" rows="8"></textarea>
 </div>
 <button class="btn secondary" onclick="loadDeleteMarkedCount()" type="button">Sayıyı Yenile</button>
 </div>
-<div class="management-tool-card theme-management-card">
-<div class="management-tool-icon">🎨</div>
-<div class="management-tool-content">
-<h3>Program Teması</h3>
-<p class="muted">Tema değişince kart, kutu ve yazı renkleri birlikte uyarlanır. Açık zeminde koyu, koyu zeminde açık yazı kullanılır.</p>
-<div class="theme-picker" id="themePicker">
-<button class="theme-option" data-theme-value="garage-dark" onclick="setStockTheme('garage-dark')" type="button"><span class="theme-preview garage-dark-preview"><i></i><b></b><em></em></span><strong>Garage Dark</strong><small>Koyu lacivert</small></button>
-<button class="theme-option" data-theme-value="garage-exclusive" onclick="setStockTheme('garage-exclusive')" type="button"><span class="theme-preview garage-exclusive-preview"><i></i><b></b><em></em></span><strong>Garage Exclusive</strong><small>Siyah & kırmızı</small></button>
-<button class="theme-option" data-theme-value="midnight-blue" onclick="setStockTheme('midnight-blue')" type="button"><span class="theme-preview midnight-preview"><i></i><b></b><em></em></span><strong>Midnight Blue</strong><small>Lacivert & mavi</small></button>
-<button class="theme-option" data-theme-value="emerald" onclick="setStockTheme('emerald')" type="button"><span class="theme-preview emerald-preview"><i></i><b></b><em></em></span><strong>Emerald</strong><small>Koyu yeşil</small></button>
-<button class="theme-option" data-theme-value="carbon-orange" onclick="setStockTheme('carbon-orange')" type="button"><span class="theme-preview carbon-preview"><i></i><b></b><em></em></span><strong>Carbon Orange</strong><small>Karbon & turuncu</small></button>
-<button class="theme-option" data-theme-value="light" onclick="setStockTheme('light')" type="button"><span class="theme-preview light-preview"><i></i><b></b><em></em></span><strong>Light</strong><small>Açık tema</small></button>
-</div>
-<div class="theme-current-text" id="themeCurrentText">Seçili tema: Garage Dark</div>
-</div>
-</div>
 <div class="management-tool-card">
 <div class="management-tool-icon">📊</div>
 <div class="management-tool-content">
@@ -575,6 +560,28 @@ LED" rows="8"></textarea>
 </div>
 </section>
 </div>
+<div class="page hidden" id="page-settings">
+<section class="card settings-card">
+<div class="section-head"><div><h2>Ayarlar</h2><p class="muted">Program görünümünü kişiselleştir. Bu sekme Admin tarafından personele özel açılabilir.</p></div></div>
+<div class="management-tool-card theme-management-card">
+<div class="management-tool-icon">🎨</div>
+<div class="management-tool-content">
+<h3>Program Teması</h3>
+<p class="muted">Tema değişince kart, kutu ve yazı renkleri birlikte uyarlanır. Açık zeminde koyu, koyu zeminde açık yazı kullanılır.</p>
+<div class="theme-picker" id="themePicker">
+<button class="theme-option" data-theme-value="garage-dark" onclick="setStockTheme('garage-dark')" type="button"><span class="theme-preview garage-dark-preview"><i></i><b></b><em></em></span><strong>Garage Dark</strong><small>Koyu lacivert</small></button>
+<button class="theme-option" data-theme-value="garage-exclusive" onclick="setStockTheme('garage-exclusive')" type="button"><span class="theme-preview garage-exclusive-preview"><i></i><b></b><em></em></span><strong>Garage Exclusive</strong><small>Siyah & kırmızı</small></button>
+<button class="theme-option" data-theme-value="midnight-blue" onclick="setStockTheme('midnight-blue')" type="button"><span class="theme-preview midnight-preview"><i></i><b></b><em></em></span><strong>Midnight Blue</strong><small>Lacivert & mavi</small></button>
+<button class="theme-option" data-theme-value="emerald" onclick="setStockTheme('emerald')" type="button"><span class="theme-preview emerald-preview"><i></i><b></b><em></em></span><strong>Emerald</strong><small>Koyu yeşil</small></button>
+<button class="theme-option" data-theme-value="carbon-orange" onclick="setStockTheme('carbon-orange')" type="button"><span class="theme-preview carbon-preview"><i></i><b></b><em></em></span><strong>Carbon Orange</strong><small>Karbon & turuncu</small></button>
+<button class="theme-option" data-theme-value="light" onclick="setStockTheme('light')" type="button"><span class="theme-preview light-preview"><i></i><b></b><em></em></span><strong>Light</strong><small>Açık tema</small></button>
+</div>
+<div class="theme-current-text" id="themeCurrentText">Seçili tema: Garage Dark</div>
+</div>
+</div>
+
+</section>
+</div>
 <div class="page hidden" id="page-users">
 <section class="grid-2 users-permission-grid">
 <div class="card">
@@ -601,6 +608,11 @@ LED" rows="8"></textarea>
 <button class="btn success" onclick="saveRolePermissions()" type="button">Yetkileri Kaydet</button>
 <button class="btn secondary" onclick="resetRolePermissions()" type="button">Varsayılana Dön</button>
 </div>
+</div>
+<div class="card full-span user-category-permissions-card">
+<div class="section-head"><div><h2>Kategori ve İşlem Yetkileri</h2><p class="muted">Her personelin görebileceği ürün kategorilerini ve yapabileceği işlemleri ayrı ayrı belirle.</p></div></div>
+<div id="userCategoryPermissionEditor"><div class="empty-state">Kategori yetkileri yükleniyor...</div></div>
+<div class="row-gap permission-actions"><button class="btn success" type="button" onclick="saveUserCategoryPermissions()">Kategori Yetkilerini Kaydet</button></div>
 </div>
 </section>
 </div>

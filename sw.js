@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-stock-pro-v3.7-siparis-havuzu";
+const CACHE_NAME = "garage-stock-pro-v3.8-kategori-yetki";
 const ASSETS = [
   "./",
   "./index.html",
