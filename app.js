@@ -1943,9 +1943,6 @@ const payload = {
 
 console.log("PAYLOAD =", JSON.stringify(payload, null, 2));
 
-const { error: movementError } = await supabaseClient
-  .from("stock_movements")
-  .insert(payload);
     const { error: movementError } = await supabaseClient.from("stock_movements").insert({
       product_id: id,
       movement_type: type,
