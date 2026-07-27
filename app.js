@@ -1932,6 +1932,20 @@ window.operationStockAction = async function(id, type) {
     const newQty = type === "giris" ? Number(product.stock || 0) + quantity : Number(product.stock || 0) - quantity;
     const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id);
     if (updateError) throw updateError;
+    console.log("TYPE =", type);
+
+const payload = {
+  product_id: id,
+  movement_type: type,
+  quantity,
+  description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`
+};
+
+console.log("PAYLOAD =", JSON.stringify(payload, null, 2));
+
+const { error: movementError } = await supabaseClient
+  .from("stock_movements")
+  .insert(payload);
     const { error: movementError } = await supabaseClient.from("stock_movements").insert({
       product_id: id,
       movement_type: type,
