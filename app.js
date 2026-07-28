@@ -1934,36 +1934,22 @@ window.operationStockAction = async function(id, type) {
     if (updateError) throw updateError;
     console.log("TYPE =", type);
 
-const payload = {
+const payload = [{
   product_id: id,
   movement_type: type,
-  quantity,
+  quantity: Number(quantity),
   description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`
-};
+}];
 
-console.log("PAYLOAD =", JSON.stringify(payload, null, 2));
+console.log("PAYLOAD", payload);
 
-    const { error: movementError } = await supabaseClient.from("stock_movements").insert({
-      product_id: id,
-      movement_type: type,
-      quantity,
-      description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`
-    });
-    if (movementError) throw movementError;
-    if (type === "cikis") {
-      const minStock = Number(product.minStock || 0);
-      const willAvailable = newQty - Number(product.reserved || 0);
-      if (willAvailable <= minStock) {
-        await createNotification({
-          title: "Kritik stok uyarısı",
-          message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`,
-          type: "critical_stock",
-          target_role: "depo",
-          source_table: "stock_products",
-          source_id: id
-        });
-      }
-    }
+const { data, error: movementError } = await supabaseClient
+  .from("stock_movements")
+  .insert(payload)
+  .select();
+
+console.log("DATA", data);
+console.log("ERROR", movementError);
     await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
     // Ekranı anında güncelle; stok işlemi sonrası tekrar büyük sorgu bekleme.
     product.stock = newQty;
