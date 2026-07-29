@@ -1950,6 +1950,7 @@ const { data, error: movementError } = await supabaseClient
 
 console.log("DATA", data);
 console.log("ERROR", movementError);
+if (movementError) throw movementError;
     await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
     // Ekranı anında güncelle; stok işlemi sonrası tekrar büyük sorgu bekleme.
     product.stock = newQty;
@@ -1960,7 +1961,7 @@ console.log("ERROR", movementError);
     renderOperationCards(state.operationResults || []);
     loadDashboardStats().catch(() => updateStats());
     showToast(`${quantity} adet ${label} kaydedildi ✅`);
-    loadMovements().catch(err => console.warn("Hareketler yenilenemedi:", err));
+    await loadMovements();
     renderMovementSearchResults();
   } catch (err) {
     console.error(err);
@@ -2000,7 +2001,7 @@ window.quickStockAction = async function(id, type, fixedQty = null) { if (!requi
     if (pidx >= 0) state.products[pidx].stock = newQty;
     showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`);
     loadDashboardStats().catch(() => updateStats());
-    loadMovements().catch(err => console.warn("Hareketler yenilenemedi:", err));
+    await loadMovements();
     renderMovementCards(state.movementResults || []); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
 };
 
