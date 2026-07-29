@@ -1917,52 +1917,57 @@ window.clearOperationFilters = function() {
   if (el.operationResultBox) el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
 };
 window.operationStockAction = async function(id, type) {
-  const product = [...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id));
+  const direction = String(type || "").trim().toLowerCase();
+  if (!['giris', 'cikis'].includes(direction)) {
+    return showToast("Hareket tipi belirlenemedi", true);
+  }
+
+  const product = [...(state.operationResults || []), ...(state.products || [])]
+    .find((p) => String(p.id) === String(id));
   if (!product) return showToast("Ürün bulunamadı", true);
   if (!canAccessCategory(product.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
-  if (type === "giris" && !requireUserAction("stockIn", "Stok giriş yetkin yok")) return;
-  if (type === "cikis" && !requireUserAction("stockOut", "Stok çıkış yetkin yok")) return;
+  if (direction === "giris" && !requireUserAction("stockIn", "Stok giriş yetkin yok")) return;
+  if (direction === "cikis" && !requireUserAction("stockOut", "Stok çıkış yetkin yok")) return;
+
   const quantity = getOperationQty(id);
   const available = Number(product.stock || 0) - Number(product.reserved || 0);
-  if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  const label = type === "giris" ? "giriş" : "çıkış";
+  if (direction === "cikis" && available < quantity) {
+    return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
+  }
+
+  const label = direction === "giris" ? "giriş" : "çıkış";
   if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
+
   try {
     setLoading(true);
-    const newQty = type === "giris" ? Number(product.stock || 0) + quantity : Number(product.stock || 0) - quantity;
-    const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id);
-    if (updateError) throw updateError;
-    console.log("TYPE =", type);
 
-const payload = [{
-  product_id: id,
-  movement_type: type,
-  quantity: Number(quantity),
-  description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`
-}];
+    const { data: newQuantity, error } = await supabaseClient.rpc("apply_manual_stock_movement", {
+      p_product_id: id,
+      p_direction: direction,
+      p_quantity: Number(quantity),
+      p_description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`,
+      p_actor: currentStaff()?.username || currentStaff()?.name || "Sistem"
+    });
 
-console.log("PAYLOAD", payload);
+    if (error) throw error;
 
-const { data, error: movementError } = await supabaseClient
-  .from("stock_movements")
-  .insert(payload)
-  .select();
+    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
 
-console.log("DATA", data);
-console.log("ERROR", movementError);
-if (movementError) throw movementError;
-    await logActivity("stock_" + type, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
-    // Ekranı anında güncelle; stok işlemi sonrası tekrar büyük sorgu bekleme.
-    product.stock = newQty;
+    const updatedQty = Number(newQuantity ?? (direction === "giris"
+      ? Number(product.stock || 0) + Number(quantity)
+      : Number(product.stock || 0) - Number(quantity)));
+
+    product.stock = updatedQty;
     const idx = state.operationResults.findIndex(p => String(p.id) === String(id));
     if (idx >= 0) state.operationResults[idx] = product;
     const allIdx = state.products.findIndex(p => String(p.id) === String(id));
-    if (allIdx >= 0) state.products[allIdx].stock = newQty;
+    if (allIdx >= 0) state.products[allIdx].stock = updatedQty;
+
     renderOperationCards(state.operationResults || []);
-    loadDashboardStats().catch(() => updateStats());
-    showToast(`${quantity} adet ${label} kaydedildi ✅`);
     await loadMovements();
     renderMovementSearchResults();
+    loadDashboardStats().catch(() => updateStats());
+    showToast(`${quantity} adet ${label} kaydedildi ✅`);
   } catch (err) {
     console.error(err);
     showToast(err.message || "İşlem kaydedilemedi", true);
@@ -1987,22 +1992,77 @@ function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.cat
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
-window.quickStockAction = async function(id, type, fixedQty = null) { if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
-  const product = [...(state.movementResults || []), ...(state.operationResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true);
-  const quantity = Number(fixedQty || getQuickQty(id) || 1); if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
-  const available = Number(product.stock || 0) - Number(product.reserved || 0); if (type === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try { setLoading(true); const newQty = type === "giris" ? Number(product.stock) + quantity : Number(product.stock) - quantity; const { error: updateError } = await supabaseClient.from("stock_products").update({ quantity: newQty }).eq("id", id); if (updateError) throw updateError; const { error: movementError } = await supabaseClient.from("stock_movements").insert({ product_id: id, movement_type: type, quantity, description: `Ürün ekle ekranı manuel ${type === "giris" ? "stok giriş" : "stok çıkış"}${actorSuffix()}` }); if (movementError) throw movementError; if (type === "cikis") { const minStock = Number(product.minStock || 0); const willAvailable = newQty - Number(product.reserved || 0); if (willAvailable <= minStock) { await createNotification({ title: "Kritik stok uyarısı", message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`, type: "critical_stock", target_role: "depo", source_table: "stock_products", source_id: id }); } } product.stock = newQty;
+window.quickStockAction = async function(id, type, fixedQty = null) {
+  if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
+
+  const direction = String(type || "").trim().toLowerCase();
+  if (!['giris', 'cikis'].includes(direction)) return showToast("Hareket tipi belirlenemedi", true);
+
+  const product = [...(state.movementResults || []), ...(state.operationResults || []), ...(state.products || [])]
+    .find((p) => String(p.id) === String(id));
+  if (!product) return showToast("Ürün bulunamadı", true);
+
+  const quantity = Number(fixedQty || getQuickQty(id) || 1);
+  if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
+
+  const available = Number(product.stock || 0) - Number(product.reserved || 0);
+  if (direction === "cikis" && available < quantity) {
+    return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
+  }
+
+  const label = direction === "giris" ? "giriş" : "çıkış";
+  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
+
+  try {
+    setLoading(true);
+
+    const { data: newQuantity, error } = await supabaseClient.rpc("apply_manual_stock_movement", {
+      p_product_id: id,
+      p_direction: direction,
+      p_quantity: Number(quantity),
+      p_description: `Ürün ekle ekranı manuel stok ${label}${actorSuffix()}`,
+      p_actor: currentStaff()?.username || currentStaff()?.name || "Sistem"
+    });
+    if (error) throw error;
+
+    const updatedQty = Number(newQuantity ?? (direction === "giris"
+      ? Number(product.stock || 0) + quantity
+      : Number(product.stock || 0) - quantity));
+
+    product.stock = updatedQty;
     const midx = state.movementResults.findIndex(p => String(p.id) === String(id));
-    if (midx >= 0) state.movementResults[midx].stock = newQty;
+    if (midx >= 0) state.movementResults[midx].stock = updatedQty;
     const oidx = state.operationResults.findIndex(p => String(p.id) === String(id));
-    if (oidx >= 0) state.operationResults[oidx].stock = newQty;
+    if (oidx >= 0) state.operationResults[oidx].stock = updatedQty;
     const pidx = state.products.findIndex(p => String(p.id) === String(id));
-    if (pidx >= 0) state.products[pidx].stock = newQty;
-    showToast(`${quantity} adet ${type === "giris" ? "giriş" : "çıkış"} kaydedildi ✅`);
-    loadDashboardStats().catch(() => updateStats());
+    if (pidx >= 0) state.products[pidx].stock = updatedQty;
+
+    if (direction === "cikis") {
+      const minStock = Number(product.minStock || 0);
+      const willAvailable = updatedQty - Number(product.reserved || 0);
+      if (willAvailable <= minStock) {
+        await createNotification({
+          title: "Kritik stok uyarısı",
+          message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`,
+          type: "critical_stock",
+          target_role: "depo",
+          source_table: "stock_products",
+          source_id: id
+        });
+      }
+    }
+
+    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
     await loadMovements();
-    renderMovementCards(state.movementResults || []); } catch (err) { console.error(err); showToast(err.message || "Hareket kaydedilemedi", true); } finally { setLoading(false); }
+    renderMovementCards(state.movementResults || []);
+    loadDashboardStats().catch(() => updateStats());
+    showToast(`${quantity} adet ${label} kaydedildi ✅`);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Hareket kaydedilemedi", true);
+  } finally {
+    setLoading(false);
+  }
 };
 
 function formatSaleMoney(value) {
