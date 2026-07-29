@@ -3900,6 +3900,24 @@ function selectedPurchaseGroupIds() {
 function updatePurchaseGroupSelectedCount() {
   if (el.purchaseGroupSelectedCount) el.purchaseGroupSelectedCount.textContent = String(selectedPurchaseGroupIds().length);
 }
+window.selectAllPurchaseItems = function(checked = true) {
+  document.querySelectorAll('[data-purchase-group-item]').forEach(x => { x.checked = !!checked; });
+  updatePurchaseGroupSelectedCount();
+};
+window.selectSameSupplierPurchaseItems = function() {
+  const supplier = String(el.purchaseGroupSupplier?.value || "").trim().toLocaleLowerCase("tr-TR");
+  const seed = state.purchaseOrderDraft.find(x => String(x.productId) === String(state.purchaseGroupSeedProductId));
+  document.querySelectorAll('[data-purchase-group-item]').forEach(box => {
+    const row = state.purchaseOrderDraft.find(x => String(x.productId) === String(box.value));
+    const hint = String(row?.supplierHint || row?.productBrand || "").trim().toLocaleLowerCase("tr-TR");
+    box.checked = !!supplier && hint === supplier;
+  });
+  if (seed) {
+    const seedBox = document.querySelector(`[data-purchase-group-item][value="${seed.productId}"]`);
+    if (seedBox) seedBox.checked = true;
+  }
+  updatePurchaseGroupSelectedCount();
+};
 window.openPurchaseOrderGroupModal = async function(seedProductId = null) {
   await loadSharedPurchaseOrderDraft();
   if (!state.purchaseOrderDraft.length) return showToast("Sipariş havuzunda ürün yok", true);
@@ -3907,8 +3925,8 @@ window.openPurchaseOrderGroupModal = async function(seedProductId = null) {
   const seed = state.purchaseOrderDraft.find(x => String(x.productId) === String(seedProductId));
   const suggestedSupplier = seed?.supplierHint || seed?.productBrand || "";
   if (el.purchaseGroupSupplier) el.purchaseGroupSupplier.value = suggestedSupplier;
-  if (el.purchaseGroupExpectedDate) el.purchaseGroupExpectedDate.value = "";
-  if (el.purchaseGroupNote) el.purchaseGroupNote.value = "";
+  if (el.purchaseGroupExpectedDate) el.purchaseGroupExpectedDate.value = el.purchaseExpectedDate?.value || "";
+  if (el.purchaseGroupNote) el.purchaseGroupNote.value = el.purchaseOrderNote?.value || "";
   if (el.purchaseGroupItemList) {
     el.purchaseGroupItemList.innerHTML = state.purchaseOrderDraft.map(item => {
       const sameSupplier = suggestedSupplier && String(item.supplierHint || item.productBrand || "").toLocaleLowerCase("tr-TR") === String(suggestedSupplier).toLocaleLowerCase("tr-TR");
@@ -3962,7 +3980,7 @@ function renderPurchaseOrders() {
       <div class="movement-top"><div><strong>${escapeHtml(o.order_no || "Sipariş")}</strong><div class="muted">${escapeHtml(o.supplier || "-")} · ${formatDate(o.created_at)}</div></div><span class="badge ${o.status === "tamamlandi" ? "giris" : "status-bekliyor"}">${purchaseOrderStatusLabel(o.status)}</span></div>
       ${o.expected_date ? `<div>Tahmini geliş: <strong>${escapeHtml(o.expected_date)}</strong></div>` : ""}
       ${o.note ? `<div>Not: <strong>${escapeHtml(o.note)}</strong></div>` : ""}
-      <div class="partial-receive-grid">${items.map(i => { const ordered=Number(i.ordered_quantity||0), received=Number(i.received_quantity||0), remaining=Math.max(ordered-received,0); return `<div class="partial-receive-row"><span>${escapeHtml(i.stock_products?.product_name || "Ürün")}<div class="order-progress">Sipariş: ${ordered} · Gelen: ${received} · Kalan: ${remaining}</div></span>${active && remaining>0 ? `<input type="number" min="0" max="${remaining}" value="0" data-receive-order="${o.id}" data-receive-item="${i.id}" aria-label="Gelen adet"/>` : ""}<strong>${remaining} kalan</strong></div>`; }).join("")}</div>
+      <div class="partial-receive-grid">${items.map(i => { const ordered=Number(i.ordered_quantity||0), received=Number(i.received_quantity||0), remaining=Math.max(ordered-received,0); return `<div class="partial-receive-row"><span>${escapeHtml(i.stock_products?.product_name || "Ürün")}<div class="order-progress">Sipariş: ${ordered} · Gelen: ${received} · Kalan: ${remaining}</div></span>${active && remaining>0 ? `<div class="partial-input-wrap"><input type="number" min="0" max="${remaining}" value="0" data-receive-order="${o.id}" data-receive-item="${i.id}" aria-label="Gelen adet"/><button class="btn ghost mini" type="button" onclick="fillPurchaseReceiveRemaining('${o.id}','${i.id}',${remaining})">Kalanı Yaz</button></div>` : ""}<strong>${remaining} kalan</strong></div>`; }).join("")}</div>
       ${active ? `<div class="purchase-order-actions"><button class="btn success" onclick="receivePurchaseOrderPartial('${o.id}')">Gelenleri Stoğa İşle</button><button class="btn primary" onclick="receivePurchaseOrderAll('${o.id}')">📦 Tamamını Al</button><button class="btn danger" onclick="cancelPurchaseOrder('${o.id}')">İptal Et</button></div>` : ""}
     </div>`;
   }).join("");
@@ -3977,6 +3995,10 @@ window.loadPurchaseOrders = async function() {
     state.purchaseOrders = data || [];
     renderPurchaseOrders();
   } catch (err) { console.error(err); el.purchaseOrderList.innerHTML = `<div class="empty-state">Siparişler alınamadı. v3.7 SQL dosyasını çalıştır.</div>`; }
+};
+window.fillPurchaseReceiveRemaining = function(orderId, itemId, remaining) {
+  const input = document.querySelector(`[data-receive-order="${orderId}"][data-receive-item="${itemId}"]`);
+  if (input) input.value = Math.max(0, Number(remaining || 0));
 };
 window.receivePurchaseOrderPartial = async function(orderId) {
   const inputs = [...document.querySelectorAll(`[data-receive-order="${orderId}"]`)];
