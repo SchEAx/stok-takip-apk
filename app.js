@@ -2200,18 +2200,29 @@ function defaultPasswordForRole(role) {
 
 function normalizeStaffItem(item) {
   const role = String(item?.role || "kasa");
-  const allowedCategories = Array.isArray(item?.allowedCategories) ? item.allowedCategories : (Array.isArray(item?.allowed_categories) ? item.allowed_categories : []);
-  const permissions = item?.permissions && typeof item.permissions === "object" ? item.permissions : {};
+  const allowedCategories = Array.isArray(item?.allowedCategories)
+    ? item.allowedCategories
+    : (Array.isArray(item?.allowed_categories) ? item.allowed_categories : []);
+  const rawPermissions = item?.permissions && typeof item.permissions === "object" ? item.permissions : {};
+  const authUserId = String(item?.authUserId || item?.auth_user_id || "").trim() || null;
+  const username = String(item?.username || "").trim();
+
   return {
+    authUserId,
+    username,
     name: normalizeStaffName(item?.name),
     role,
     password: normalizeStaffPassword(item?.password, defaultPasswordForRole(role)),
+    isActive: item?.isActive !== undefined ? item.isActive !== false : item?.is_active !== false,
+    lastSeenAt: item?.lastSeenAt || item?.last_seen_at || null,
+    lastLoginAt: item?.lastLoginAt || item?.last_login_at || null,
     allowedCategories: [...new Set(allowedCategories.map(v => String(v || "").trim()).filter(Boolean))],
     permissions: {
-      stockIn: permissions.stockIn !== false,
-      stockOut: permissions.stockOut !== false,
-      addToOrderPool: permissions.addToOrderPool !== false,
-      themeSettings: permissions.themeSettings === true
+      ...rawPermissions,
+      stockIn: rawPermissions.stockIn !== false,
+      stockOut: rawPermissions.stockOut !== false,
+      addToOrderPool: rawPermissions.addToOrderPool !== false,
+      themeSettings: rawPermissions.themeSettings === true
     }
   };
 }
@@ -2236,14 +2247,17 @@ function cleanStaffList(list) {
   const cleaned = (list || [])
     .map(normalizeStaffItem)
     .filter(item => item.name)
-    .filter((item, index, arr) => arr.findIndex(x => x.name.toLocaleLowerCase("tr-TR") === item.name.toLocaleLowerCase("tr-TR")) === index)
+    .filter((item, index, arr) => {
+      if (item.authUserId) return arr.findIndex(x => x.authUserId === item.authUserId) === index;
+      const key = item.name.toLocaleLowerCase("tr-TR");
+      return arr.findIndex(x => x.name.toLocaleLowerCase("tr-TR") === key) === index;
+    })
     .slice(0, 30);
   return cleaned.length ? cleaned : DEFAULT_STAFF_LIST.map(normalizeStaffItem);
 }
 function writeStaffList(list) {
   const cleaned = cleanStaffList(list);
   localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleaned));
-  saveStaffListToSupabase(cleaned).catch(() => {});
   return cleaned;
 }
 async function loadStaffListFromSupabase() {
@@ -2254,35 +2268,90 @@ async function loadStaffListFromSupabase() {
       .eq("is_active", true)
       .order("name", { ascending: true });
     if (error) throw error;
+
     if (Array.isArray(data) && data.length) {
-      const mapped = data.map(row => ({
-  name: row.name,
-  role: row.role,
-  authUserId: row.auth_user_id,
-  username: row.username,
-  lastSeenAt: row.last_seen_at,
-  lastLoginAt: row.last_login_at,
-  allowedCategories: row.allowed_categories || [],
-  permissions: row.permissions || {}
-}));
-      localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(mapped)));
-    } else {
-      await saveStaffListToSupabase(readStaffList());
+      const cleaned = cleanStaffList(data.map(row => normalizeStaffItem(row)));
+      localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleaned));
+
+      if (state.currentUser?.authUserId) {
+        const freshCurrent = cleaned.find(item => item.authUserId === state.currentUser.authUserId);
+        if (freshCurrent) state.currentUser = { ...state.currentUser, ...freshCurrent };
+      }
+      return cleaned;
     }
+    return readStaffList();
   } catch (err) {
     console.warn("Personel Supabase'den alınamadı, local devam:", err?.message || err);
+    return readStaffList();
   }
 }
 async function saveStaffListToSupabase(list) {
   try {
-    const rows = cleanStaffList(list).filter(item => item.authUserId).map(item => ({ auth_user_id: item.authUserId, username: item.username, name: item.name, role: item.role, allowed_categories: item.allowedCategories || [], permissions: item.permissions || {}, is_active: true, updated_at: new Date().toISOString() }));
-    const names = rows.map(r => r.name);
-    const { error: upsertError } = await supabaseClient.from("app_users").upsert(rows, { onConflict: "name" });
-    if (upsertError) throw upsertError;
-    if (names.length) {
-      const { error: inactiveError } = await supabaseClient.from("app_users").update({ is_active: false, updated_at: new Date().toISOString() }).not("name", "in", `(${names.map(n => `\"${String(n).replace(/\"/g, '\\\"')}\"`).join(",")})`);
-      if (inactiveError) console.warn("Pasif kullanıcı güncelleme uyarısı:", inactiveError.message);
+    const incoming = cleanStaffList(list);
+    const { data: existingData, error: readError } = await supabaseClient
+      .from("app_users")
+      .select("auth_user_id, username, name, role, is_active, last_seen_at, last_login_at, allowed_categories, permissions");
+    if (readError) throw readError;
+
+    const existing = (existingData || []).map(normalizeStaffItem);
+    const synced = [];
+    const unresolved = [];
+
+    for (const item of incoming) {
+      const wantedUsername = String(item.username || authEmailForUsername(item.name).split("@")[0] || "").trim();
+      const normalizedName = normalizeText(item.name);
+      const match =
+        (item.authUserId ? existing.find(row => row.authUserId === item.authUserId) : null) ||
+        (wantedUsername ? existing.find(row => String(row.username || "").toLocaleLowerCase("tr-TR") === wantedUsername.toLocaleLowerCase("tr-TR")) : null) ||
+        existing.find(row => normalizeText(row.name) === normalizedName);
+
+      const authUserId = item.authUserId || match?.authUserId || null;
+      if (!authUserId) {
+        unresolved.push(item.name);
+        continue;
+      }
+
+      const payload = {
+        auth_user_id: authUserId,
+        username: item.username || match?.username || wantedUsername,
+        name: item.name,
+        role: item.role,
+        allowed_categories: item.allowedCategories || [],
+        permissions: item.permissions || {},
+        is_active: true,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: updateError } = await supabaseClient
+        .from("app_users")
+        .update(payload)
+        .eq("auth_user_id", authUserId);
+      if (updateError) throw updateError;
+
+      synced.push(normalizeStaffItem({
+        ...item,
+        ...payload,
+        authUserId,
+        username: payload.username,
+        isActive: true,
+        lastSeenAt: match?.lastSeenAt || item.lastSeenAt || null,
+        lastLoginAt: match?.lastLoginAt || item.lastLoginAt || null
+      }));
     }
+
+    if (unresolved.length) {
+      showToast(`Şu personeller Auth/app_users kaydıyla eşleşmedi: ${unresolved.join(", ")}`, true);
+      console.warn("Auth kaydı bulunamayan personeller:", unresolved);
+      return false;
+    }
+
+    localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(synced)));
+
+    if (state.currentUser?.authUserId) {
+      const freshCurrent = synced.find(item => item.authUserId === state.currentUser.authUserId);
+      if (freshCurrent) state.currentUser = { ...state.currentUser, ...freshCurrent };
+    }
+
     return true;
   } catch (err) {
     console.warn("Personel Supabase'e yazılamadı:", err?.message || err);
@@ -2302,7 +2371,11 @@ function currentStaffName() {
 
 function currentStaff() {
   const name = currentStaffName();
-  return readStaffList().find(s => s.name === name) || { name, role: "kasa", password: "1111" };
+  const fromList = readStaffList().find(s => s.name === name || (state.currentUser?.authUserId && s.authUserId === state.currentUser.authUserId));
+  if (state.currentUser?.authUserId) {
+    return normalizeStaffItem({ ...(fromList || {}), ...state.currentUser });
+  }
+  return fromList || normalizeStaffItem({ name, role: "kasa", password: "1111" });
 }
 
 function adminStaff() {
@@ -2375,17 +2448,21 @@ window.setCurrentStaff = async function(name) {
 };
 
 function staffEditorRow(item = { name: "", role: "kasa", password: "" }) {
+  const normalized = normalizeStaffItem(item);
   return `
-    <div class="staff-editor-row" data-staff-row>
-      <input data-staff-name value="${escapeHtml(item.name || "")}" placeholder="Personel adı" />
+    <div class="staff-editor-row" data-staff-row
+      data-staff-auth-id="${escapeHtml(normalized.authUserId || "")}"
+      data-staff-username="${escapeHtml(normalized.username || "")}"
+      data-staff-original-name="${escapeHtml(normalized.name || "")}">
+      <input data-staff-name value="${escapeHtml(normalized.name || "")}" placeholder="Personel adı" />
       <select data-staff-role>
-        <option value="admin" ${item.role === "admin" ? "selected" : ""}>Admin</option>
-        <option value="kasa" ${item.role === "kasa" ? "selected" : ""}>Kasa</option>
-        <option value="satis" ${item.role === "satis" ? "selected" : ""}>Satış</option>
-        <option value="depo" ${item.role === "depo" ? "selected" : ""}>Depo</option>
-        <option value="usta" ${item.role === "usta" ? "selected" : ""}>Usta</option>
+        <option value="admin" ${normalized.role === "admin" ? "selected" : ""}>Admin</option>
+        <option value="kasa" ${normalized.role === "kasa" ? "selected" : ""}>Kasa</option>
+        <option value="satis" ${normalized.role === "satis" ? "selected" : ""}>Satış</option>
+        <option value="depo" ${normalized.role === "depo" ? "selected" : ""}>Depo</option>
+        <option value="usta" ${normalized.role === "usta" ? "selected" : ""}>Usta</option>
       </select>
-      <input data-staff-password type="password" value="${escapeHtml(item.password || "")}" placeholder="Şifre" />
+      <input data-staff-password type="password" value="${escapeHtml(normalized.password || "")}" placeholder="Şifre" />
       <button type="button" class="btn danger" onclick="this.closest('[data-staff-row]').remove()">Sil</button>
     </div>`;
 }
@@ -2410,22 +2487,41 @@ window.addStaffEditorRow = function() {
 
 window.saveStaffEditor = async function() {
   if (!el.staffEditorBody) return;
+  const previous = readStaffList();
   const rows = [...el.staffEditorBody.querySelectorAll("[data-staff-row]")];
   const staff = rows.map(row => {
     const role = row.querySelector("[data-staff-role]")?.value || "kasa";
-    return {
+    const authUserId = String(row.dataset.staffAuthId || "").trim() || null;
+    const originalName = normalizeStaffName(row.dataset.staffOriginalName || "");
+    const username = String(row.dataset.staffUsername || "").trim();
+    const oldItem =
+      (authUserId ? previous.find(item => item.authUserId === authUserId) : null) ||
+      previous.find(item => normalizeText(item.name) === normalizeText(originalName));
+
+    return normalizeStaffItem({
+      ...(oldItem || {}),
+      authUserId: authUserId || oldItem?.authUserId || null,
+      username: username || oldItem?.username || "",
       name: normalizeStaffName(row.querySelector("[data-staff-name]")?.value),
       role,
-      password: normalizeStaffPassword(row.querySelector("[data-staff-password]")?.value, defaultPasswordForRole(role))
-    };
+      password: normalizeStaffPassword(row.querySelector("[data-staff-password]")?.value, defaultPasswordForRole(role)),
+      allowedCategories: oldItem?.allowedCategories || [],
+      permissions: oldItem?.permissions || {}
+    });
   }).filter(x => x.name);
-  const saved = writeStaffList(staff);
-  const syncOk = await saveStaffListToSupabase(saved);
+
+  const cleaned = cleanStaffList(staff);
+  const syncOk = await saveStaffListToSupabase(cleaned);
   if (!syncOk) return;
-  if (!saved.some(s => s.name === currentStaffName())) localStorage.setItem(CURRENT_STAFF_STORE_KEY, saved.find(s => s.role === "kasa")?.name || saved[0]?.name || "Kasa");
+
+  const saved = readStaffList();
+  if (!saved.some(s => s.name === currentStaffName())) {
+    localStorage.setItem(CURRENT_STAFF_STORE_KEY, saved.find(s => s.role === "kasa")?.name || saved[0]?.name || "Kasa");
+  }
   renderStaffSelector();
+  renderUserCategoryPermissions();
   closeStaffEditor();
-  showToast("Personel listesi ve şifreler kaydedildi ✅");
+  showToast("Personel listesi kaydedildi ✅");
 };
 
 window.resetStaffEditor = async function() {
