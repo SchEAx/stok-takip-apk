@@ -144,8 +144,8 @@
 </div>
 <div class="table-wrap">
 <table>
-<thead><tr><th>Resim</th><th>Ürün Markası</th><th>Ürün Kategorisi</th><th>Araç Markası</th><th>Araç Modeli</th><th>Araç Tipi</th><th>Model Yılı</th><th>Stok</th><th>Rezerve</th><th>Kullanılabilir</th><th>Min</th><th>Raf/Konum</th><th>İşlem</th></tr></thead>
-<tbody id="productTableBody"><tr><td class="empty-cell" colspan="13">Veri bekleniyor...</td></tr></tbody>
+<thead><tr><th>Resim</th><th>Barkod</th><th>Ürün Markası</th><th>Ürün Kategorisi</th><th>Araç Markası</th><th>Araç Modeli</th><th>Araç Tipi</th><th>Model Yılı</th><th>Stok</th><th>Rezerve</th><th>Kullanılabilir</th><th>Min</th><th>Raf/Konum</th><th>İşlem</th></tr></thead>
+<tbody id="productTableBody"><tr><td class="empty-cell" colspan="14">Veri bekleniyor...</td></tr></tbody>
 </table>
 </div>
 </section>
@@ -156,7 +156,7 @@
 <h2>Ürün Kartı</h2>
 <form class="form-grid" id="productForm">
 <input id="productId" type="hidden"/>
-<input id="barcode" type="hidden"/>
+<div><label>Barkod</label><input autocomplete="off" id="barcode" placeholder="Örn: 1000001" spellcheck="false" type="text"/></div>
 <div><label>Ürün Markası</label><input autocomplete="off" class="custom-suggest-input" id="productBrand" placeholder="Örn: Rizline" type="text"/></div>
 <div><label>Ürün Kategorisi *</label><input autocomplete="off" class="custom-suggest-input" id="category" placeholder="Örn: Paspas, Cam Rüzgarlığı" type="text"/></div>
 <div><label>Araç Markası *</label><input autocomplete="off" class="custom-suggest-input" id="carBrand" placeholder="Örn: Renault" type="text"/></div>

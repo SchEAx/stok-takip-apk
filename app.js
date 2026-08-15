@@ -1,4 +1,4 @@
-const APP_VERSION = '3.9.1-password-settings-tab-fix';
+const APP_VERSION = '3.10.5-barcode-column';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -1591,11 +1591,11 @@ function applySearch() {
 }
 function renderProducts() {
   if (!el.productTableBody) return;
-  if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="13" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
+  if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="14" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
   el.productTableBody.innerHTML = state.filteredProducts.map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
     const isLow = available <= Number(p.minStock || 0);
-    return `<tr><td>${productImageHtml(p, "product-thumb")}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
+    return `<tr><td>${productImageHtml(p, "product-thumb")}</td><td>${escapeHtml(p.barcode || "-")}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
   }).join("");
 }
 function renderMovements() {
@@ -5026,4 +5026,3 @@ if (document.readyState === 'loading') {
 supabaseClient.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") { state.currentUser = null; showLogin(); }
 });
-

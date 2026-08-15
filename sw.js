@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-stock-v3-10-2-hareket-enum-rpc-fix";
+const CACHE_NAME = "garage-stock-v3-10-5-barcode-column";
 const ASSETS = [
   "./",
   "./index.html",
