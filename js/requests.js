@@ -134,9 +134,41 @@ async function searchProductsForRequest(query = "", autoSuggest = false) {
 }
 
 
-window.reserveProductForRequest = async function(productId) { if (!requireRoleAction(["admin", "depo"], "Rezervasyon yetkisi sadece Admin/Depo")) return;
-  if (!state.selectedStockRequestId) return showToast("Talep seçilmedi", true); const quantity = Number(document.getElementById("qty_" + productId)?.value || 1); if (!quantity || quantity <= 0) return showToast("Geçerli adet gir", true);
-  try { setLoading(true); const { error } = await supabaseClient.rpc("reserve_stock_for_request", { p_request_id: state.selectedStockRequestId, p_product_id: productId, p_quantity: quantity, p_delivered_to: "" }); if (error) throw error; showToast("Stok rezerve edildi ✅ Yeni ürün ekleyebilirsin."); await loadAll(); const stillSelected = state.stockRequests.find(r => String(r.id) === String(state.selectedStockRequestId)); if (stillSelected) { el.reservationPanel.classList.remove("hidden"); renderSelectedRequestDetail(stillSelected); searchProductsForRequest(el.productSearchInput.value); } } catch (err) { console.error(err); showToast(err.message || "Rezerve edilemedi", true); } finally { setLoading(false); }
+window.reserveProductForRequest = async function(productId) {
+  if (!requireRoleAction(["admin", "depo"], "Rezervasyon yetkisi sadece Admin/Depo")) return;
+  if (!state.selectedStockRequestId) return showToast("Talep seçilmedi", true);
+  const quantity = Number(document.getElementById("qty_" + productId)?.value || 1);
+  if (!quantity || quantity <= 0) return showToast("Geçerli adet gir", true);
+  try {
+    setLoading(true);
+    const requestId = state.selectedStockRequestId;
+    const product = (state.products || []).find(p => String(p.id) === String(productId));
+    const { error } = await supabaseClient.rpc("reserve_stock_for_request", { p_request_id: requestId, p_product_id: productId, p_quantity: quantity, p_delivered_to: "" });
+    if (error) throw error;
+    await logActivity("stock_reserve", `${product?.name || product?.category || "Ürün"} için ${quantity} adet rezerve edildi`, "stock_requests", requestId);
+    showToast("Stok rezerve edildi ✅ Yeni ürün ekleyebilirsin.");
+    await loadAll();
+    const stillSelected = state.stockRequests.find(r => String(r.id) === String(requestId));
+    if (stillSelected) {
+      state.selectedStockRequestId = requestId;
+      el.reservationPanel.classList.remove("hidden");
+      renderSelectedRequestDetail(stillSelected);
+      searchProductsForRequest(el.productSearchInput.value);
+    }
+  } catch (err) { console.error(err); showToast(err.message || "Rezerve edilemedi", true); }
+  finally { setLoading(false); }
 };
-window.cancelReservation = async function(requestId) { if (!requireRoleAction(["admin", "depo"], "Rezerv iptali yetkisi sadece Admin/Depo")) return; if (!(await appConfirm("Bu rezervi iptal etmek istediğine emin misin?", { danger: true, okText: "Rezervi İptal Et" }))) return; try { setLoading(true); const { error } = await supabaseClient.rpc("cancel_stock_reservation", { p_request_id: requestId }); if (error) throw error; showToast("Rezerv iptal edildi ✅"); await loadAll(); } catch (err) { console.error(err); showToast(err.message || "Rezerv iptal edilemedi", true); } finally { setLoading(false); } };
+window.cancelReservation = async function(requestId) {
+  if (!requireRoleAction(["admin", "depo"], "Rezerv iptali yetkisi sadece Admin/Depo")) return;
+  if (!(await appConfirm("Bu rezervi iptal etmek istediğine emin misin?", { danger: true, okText: "Rezervi İptal Et" }))) return;
+  try {
+    setLoading(true);
+    const { error } = await supabaseClient.rpc("cancel_stock_reservation", { p_request_id: requestId });
+    if (error) throw error;
+    await logActivity("stock_reservation_cancel", `Rezervasyon iptal edildi`, "stock_requests", requestId);
+    showToast("Rezerv iptal edildi ✅");
+    await loadAll();
+  } catch (err) { console.error(err); showToast(err.message || "Rezerv iptal edilemedi", true); }
+  finally { setLoading(false); }
+};
 

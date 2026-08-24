@@ -827,3 +827,30 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 .partial-input-wrap{display:flex;align-items:center;gap:6px}
 .partial-input-wrap input{width:88px}
 @media(max-width:760px){.purchase-pool-info{flex-direction:column}.purchase-group-tools .btn{flex:1}.partial-input-wrap{grid-column:1/-1}.partial-input-wrap input{flex:1;width:auto}.partial-input-wrap .btn{white-space:nowrap}}
+
+/* v3.12 - Aynı ürünleri tek stok satırında birleştirme */
+.grouped-stock-row td { vertical-align: top; }
+.grouped-stock-count { margin-top: 4px; font-size: 11px; }
+.grouped-barcode-btn { margin-top: 7px; white-space: nowrap; }
+.stock-location-stack { min-width: 280px; display: grid; gap: 7px; }
+.stock-location-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.025); }
+.stock-location-line .muted { margin-top: 2px; font-size: 11px; line-height: 1.35; }
+.stock-location-line .mini { flex: 0 0 auto; padding: 5px 8px; }
+@media (max-width: 900px) {
+  .stock-location-stack { min-width: 240px; }
+}
+
+/* v3.12 - Hızlı giriş/çıkış ekranında toplu ürün kartı */
+.grouped-operation-card { align-items: flex-start; }
+.grouped-operation-main { min-width: 0; width: 100%; }
+.operation-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.grouped-operation-total { margin-top: 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border); }
+.operation-location-list { display: grid; gap: 8px; margin-top: 10px; }
+.operation-location-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.025); }
+.operation-location-info { min-width: 220px; line-height: 1.45; }
+.operation-location-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.operation-location-actions .operation-qty-row { margin: 0; }
+@media (max-width: 900px) {
+  .operation-group-head, .operation-location-row { flex-direction: column; align-items: stretch; }
+  .operation-location-actions { justify-content: flex-start; }
+}

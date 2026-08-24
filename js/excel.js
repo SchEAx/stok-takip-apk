@@ -111,51 +111,22 @@ async function downloadStockExcel() {
 }
 
 
-function groupedStockIdentityKey(product) {
-  const clean = (value) => normalizeText(String(value || "")).replace(/\s+/g, " ").trim();
-  const parts = [
-    product.productBrand,
-    product.category,
-    product.carBrand,
-    product.carModel,
-    product.carType,
-    product.vehicleYear
-  ].map(clean);
-  const signature = parts.join("|");
-  if (signature.replace(/\|/g, "").trim()) return `product:${signature}`;
-  const barcode = clean(product.barcode);
-  return barcode ? `barcode:${barcode}` : `id:${product.id}`;
-}
-
 function buildGroupedStockRows(products) {
-  const groups = new Map();
-
-  for (const product of products || []) {
-    const key = groupedStockIdentityKey(product);
-    if (!groups.has(key)) {
-      groups.set(key, {
-        first: product,
-        totalStock: 0,
-        totalReserved: 0,
-        minStockTotal: 0,
-        count: 0,
-        barcodes: new Set(),
-        locations: new Set()
-      });
-    }
-
-    const group = groups.get(key);
-    group.totalStock += Number(product.stock || 0);
-    group.totalReserved += Number(product.reserved || 0);
-    group.minStockTotal += Number(product.minStock || 0);
-    group.count += 1;
-    if (String(product.barcode || "").trim()) group.barcodes.add(String(product.barcode).trim());
-    if (String(product.location || "").trim()) group.locations.add(String(product.location).trim());
-  }
-
-  return [...groups.values()]
+  return buildGroupedStockProductGroups(products)
     .map(group => {
       const p = group.first;
+      const locationDetails = group.members
+        .slice()
+        .sort((a, b) => String(a.location || "").localeCompare(String(b.location || ""), "tr"))
+        .map(item => {
+          const location = String(item.location || "Konum yok").trim() || "Konum yok";
+          const stock = Number(item.stock || 0);
+          const reserved = Number(item.reserved || 0);
+          const barcode = String(item.barcode || "").trim();
+          return `${location}: ${stock} stok / ${reserved} rezerve${barcode ? ` / ${barcode}` : ""}`;
+        })
+        .join(" | ");
+
       return {
         barkodlar: [...group.barcodes].join(" / "),
         urun_markasi: p.productBrand || "",
@@ -168,8 +139,8 @@ function buildGroupedStockRows(products) {
         toplam_rezerve: group.totalReserved,
         kullanilabilir_stok: group.totalStock - group.totalReserved,
         minimum_stok_toplami: group.minStockTotal,
-        raf_konumlari: [...group.locations].join(" / "),
-        birlesen_kayit_sayisi: group.count
+        raf_konumlari: locationDetails,
+        birlesen_kayit_sayisi: group.members.length
       };
     })
     .sort((a, b) => {
@@ -326,18 +297,34 @@ async function uploadStockExcel(event) {
       });
     }
 
-    const barcodeCounts = new Map();
+    // Aynı ürün farklı konumlarda aynı barkodu kullanabilir.
+    // Sadece aynı barkod farklı ürün kimliklerine verilmişse yüklemeyi durdur.
+    const barcodeIdentityMap = new Map();
     for (const row of preparedRows) {
       const barcode = normalizeExcelCell(row.payload.barcode);
       if (!barcode) continue;
-      barcodeCounts.set(barcode, (barcodeCounts.get(barcode) || 0) + 1);
+      const identity = groupedStockIdentityKey(row.payload);
+      if (!barcodeIdentityMap.has(barcode)) barcodeIdentityMap.set(barcode, new Set());
+      barcodeIdentityMap.get(barcode).add(identity);
     }
-    const duplicateBarcodes = [...barcodeCounts.entries()]
-      .filter(([, count]) => count > 1)
+    const conflictingBarcodes = [...barcodeIdentityMap.entries()]
+      .filter(([, identities]) => identities.size > 1)
       .map(([barcode]) => barcode);
-    if (duplicateBarcodes.length) {
-      const sample = duplicateBarcodes.slice(0, 8).join(", ");
-      throw new Error(`Excel'de aynı barkod birden fazla üründe var: ${sample}${duplicateBarcodes.length > 8 ? "..." : ""}`);
+    if (conflictingBarcodes.length) {
+      const sample = conflictingBarcodes.slice(0, 8).join(", ");
+      throw new Error(`Excel'de aynı barkod farklı ürünlere verilmiş: ${sample}${conflictingBarcodes.length > 8 ? "..." : ""}`);
+    }
+
+    // Güncellenen kartlarda stok farkını Hareketler'e yazabilmek için eski adetleri tek seferde al.
+    const existingById = new Map();
+    const updateIds = preparedRows.map(row => row.id).filter(Boolean);
+    for (let i = 0; i < updateIds.length; i += 300) {
+      const { data, error } = await supabaseClient
+        .from("stock_products")
+        .select("id,quantity,product_name")
+        .in("id", updateIds.slice(i, i + 300));
+      if (error) throw error;
+      (data || []).forEach(item => existingById.set(String(item.id), item));
     }
 
     createExcelProgress();
@@ -346,35 +333,81 @@ async function uploadStockExcel(event) {
 
     // 12.000+ satırı tek tek beklemek yerine kontrollü gruplar halinde paralel işler.
     const concurrentBatchSize = 20;
+    let movementAuditCount = 0;
+    let movementAuditFailed = 0;
+    let insertedCount = 0;
+    let updatedCount = 0;
+
     for (let start = 0; start < preparedRows.length; start += concurrentBatchSize) {
       const batch = preparedRows.slice(start, start + concurrentBatchSize);
       const outcomes = await Promise.all(batch.map(async row => {
         try {
           rememberProductSuggestions(row.suggestion);
-          const result = row.id
-            ? await supabaseClient.from("stock_products").update(row.payload).eq("id", row.id)
-            : await supabaseClient.from("stock_products").insert(row.payload);
+          const oldRow = row.id ? existingById.get(String(row.id)) : null;
+          const beforeQty = Number(oldRow?.quantity || 0);
+          const afterQty = Number(row.payload.quantity || 0);
+
+          if (row.id) {
+            const result = await supabaseClient.from("stock_products").update(row.payload).eq("id", row.id);
+            if (result.error) throw result.error;
+            return { ok: true, row, productId: row.id, beforeQty, afterQty, isNew: false };
+          }
+
+          const result = await supabaseClient.from("stock_products").insert(row.payload).select("id").single();
           if (result.error) throw result.error;
-          return { ok: true };
+          return { ok: true, row, productId: result.data?.id, beforeQty: 0, afterQty, isNew: true };
         } catch (error) {
           console.error(error);
-          return { ok: false };
+          return { ok: false, row };
         }
       }));
 
+      const movementRows = [];
       for (const outcome of outcomes) {
-        if (outcome.ok) success++;
-        else failed++;
+        if (!outcome.ok) {
+          failed++;
+          continue;
+        }
+
+        success++;
+        if (outcome.isNew) insertedCount++; else updatedCount++;
+        const delta = Number(outcome.afterQty || 0) - Number(outcome.beforeQty || 0);
+        if (delta && outcome.productId) {
+          const direction = delta > 0 ? "giris" : "cikis";
+          movementRows.push({
+            product_id: outcome.productId,
+            movement_type: outcome.isNew ? "excel_ilk_stok_giris" : `excel_stok_duzeltme_${direction}`,
+            quantity: Math.abs(delta),
+            description: `${outcome.isNew ? "Excel yeni ürün ilk stok" : "Excel stok güncelleme"}: ${outcome.beforeQty} → ${outcome.afterQty} (${delta > 0 ? "+" : ""}${delta})${actorSuffix()}`
+          });
+        }
       }
+
+      if (movementRows.length) {
+        const { error: movementError } = await supabaseClient.from("stock_movements").insert(movementRows);
+        if (movementError) {
+          console.error("Excel stok hareketleri kaydedilemedi:", movementError);
+          movementAuditFailed += movementRows.length;
+        } else {
+          movementAuditCount += movementRows.length;
+        }
+      }
+
       updateExcelProgress(success + failed + skipped, rows.length, success, failed);
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     closeExcelProgress();
     progressOpened = false;
-    await loadProducts();
+    await logActivity(
+      "excel_stock_upload",
+      `Excel yükleme tamamlandı: ${success} başarılı (${insertedCount} yeni / ${updatedCount} güncelleme), ${failed} hatalı, ${skipped} atlanan; ${movementAuditCount} stok farkı Hareketler'e yazıldı${movementAuditFailed ? `, ${movementAuditFailed} hareket yazılamadı` : ""}`,
+      "stock_products",
+      null
+    );
+    await Promise.all([loadProducts(), loadMovements().catch(() => {})]);
 
-    showToast(`Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed} Atlanan: ${skipped}`);
+    showToast(`Yükleme tamamlandı ✅ Başarılı: ${success} Hatalı: ${failed} Atlanan: ${skipped}${movementAuditFailed ? ` · Hareket uyarısı: ${movementAuditFailed}` : ""}`);
     event.target.value = "";
 
   } catch (err) {

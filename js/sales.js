@@ -106,7 +106,10 @@ window.setSaleFavoriteSearch = function(keyword) {
 function findExactBarcodeProduct(value) {
   const q = String(value || "").trim();
   if (q.length < 4) return null;
-  return state.products.find(p => String(p.barcode || "").trim() === q) || null;
+  const matches = state.products.filter(p => String(p.barcode || "").trim() === q);
+  if (!matches.length) return null;
+  // Aynı barkod farklı raflarda kullanılıyorsa stoğu en müsait olan konumu seç.
+  return matches.sort((a, b) => saleAvailable(b) - saleAvailable(a))[0] || null;
 }
 
 function handleSaleSearchInput() {
@@ -510,6 +513,13 @@ Stoklar geri eklenecek ve cirodan düşülecek.`, { danger: true, okText: "Satı
       if (movementError) throw movementError;
     }
 
+    await logActivity(
+      "quick_sale_cancel",
+      `${sale.saleNo} numaralı satış iptal edildi; ${sale.items.reduce((s, x) => s + Number(x.qty || 0), 0)} adet stok geri eklendi. Neden: ${reason || "-"}`,
+      "stock_movements",
+      null
+    );
+
     saveLastQuickSale({
       ...sale,
       cancelledAt: new Date().toISOString(),
@@ -586,6 +596,13 @@ const desc = `Hızlı satış (${paymentType}) - Personel: ${staff.name} (${role
 
       if (movementError) throw movementError;
     }
+
+    await logActivity(
+      "quick_sale_complete",
+      `${saleSnapshot.saleNo} numaralı hızlı satış tamamlandı; ${state.saleCart.reduce((s, x) => s + Number(x.qty || 0), 0)} adet ürün çıktı. Toplam: ${formatSaleMoney(total)} (${paymentType})`,
+      "stock_movements",
+      null
+    );
 
     saveLastQuickSale(saleSnapshot);
     showToast(`Satış tamamlandı ✅ Toplam: ${formatSaleMoney(total)}`);

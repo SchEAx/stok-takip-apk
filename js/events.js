@@ -31,13 +31,28 @@ el.productForm.addEventListener("submit", async (e) => {
     rememberProductSuggestions(payload);
 
     if (payload.id) {
+      const { data: beforeRow, error: beforeError } = await supabaseClient
+        .from("stock_products")
+        .select("quantity,product_name")
+        .eq("id", payload.id)
+        .maybeSingle();
+      if (beforeError) throw beforeError;
+
       const uploaded = await uploadProductImageIfNeeded(payload.id);
       payload.imageUrl = uploaded.imageUrl;
       payload.imageThumbUrl = uploaded.imageThumbUrl;
       const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id);
       if (error) throw error;
+
+      const auditOk = await safeRecordDirectStockDelta({
+        productId: payload.id,
+        beforeQty: Number(beforeRow?.quantity || 0),
+        afterQty: Number(payload.stock || 0),
+        source: "Ürün kartı düzenleme",
+        productName: beforeRow?.product_name || `${payload.category} ${payload.carBrand} ${payload.carModel}`
+      });
       await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id);
-      showToast("Ürün güncellendi");
+      showToast(auditOk ? "Ürün güncellendi" : "Ürün güncellendi; hareket kaydında uyarı var ⚠️", !auditOk);
     } else {
       const tempImageId = crypto.randomUUID();
       const uploaded = await uploadProductImageIfNeeded(tempImageId);
@@ -45,13 +60,20 @@ el.productForm.addEventListener("submit", async (e) => {
       payload.imageThumbUrl = uploaded.imageThumbUrl;
       const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single();
       if (error) throw error;
+      const auditOk = await safeRecordDirectStockDelta({
+        productId: data?.id,
+        beforeQty: 0,
+        afterQty: Number(payload.stock || 0),
+        source: "Yeni ürün ilk stok",
+        productName: `${payload.category} ${payload.carBrand} ${payload.carModel}`
+      });
       await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id);
-      showToast("Ürün kaydedildi");
+      showToast(auditOk ? "Ürün kaydedildi" : "Ürün kaydedildi; hareket kaydında uyarı var ⚠️", !auditOk);
     }
 
     clearProductForm();
     state.operationFilterOptionsLoaded = false;
-    await Promise.all([loadDashboardStats(), loadOperationFilterOptions().catch(() => {})]);
+    await Promise.all([loadDashboardStats(), loadOperationFilterOptions().catch(() => {}), loadMovements().catch(() => {})]);
   } catch (err) {
     console.error(err);
     showToast(err.message || "Ürün kaydedilemedi", true);

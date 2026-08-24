@@ -212,6 +212,7 @@ window.receivePurchaseOrderPartial = async function(orderId) {
     setLoading(true);
     const { error } = await supabaseClient.rpc("receive_purchase_order_partial", { p_order_id: orderId, p_lines: lines, p_actor: currentStaff().name });
     if (error) throw error;
+    await logActivity("purchase_receive_partial", `${lines.length} kalem / ${lines.reduce((s,x)=>s+Number(x.quantity||0),0)} adet sipariş stoğa işlendi`, "purchase_orders", orderId);
     await Promise.all([loadPurchaseOrders(), loadDashboardStats(), loadMovements()]);
     showToast("Gelen ürünler stoğa işlendi ✅");
   } catch (err) { console.error(err); showToast(err.message || "Kısmi giriş yapılamadı", true); }
@@ -227,6 +228,7 @@ window.receivePurchaseOrderAll = async function(orderId) {
     setLoading(true);
     const { error } = await supabaseClient.rpc("receive_purchase_order_partial", { p_order_id: orderId, p_lines: lines, p_actor: currentStaff().name });
     if (error) throw error;
+    await logActivity("purchase_receive_all", `${lines.length} kalem / ${lines.reduce((s,x)=>s+Number(x.quantity||0),0)} adet siparişin kalanı stoğa işlendi`, "purchase_orders", orderId);
     await Promise.all([loadPurchaseOrders(), loadDashboardStats(), loadMovements()]);
     showToast("Siparişin kalanının tamamı stoğa işlendi ✅");
   } catch (err) { console.error(err); showToast(err.message || "Sipariş stoğa işlenemedi", true); }
@@ -238,6 +240,7 @@ window.cancelPurchaseOrder = async function(orderId) {
   if (!order || !(await appConfirm(`${order.order_no} iptal edilsin mi? Stok değişmeyecek.`, { danger: true, okText: "İptal Et" }))) return;
   const { error } = await supabaseClient.from("purchase_orders").update({ status: "iptal" }).eq("id", orderId).in("status", ["bekleniyor", "kismi"]);
   if (error) return showToast(error.message, true);
+  await logActivity("purchase_order_cancel", `${order.order_no || "Sipariş"} iptal edildi`, "purchase_orders", orderId);
   await loadPurchaseOrders(); showToast("Sipariş iptal edildi");
 };
 

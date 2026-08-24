@@ -363,21 +363,169 @@ function barcodeSmartSearch(p, rawQuery) {
 function applySearch() {
   const q = el.searchInput?.value || "";
 
-  state.filteredProducts = q
-    ? state.products.filter((p) => productSmartSearch(p, q))
-    : state.products;
+  if (!q) {
+    state.filteredProducts = state.products;
+  } else {
+    // Arama tek bir rafı eşleştirse bile aynı ürüne ait diğer rafları toplamdan düşürme.
+    const matchingKeys = new Set(
+      state.products.filter((p) => productSmartSearch(p, q) || barcodeSmartSearch(p, q)).map(groupedStockIdentityKey)
+    );
+    state.filteredProducts = state.products.filter((p) => matchingKeys.has(groupedStockIdentityKey(p)));
+  }
 
   renderProducts();
 }
+
+function stockGroupLocationHtml(group) {
+  return group.members
+    .slice()
+    .sort((a, b) => String(a.location || "").localeCompare(String(b.location || ""), "tr"))
+    .map((p) => {
+      const available = Number(p.stock || 0) - Number(p.reserved || 0);
+      const details = [
+        p.barcode ? `Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : "Barkod yok",
+        p.note ? `Not: <strong>${escapeHtml(p.note)}</strong>` : ""
+      ].filter(Boolean).join(" · ");
+      return `<div class="stock-location-line">
+        <div><strong>${escapeHtml(p.location || "Konum yok")}</strong> · Stok: <strong>${Number(p.stock || 0)}</strong> · Rezerve: <strong>${Number(p.reserved || 0)}</strong> · Kullanılabilir: <strong>${available}</strong>${details ? `<div class="muted">${details}</div>` : ""}</div>
+        <button class="action-btn edit mini" type="button" onclick="editProduct('${p.id}')">Düzenle</button>
+      </div>`;
+    }).join("");
+}
+
 function renderProducts() {
   if (!el.productTableBody) return;
   if (!state.filteredProducts.length) { el.productTableBody.innerHTML = `<tr><td colspan="14" class="empty-cell">Kayıt bulunamadı</td></tr>`; return; }
-  el.productTableBody.innerHTML = state.filteredProducts.map((p) => {
-    const available = Number(p.stock || 0) - Number(p.reserved || 0);
-    const isLow = available <= Number(p.minStock || 0);
-    return `<tr><td>${productImageHtml(p, "product-thumb")}</td><td>${escapeHtml(p.barcode || "-")}</td><td>${escapeHtml(p.productBrand || "-")}</td><td>${escapeHtml(p.category || "-")}</td><td>${escapeHtml(p.carBrand || "-")}</td><td>${escapeHtml(p.carModel || "-")}</td><td>${escapeHtml(p.carType || "-")}</td><td>${escapeHtml(p.vehicleYear || "-")}</td><td>${Number(p.stock || 0)}</td><td>${Number(p.reserved || 0)}</td><td class="${isLow ? "low-stock" : ""}">${available}</td><td>${Number(p.minStock || 0)}</td><td>${escapeHtml(p.location || "-")}</td><td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">Düzenle</button><button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button></div></td></tr>`;
+
+  const groups = buildGroupedStockProductGroups(state.filteredProducts)
+    .sort((a, b) => String(a.first?.name || a.first?.category || "").localeCompare(String(b.first?.name || b.first?.category || ""), "tr"));
+
+  el.productTableBody.innerHTML = groups.map((group) => {
+    const p = group.first;
+    const available = group.totalStock - group.totalReserved;
+    const isLow = available <= Number(group.minStockTotal || 0);
+    const barcodes = [...group.barcodes];
+    const barcodeLabel = !barcodes.length ? "-" : barcodes.length === 1 ? barcodes[0] : `${barcodes.length} farklı barkod`;
+    const groupCountText = group.members.length > 1 ? `<div class="muted grouped-stock-count">${group.members.length} kayıt birleşti</div>` : "";
+    return `<tr class="grouped-stock-row">
+      <td>${productImageHtml(p, "product-thumb")}</td>
+      <td><strong>${escapeHtml(barcodeLabel)}</strong>${groupCountText}<button class="btn secondary mini grouped-barcode-btn" type="button" onclick="assignBarcodeToStockGroup('${p.id}')">Barkod Ver</button></td>
+      <td>${escapeHtml(p.productBrand || "-")}</td>
+      <td>${escapeHtml(p.category || "-")}</td>
+      <td>${escapeHtml(p.carBrand || "-")}</td>
+      <td>${escapeHtml(p.carModel || "-")}</td>
+      <td>${escapeHtml(p.carType || "-")}</td>
+      <td>${escapeHtml(p.vehicleYear || "-")}</td>
+      <td><strong>${group.totalStock}</strong></td>
+      <td>${group.totalReserved}</td>
+      <td class="${isLow ? "low-stock" : ""}"><strong>${available}</strong></td>
+      <td>${group.minStockTotal}</td>
+      <td><div class="stock-location-stack">${stockGroupLocationHtml(group)}</div></td>
+      <td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">İlk Kaydı Düzenle</button></div></td>
+    </tr>`;
   }).join("");
 }
+
+window.assignBarcodeToStockGroup = async function(seedId) {
+  if (!requireRoleAction(["admin", "depo"], "Toplu barkod verme yetkisi sadece Admin/Depo")) return;
+  const sourcePool = uniqueRowsById([
+    ...(state.products || []),
+    ...(state.operationResults || []),
+    ...(state.movementResults || [])
+  ]);
+  const seed = sourcePool.find(p => String(p.id) === String(seedId));
+  if (!seed) return showToast("Ürün bulunamadı", true);
+
+  const key = groupedStockIdentityKey(seed);
+  let members = sourcePool.filter(p => groupedStockIdentityKey(p) === key);
+
+  // Günlük işlem ekranında tüm ürünler state.products'a yüklenmemiş olabilir.
+  // Aynı kimlikteki diğer rafları Supabase'den de tamamla.
+  try {
+    let groupQuery = supabaseClient.from("stock_products").select(STOCK_PRODUCT_SELECT).limit(500);
+    if (seed.category) groupQuery = groupQuery.eq("category", seed.category);
+    if (seed.carBrand) groupQuery = groupQuery.eq("vehicle_brand", seed.carBrand);
+    if (seed.carModel) groupQuery = groupQuery.eq("vehicle_model", seed.carModel);
+    if (seed.productBrand) groupQuery = groupQuery.eq("product_brand", seed.productBrand);
+    const { data, error } = await groupQuery;
+    if (!error && data) {
+      members = uniqueRowsById([...members, ...data.map(mapProduct)])
+        .filter(p => groupedStockIdentityKey(p) === key);
+    }
+  } catch (err) {
+    console.warn("Toplu barkod grup tamamlama atlandı:", err);
+  }
+
+  if (!members.length) return showToast("Birleştirilecek ürün kaydı bulunamadı", true);
+
+  const existing = [...new Set(members.map(p => String(p.barcode || "").trim()).filter(Boolean))];
+  const defaultBarcode = existing.length === 1 ? existing[0] : "";
+  const barcode = await appPrompt(
+    `${seed.name || seed.category || "Ürün"}
+${members.length} ayrı stok kaydına aynı barkod verilecek.
+
+Yeni barkod:`,
+    defaultBarcode,
+    { title: "Toplu Barkod Ver", okText: "Barkodu Kaydet" }
+  );
+  if (barcode === null) return;
+  const cleanBarcode = String(barcode || "").trim();
+  if (!cleanBarcode) return showToast("Barkod boş olamaz", true);
+
+  let conflict = sourcePool.find(p =>
+    String(p.barcode || "").trim() === cleanBarcode && groupedStockIdentityKey(p) !== key
+  );
+  if (!conflict) {
+    try {
+      const { data } = await supabaseClient
+        .from("stock_products")
+        .select(STOCK_PRODUCT_SELECT)
+        .eq("barcode", cleanBarcode)
+        .limit(20);
+      conflict = (data || []).map(mapProduct).find(p => groupedStockIdentityKey(p) !== key) || null;
+    } catch (err) {
+      console.warn("Barkod çakışma kontrolü atlandı:", err);
+    }
+  }
+  if (conflict) {
+    return showToast(`Bu barkod başka bir üründe kullanılıyor: ${conflict.name || conflict.category || "Ürün"}`, true);
+  }
+
+  if (!(await appConfirm(`${members.length} kayıt aynı barkoda geçirilecek:
+${cleanBarcode}
+
+Konum ve stok adetleri ayrı kalacak. Devam edilsin mi?`, { okText: "Uygula" }))) return;
+
+  try {
+    setLoading(true);
+    const ids = members.map(p => p.id);
+    const chunkSize = 200;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const { error } = await supabaseClient.from("stock_products").update({ barcode: cleanBarcode }).in("id", ids.slice(i, i + chunkSize));
+      if (error) throw error;
+    }
+    members.forEach(p => { p.barcode = cleanBarcode; });
+    const changedIds = new Set(ids.map(String));
+    [state.products, state.filteredProducts, state.operationResults, state.movementResults].forEach(list => {
+      (list || []).forEach(p => { if (changedIds.has(String(p.id))) p.barcode = cleanBarcode; });
+    });
+    await logActivity(
+      "group_barcode_update",
+      `${seed.name || seed.category || "Ürün"}: ${members.length} stok kaydına ${cleanBarcode} barkodu verildi`,
+      "stock_products",
+      seed.id
+    );
+    applySearch();
+    if (el.operationResultBox) renderOperationCards(state.operationResults || []);
+    if (el.movementSearchList && state.movementResults?.length) renderMovementCards(state.movementResults);
+    showToast(`${members.length} kayda aynı barkod verildi ✅`);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Toplu barkod verilemedi", true);
+  } finally {
+    setLoading(false);
+  }
+};
 function renderMovements() {
   if (!state.movements.length) { el.movementList.innerHTML = `<div class="empty-state">Henüz hareket yok</div>`; return; }
   el.movementList.innerHTML = state.movements.map((m) => { const productName = m.stock_products?.product_name || m.description || "-"; const type = String(m.movement_type || "").toLowerCase(); const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis"; return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`; }).join("");
@@ -504,43 +652,61 @@ function renderOperationCards(results) {
     el.operationResultBox.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`;
     return;
   }
-  el.operationResultBox.innerHTML = results.slice(0, 120).map((p) => {
-    const available = Number(p.stock || 0) - Number(p.reserved || 0);
-    const qty = getOperationQty(p.id);
-    const detailLine = [
-      p.productBrand ? `Ürün Marka: <strong>${escapeHtml(p.productBrand)}</strong>` : "",
-      p.category ? `Kategori: <strong>${escapeHtml(p.category)}</strong>` : "",
-      p.carBrand ? `Araç: <strong>${escapeHtml([p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" "))}</strong>` : "",
-      p.location ? `Raf: <strong>${escapeHtml(p.location)}</strong>` : "",
-      p.barcode ? `Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""
-    ].filter(Boolean).join(" · ");
 
-    return `<div class="operation-card">
+  const groups = buildGroupedStockProductGroups(results)
+    .sort((a, b) => String(a.first?.name || a.first?.category || "").localeCompare(String(b.first?.name || b.first?.category || ""), "tr"));
+
+  el.operationResultBox.innerHTML = groups.slice(0, 120).map((group) => {
+    const p = group.first;
+    const totalAvailable = group.totalStock - group.totalReserved;
+    const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
+    const barcodes = [...group.barcodes];
+    const barcodeText = !barcodes.length ? "Barkod yok" : barcodes.length === 1 ? `Barkod: <strong>${escapeHtml(barcodes[0])}</strong>` : `<strong>${barcodes.length} farklı barkod</strong>`;
+
+    const locationRows = group.members
+      .slice()
+      .sort((a, b) => String(a.location || "").localeCompare(String(b.location || ""), "tr"))
+      .map(item => {
+        const available = Number(item.stock || 0) - Number(item.reserved || 0);
+        const qty = getOperationQty(item.id);
+        return `<div class="operation-location-row">
+          <div class="operation-location-info">
+            <div><strong>📍 ${escapeHtml(item.location || "Konum yok")}</strong>${item.barcode ? ` · Barkod: <strong>${escapeHtml(item.barcode)}</strong>` : ""}</div>
+            <div class="muted">Stok: <strong>${Number(item.stock || 0)}</strong> · Rezerve: <strong>${Number(item.reserved || 0)}</strong> · Kullanılabilir: <strong class="${available <= 0 ? "stock-warning" : ""}">${available}</strong>${item.note ? ` · Not: <strong>${escapeHtml(item.note)}</strong>` : ""}</div>
+          </div>
+          <div class="operation-location-actions">
+            <div class="operation-qty-row">
+              <button class="btn secondary mini" onclick="stepOperationQty('${item.id}', -1)">-</button>
+              <input type="number" min="1" value="${qty}" onchange="setOperationQty('${item.id}', this.value)" />
+              <button class="btn secondary mini" onclick="stepOperationQty('${item.id}', 1)">+</button>
+            </div>
+            ${userActionAllowed("stockIn") ? `<button class="btn success" onclick="operationStockAction('${item.id}', 'giris')">Giriş</button>` : ""}
+            ${userActionAllowed("stockOut") ? `<button class="btn danger" onclick="operationStockAction('${item.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>` : ""}
+            ${userActionAllowed("addToOrderPool") ? `<button class="btn primary" onclick="addProductToPurchaseOrder('${item.id}')">📦 Sipariş</button>` : ""}
+            <button class="btn secondary" onclick="editProduct('${item.id}')">Düzenle</button>
+            <button class="btn danger" onclick="deleteProduct('${item.id}')">Sil</button>
+          </div>
+        </div>`;
+      }).join("");
+
+    return `<div class="operation-card grouped-operation-card">
       ${productImageHtml(p, "product-card-img")}
-      <div class="operation-main">
-        <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
-        <div class="operation-meta">${detailLine || "-"}</div>
-        ${p.note ? `<div class="operation-meta operation-note">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
-        <div class="operation-stock-row">
-          <span>Stok: <b>${Number(p.stock || 0)}</b></span>
-          <span>Rezerve: <b>${Number(p.reserved || 0)}</b></span>
-          <span>Kullanılabilir: <b class="${available <= 0 ? "stock-warning" : ""}">${available}</b></span>
-          <span>Min: <b>${Number(p.minStock || 0)}</b></span>
+      <div class="operation-main grouped-operation-main">
+        <div class="operation-group-head">
+          <div>
+            <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
+            <div class="operation-meta">${p.productBrand ? `Ürün Marka: <strong>${escapeHtml(p.productBrand)}</strong> · ` : ""}Kategori: <strong>${escapeHtml(p.category || "-")}</strong>${vehicle ? ` · Araç: <strong>${escapeHtml(vehicle)}</strong>` : ""} · ${barcodeText}</div>
+          </div>
+          <button class="btn secondary mini" type="button" onclick="assignBarcodeToStockGroup('${p.id}')">Barkod Ver</button>
+        </div>
+        <div class="operation-stock-row grouped-operation-total">
+          <span>TOPLAM STOK: <b>${group.totalStock}</b></span>
+          <span>Rezerve: <b>${group.totalReserved}</b></span>
+          <span>Kullanılabilir: <b class="${totalAvailable <= 0 ? "stock-warning" : ""}">${totalAvailable}</b></span>
+          <span>Konum: <b>${group.members.length}</b></span>
         </div>
         <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
-      </div>
-      <div class="operation-actions">
-        <div class="operation-qty-row">
-          <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', -1)">-</button>
-          <input type="number" min="1" value="${qty}" onchange="setOperationQty('${p.id}', this.value)" />
-          <button class="btn secondary mini" onclick="stepOperationQty('${p.id}', 1)">+</button>
-        </div>
-        ${userActionAllowed("stockIn") ? `<button class="btn success" onclick="operationStockAction('${p.id}', 'giris')">Giriş</button>` : ""}
-        ${userActionAllowed("stockOut") ? `<button class="btn danger" onclick="operationStockAction('${p.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>` : ""}
-        ${userActionAllowed("addToOrderPool") ? `<button class="btn primary" onclick="addProductToPurchaseOrder('${p.id}')">📦 Siparişe Ekle</button>` : ""}
-        ${p.imageUrl ? `<button class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
-        <button class="btn secondary" onclick="editProduct('${p.id}')">Düzenle</button>
-        <button class="btn danger" onclick="deleteProduct('${p.id}')">Sil</button>
+        <div class="operation-location-list">${locationRows}</div>
       </div>
     </div>`;
   }).join("");
@@ -771,7 +937,7 @@ window.setRequestFilter = function(status) { state.requestFilter = status; rende
 function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.productPurchasePrice, el.productAverageSalePrice, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); }
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
-window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
+window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); state.products = (state.products || []).filter(p => String(p.id) !== String(id)); state.filteredProducts = (state.filteredProducts || []).filter(p => String(p.id) !== String(id)); state.operationResults = (state.operationResults || []).filter(p => String(p.id) !== String(id)); state.movementResults = (state.movementResults || []).filter(p => String(p.id) !== String(id)); if (el.productTableBody) renderProducts(); if (el.operationResultBox) renderOperationCards(state.operationResults || []); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
 window.quickStockAction = async function(id, type, fixedQty = null) {
   if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
 

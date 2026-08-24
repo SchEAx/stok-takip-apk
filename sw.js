@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-stock-v3-11-0-modular-total-stock";
+const CACHE_NAME = "garage-stock-v3-12-0-grouped-stock-audit";
 const ASSETS = [
   "./",
   "./index.html",

@@ -79,6 +79,12 @@ async function applyCategoryPriceUpdate() {
     if (updateError) return showToast(`Fiyat güncelleme yarıda kaldı: ${updateError.message}`, true);
   }
 
+  await logActivity(
+    "bulk_price_update",
+    `${category} kategorisinde ${updates.length} ürünün ${fieldLabel} ${increaseLabel} artırıldı`,
+    "stock_products",
+    null
+  );
   showToast(`${updates.length} ürünün fiyatı güncellendi`);
   if (el.bulkPriceAmount) el.bulkPriceAmount.value = "";
   await loadProducts();

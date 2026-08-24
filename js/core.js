@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '3.11.0-modular-total-stock';
+const APP_VERSION = '3.12.0-grouped-stock-audit';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -414,6 +414,9 @@ async function logActivity(action, description, entity_table = null, entity_id =
   const staff = currentStaff();
   const item = { id: "local_" + Date.now() + "_" + Math.random().toString(16).slice(2), actor_name: staff.name, actor_role: staff.role, action, description, entity_table, entity_id: entity_id ? String(entity_id) : null, created_at: new Date().toISOString() };
   localActivityPush(item);
+  // Ekranda eski state.activityLogs doluysa yeni yerel kayıt görünmüyordu.
+  // Yeni logu anında state'e de ekle; sayfa yenilemeden görünür olsun.
+  state.activityLogs = [item, ...(state.activityLogs || []).filter(x => String(x.id) !== String(item.id))].slice(0, 120);
   if (state.activityLogTableReady) {
     try {
       const { error } = await supabaseClient.from("app_activity_logs").insert({ actor_name: item.actor_name, actor_role: item.actor_role, action: item.action, description: item.description, entity_table: item.entity_table, entity_id: item.entity_id });
@@ -809,6 +812,109 @@ function searchIncludes(text, query) {
     t.includes(q) ||
     t.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""))
   );
+}
+
+// Aynı ürün farklı raf/konumlarda ayrı kartlar halinde tutulabilir.
+// Bu anahtar konumu/barkodu bilerek dışarıda bırakır; böylece ürünün toplam stoğu tek grupta görünür.
+function groupedStockIdentityKey(product) {
+  const clean = (value) => normalizeText(String(value || "")).replace(/\s+/g, " ").trim();
+  const parts = [
+    product?.productBrand ?? product?.product_brand,
+    product?.category,
+    product?.carBrand ?? product?.vehicle_brand,
+    product?.carModel ?? product?.vehicle_model,
+    product?.carType ?? product?.vehicle_type,
+    product?.vehicleYear ?? product?.vehicle_year
+  ].map(clean);
+  const signature = parts.join("|");
+  if (signature.replace(/\|/g, "").trim()) return `product:${signature}`;
+  const barcode = clean(product?.barcode);
+  return barcode ? `barcode:${barcode}` : `id:${product?.id || ""}`;
+}
+
+function buildGroupedStockProductGroups(products) {
+  const groups = new Map();
+  for (const product of products || []) {
+    const key = groupedStockIdentityKey(product);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        first: product,
+        members: [],
+        totalStock: 0,
+        totalReserved: 0,
+        minStockTotal: 0,
+        barcodes: new Set(),
+        locations: new Set()
+      });
+    }
+    const group = groups.get(key);
+    group.members.push(product);
+    group.totalStock += Number(product?.stock ?? product?.quantity ?? 0);
+    group.totalReserved += Number(product?.reserved ?? product?.reserved_quantity ?? 0);
+    group.minStockTotal += Number(product?.minStock ?? product?.min_stock ?? 0);
+    const barcode = String(product?.barcode || "").trim();
+    const location = String(product?.location || "").trim();
+    if (barcode) group.barcodes.add(barcode);
+    if (location) group.locations.add(location);
+  }
+  return [...groups.values()];
+}
+
+async function insertStockMovementRecord({ productId, movementType, quantity, description, plate = null, recordNo = null }) {
+  const qty = Math.abs(Number(quantity || 0));
+  if (!productId || !qty) return false;
+  const payload = {
+    product_id: productId,
+    movement_type: String(movementType || "stok_duzeltme"),
+    quantity: qty,
+    description: String(description || "Stok hareketi")
+  };
+  if (plate) payload.plate = plate;
+  if (recordNo) payload.record_no = recordNo;
+  const { error } = await supabaseClient.from("stock_movements").insert(payload);
+  if (error) throw error;
+  return true;
+}
+
+async function recordDirectStockDelta({ productId, beforeQty, afterQty, source = "Stok düzeltme", productName = "Ürün" }) {
+  const before = Number(beforeQty || 0);
+  const after = Number(afterQty || 0);
+  const delta = after - before;
+  if (!delta) return false;
+  const direction = delta > 0 ? "giris" : "cikis";
+  const signed = `${delta > 0 ? "+" : ""}${delta}`;
+  await insertStockMovementRecord({
+    productId,
+    movementType: `stok_duzeltme_${direction}`,
+    quantity: Math.abs(delta),
+    description: `${source}: ${before} → ${after} (${signed})${actorSuffix()}`
+  });
+  await logActivity(
+    `stock_adjust_${direction}`,
+    `${productName || "Ürün"} stoğu ${source.toLocaleLowerCase("tr-TR")} ile ${before} → ${after} (${signed})`,
+    "stock_products",
+    productId
+  );
+  return true;
+}
+
+async function safeRecordDirectStockDelta(args) {
+  try {
+    await recordDirectStockDelta(args);
+    return true;
+  } catch (err) {
+    console.error("Stok hareket denetim kaydı yazılamadı:", err);
+    try {
+      await logActivity(
+        "stock_audit_warning",
+        `${args?.productName || "Ürün"} stok değişikliği yapıldı fakat Hareketler kaydı yazılamadı: ${err?.message || err}`,
+        "stock_products",
+        args?.productId || null
+      );
+    } catch (_) {}
+    return false;
+  }
 }
 function formatDate(value) { if (!value) return "-"; const d = new Date(value); if (Number.isNaN(d.getTime())) return value; return d.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }); }
 function buildProductName(row) { return [row.product_brand, row.category, row.vehicle_brand, row.vehicle_model, row.vehicle_type, row.vehicle_year].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(); }
