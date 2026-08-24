@@ -189,7 +189,7 @@
 <div class="excel-panel">
 <div class="excel-panel-head">
 <strong>Marka + kategoriye göre Excel indir / yükle</strong>
-<span class="muted">Boş bıraktığın filtreler tümünü kapsar.</span>
+<span class="muted">Barkodlu Excel düzenleme/yükleme içindir. Toplam Stok Excel aynı ürünleri tek satırda birleştirip toplam adedi raporlar.</span>
 </div>
 <div class="excel-filter-grid">
 <div><label>Ürün Markası</label><select id="excelProductBrandFilter"><option value="">Tüm ürün markaları</option></select></div>
@@ -198,7 +198,8 @@
 </div>
 <div class="excel-actions">
 <button class="btn ghost" onclick="clearExcelFilters()" type="button">Filtreleri Temizle</button>
-<button class="btn success" onclick="downloadStockExcel()" type="button">📥 Filtreli Excel İndir</button>
+<button class="btn success" onclick="downloadStockExcel()" type="button">📥 Barkodlu Excel İndir</button>
+<button class="btn primary" onclick="downloadGroupedStockExcel()" type="button">📊 Toplam Stok Excel</button>
 <label class="btn secondary file-picker-label" for="stockExcelInput">📤 Excel Yükle</label>
 <input accept=".xlsx,.xls,.csv" class="file-pick-input" id="stockExcelInput" onchange="uploadStockExcel(event)" type="file"/>
 </div>
@@ -716,6 +717,19 @@ LED" rows="8"></textarea>
 <datalist id="carTypeList"></datalist>
 <datalist id="vehicleYearList"></datalist>
 <datalist id="locationList"></datalist>
+<script src="js/core.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/sales-dashboard.js"></script>
+<script src="js/staff.js"></script>
+<script src="js/sales.js"></script>
+<script src="js/requests.js"></script>
+<script src="js/surveys.js"></script>
+<script src="js/management.js"></script>
+<script src="js/purchasing.js"></script>
+<script src="js/navigation.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/events.js"></script>
+<script src="js/excel.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

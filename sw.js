@@ -1,8 +1,21 @@
-const CACHE_NAME = "garage-stock-v3-10-5-barcode-column";
+const CACHE_NAME = "garage-stock-v3-11-0-modular-total-stock";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
+  "./js/core.js",
+  "./js/inventory.js",
+  "./js/sales-dashboard.js",
+  "./js/staff.js",
+  "./js/sales.js",
+  "./js/requests.js",
+  "./js/surveys.js",
+  "./js/management.js",
+  "./js/purchasing.js",
+  "./js/navigation.js",
+  "./js/reports.js",
+  "./js/events.js",
+  "./js/excel.js",
   "./app.js",
   "./manifest.webmanifest",
   "./logo.png",
