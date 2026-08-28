@@ -854,3 +854,46 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
   .operation-group-head, .operation-location-row { flex-direction: column; align-items: stretch; }
   .operation-location-actions { justify-content: flex-start; }
 }
+
+
+/* v3.13 - Mobil toplu stok kartı taşma düzeltmesi + detaylı kritik/hareket kartları */
+.critical-product-main{min-width:0;flex:1;overflow-wrap:anywhere}
+.movement-product-head{min-width:0;flex:1;overflow-wrap:anywhere}
+.movement-product-meta{line-height:1.55}
+.movement-product-stock{line-height:1.5}
+.movement-description{margin-top:7px;padding-top:7px;border-top:1px solid var(--border)}
+.movement-audit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 14px;margin-top:8px}
+@media(max-width:700px){
+  #page-operation .grouped-operation-card{
+    grid-template-columns:1fr!important;
+    width:100%!important;
+    min-width:0!important;
+    overflow:hidden;
+  }
+  #page-operation .grouped-operation-card>.product-card-img{
+    grid-column:1!important;
+    grid-row:auto!important;
+    width:78px!important;
+    height:78px!important;
+  }
+  #page-operation .grouped-operation-main{
+    grid-column:1!important;
+    grid-row:auto!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  #page-operation .operation-group-head{width:100%;min-width:0}
+  #page-operation .operation-location-list,
+  #page-operation .operation-location-row,
+  #page-operation .operation-location-info,
+  #page-operation .operation-location-actions{width:100%;min-width:0!important;max-width:100%}
+  #page-operation .operation-location-actions{display:grid!important;grid-template-columns:1fr!important}
+  #page-operation .operation-location-actions .btn,
+  #page-operation .operation-location-actions button{width:100%!important;max-width:100%!important}
+  #page-operation .operation-location-actions .operation-qty-row{display:grid!important;grid-template-columns:56px minmax(0,1fr) 56px;width:100%!important}
+  #page-operation .operation-location-actions .operation-qty-row input{width:100%!important;min-width:0!important}
+  .critical-card{flex-direction:column!important;align-items:stretch!important}
+  .critical-edit-btn{width:100%!important}
+  .movement-audit-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:430px){.movement-audit-grid{grid-template-columns:1fr}}
