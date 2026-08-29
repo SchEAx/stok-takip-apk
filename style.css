@@ -795,6 +795,10 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
 /* v3.6.1 - Gerçek kamera ekranı */
 .camera-capture-modal{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:18px}
 .camera-capture-modal.hidden{display:none!important}
+.toast{z-index:30000!important}
+.staff-editor-message{margin-top:12px;padding:11px 13px;border:1px solid var(--border);border-radius:12px;background:rgba(37,99,235,.12);color:var(--text);font-size:13px;font-weight:700}
+.staff-editor-message.info{border-color:rgba(59,130,246,.45);color:#bfdbfe}
+.staff-editor-message.error{border-color:rgba(239,68,68,.55);background:rgba(127,29,29,.3);color:#fecaca}
 .camera-capture-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}
 .camera-capture-card{position:relative;width:min(760px,100%);max-height:94vh;overflow:auto;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
 .camera-capture-card video{display:block;width:100%;max-height:68vh;object-fit:contain;background:#000;border-radius:16px;border:1px solid var(--border);transform:none}

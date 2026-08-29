@@ -649,9 +649,10 @@ LED" rows="8"></textarea>
 </div>
 <p class="muted">Personel adı, rolü ve şifresini buradan düzenle. Bu alana giriş için Admin şifresi gerekir.</p>
 <div id="staffEditorBody"></div>
+<div class="staff-editor-message hidden" id="staffEditorMessage" role="status" aria-live="polite"></div>
 <div class="row-gap" style="margin-top:12px">
 <button class="btn secondary" onclick="addStaffEditorRow()" type="button">+ Personel Ekle</button>
-<button class="btn success" onclick="saveStaffEditor()" type="button">Kaydet</button>
+<button class="btn success" id="saveStaffEditorBtn" onclick="saveStaffEditor()" type="button">Kaydet</button>
 <button class="btn danger" onclick="resetStaffEditor()" type="button">Varsayılana Dön</button>
 </div>
 </div>

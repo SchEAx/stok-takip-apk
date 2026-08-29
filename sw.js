@@ -1,4 +1,4 @@
-const CACHE_NAME = "garage-stock-v3-13-0-mobile-card-detail";
+const CACHE_NAME = "garage-stock-v3-13-1-staff-auth-fix";
 const ASSETS = [
   "./",
   "./index.html",
@@ -36,7 +36,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(keys.filter((key) => key.startsWith("garage-stock-") && key !== CACHE_NAME).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
