@@ -1,27 +1,27 @@
-const CACHE_NAME = "garage-stock-16-7";
+const CACHE_NAME = "garage-stock-16-8";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=16.7",
-  "./js/core.js?v=16.7",
-  "./js/inventory.js?v=16.7",
-  "./js/sales-dashboard.js?v=16.7",
-  "./js/staff.js?v=16.7",
-  "./js/sales.js?v=16.7",
-  "./js/requests.js?v=16.7",
-  "./js/surveys.js?v=16.7",
-  "./js/management.js?v=16.7",
-  "./js/purchasing.js?v=16.7",
-  "./js/navigation-v16.7.js?v=16.7",
-  "./js/reports.js?v=16.7",
-  "./js/migration-api.js?v=16.7",
-  "./js/search-tools.js?v=16.7",
-  "./js/events.js?v=16.7",
-  "./js/excel.js?v=16.7",
-  "./js/migration-excel.js?v=16.7",
-  "./app.js?v=16.7",
-  "./manifest.webmanifest?v=16.7",
+  "./style.css?v=16.8",
+  "./js/core.js?v=16.8",
+  "./js/inventory.js?v=16.8",
+  "./js/sales-dashboard.js?v=16.8",
+  "./js/staff.js?v=16.8",
+  "./js/sales.js?v=16.8",
+  "./js/requests.js?v=16.8",
+  "./js/surveys.js?v=16.8",
+  "./js/management.js?v=16.8",
+  "./js/purchasing.js?v=16.8",
+  "./js/navigation-v16.8.js?v=16.8",
+  "./js/reports.js?v=16.8",
+  "./js/migration-api.js?v=16.8",
+  "./js/search-tools.js?v=16.8",
+  "./js/events.js?v=16.8",
+  "./js/excel.js?v=16.8",
+  "./js/migration-excel.js?v=16.8",
+  "./app.js?v=16.8",
+  "./manifest.webmanifest?v=16.8",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
@@ -68,7 +68,7 @@ self.addEventListener("activate", (event) => {
         try {
           const url = new URL(client.url);
           if (url.origin !== self.location.origin) return;
-          url.searchParams.set("__garage_build", "16.7");
+          url.searchParams.set("__garage_build", "16.8");
           url.searchParams.set("__garage_sw", String(Date.now()));
           await client.navigate(url.href);
         } catch {}
@@ -98,7 +98,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // v16.7: Cache-first tamamen kaldırıldı.
+  // v16.8: Cache-first tamamen kaldırıldı.
   // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
   event.respondWith(
     fetch(request, { cache: "no-cache" })

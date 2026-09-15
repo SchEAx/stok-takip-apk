@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.7';
+const APP_VERSION = '16.8';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -357,6 +357,7 @@ function allKnownCategories() {
   // daha önce kayıtlı PPF / Film gibi kategoriler listeden kaybolmaz.
   const raw = [
     ...(state.operationCategories || []),
+    ...(state.userPermissionDiscoveredCategories || []),
     ...(state.categoryValues || []).map(v => v?.category),
     ...(state.categoryValueRows || []).map(v => v?.category),
     ...(state.products || []).map(p => p?.category),

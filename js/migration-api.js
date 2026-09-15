@@ -293,16 +293,48 @@ window.loadUserPermissionCategorySources = async function() {
 
   if (valueResult.status === 'fulfilled') {
     const payload = valueResult.value || {};
-    state.categoryValues = Array.isArray(payload.rows) ? payload.rows : [];
-    state.categoryValueRows = state.categoryValues
+    const rawRows = Array.isArray(payload.rows)
+      ? payload.rows
+      : Array.isArray(payload.categories)
+        ? payload.categories.map(value => typeof value === 'string' ? { category: value } : value)
+        : Array.isArray(payload.values)
+          ? payload.values.map(value => typeof value === 'string' ? { category: value } : value)
+          : [];
+
+    state.categoryValues = rawRows;
+    state.categoryValueRows = rawRows
       .map(migrationCategoryValueRow)
+      .filter(row => String(row?.category || '').trim())
       .sort((a, b) => a.category.localeCompare(b.category, 'tr'));
   }
 
-  // İki endpoint birden başarısızsa sessizce eski/eksik liste göstermeyelim.
-  // Personellerin kayıtlı allowed_categories değerleri yine allKnownCategories
-  // içinde korunur; ayrıca hata kullanıcıya bildirilebilir.
-  if (filterResult.status === 'rejected' && valueResult.status === 'rejected') {
+  // Bazı eski /api/users veya kategori endpoint sürümleri eksik alan döndürebiliyor.
+  // Admin yetki ekranında kategori sayısı şüpheli derecede azsa, gerçek stoktan
+  // sayfalı olarak kategori keşfi yap. Bu yalnızca Kullanıcılar ekranında çalışır.
+  const knownBeforeFallback = allKnownCategories();
+  if (currentStaff().role === 'admin' && knownBeforeFallback.length < 10) {
+    const discovered = new Set(state.userPermissionDiscoveredCategories || []);
+    const pageSize = 100;
+    const maxRows = 5000;
+
+    try {
+      for (let offset = 0; offset < maxRows; offset += pageSize) {
+        const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+        const page = await apiFetch('/api/products?' + params.toString());
+        const products = Array.isArray(page?.products) ? page.products : [];
+        products.forEach(row => {
+          const category = String(row?.category || '').trim();
+          if (category) discovered.add(category);
+        });
+        if (products.length < pageSize) break;
+      }
+      state.userPermissionDiscoveredCategories = uniqueCleanValues([...discovered]);
+    } catch (err) {
+      console.warn('Yetki ekranı kategori stok taraması tamamlanamadı:', err?.message || err);
+    }
+  }
+
+  if (filterResult.status === 'rejected' && valueResult.status === 'rejected' && !allKnownCategories().length) {
     throw filterResult.reason || valueResult.reason || new Error('Kategori listesi alınamadı');
   }
 
@@ -1689,6 +1721,7 @@ window.cancelPurchaseOrder = async function(orderId) {
 // Migration Test v8.0 - Kullanıcılar / Yetkiler / Ayarlar
 // ============================================================
 const migrationUserIdByUsername = new Map();
+const MIGRATION_USER_PERMISSION_CACHE_KEY = 'garage_user_permission_cache_v168';
 
 function migrationUsernameKey(value) {
   return String(value || "").trim().toLocaleLowerCase("tr-TR");
@@ -1698,24 +1731,99 @@ function migrationUserIdFor(staff) {
   return migrationUserIdByUsername.get(migrationUsernameKey(staff?.username)) || "";
 }
 
+function migrationPermissionCacheKey(staff) {
+  const username = migrationUsernameKey(staff?.username);
+  if (username) return 'u:' + username;
+  const name = normalizeText(staff?.name || '');
+  return name ? 'n:' + name : '';
+}
+
+function readMigrationUserPermissionCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MIGRATION_USER_PERMISSION_CACHE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeMigrationUserPermissionCache(cache) {
+  localStorage.setItem(MIGRATION_USER_PERMISSION_CACHE_KEY, JSON.stringify(cache || {}));
+}
+
+function cacheMigrationUserPermissions(staff, allowedCategories, permissions) {
+  const key = migrationPermissionCacheKey(staff);
+  if (!key) return;
+  const cache = readMigrationUserPermissionCache();
+  cache[key] = {
+    allowedCategories: Array.isArray(allowedCategories)
+      ? uniqueCleanValues(allowedCategories)
+      : (cache[key]?.allowedCategories || []),
+    permissions: permissions && typeof permissions === 'object' && !Array.isArray(permissions)
+      ? { ...permissions }
+      : (cache[key]?.permissions || {}),
+    updatedAt: new Date().toISOString()
+  };
+  writeMigrationUserPermissionCache(cache);
+}
+
+function migrationCachedPermissionsFor(staff) {
+  const key = migrationPermissionCacheKey(staff);
+  if (!key) return null;
+  return readMigrationUserPermissionCache()[key] || null;
+}
+
 loadStaffListFromServer = async function() {
+  const previous = readStaffList();
+  const previousByUser = new Map(previous.map(item => [migrationPermissionCacheKey(item), item]));
   const payload = await apiFetch("/api/users");
   migrationUserIdByUsername.clear();
   const rows = (payload.users || []).filter(row => row?.is_active !== false);
   rows.forEach(row => {
     if (row?.username && row?.id) migrationUserIdByUsername.set(migrationUsernameKey(row.username), row.id);
   });
-  const cleaned = cleanStaffList(rows.map(row => normalizeStaffItem({
-    authUserId: row.auth_user_id,
-    username: row.username,
-    name: row.name,
-    role: row.role,
-    isActive: row.is_active,
-    lastSeenAt: row.last_seen_at,
-    lastLoginAt: row.last_login_at,
-    allowedCategories: row.allowed_categories || [],
-    permissions: row.permissions || {}
-  })));
+
+  const cleaned = cleanStaffList(rows.map(row => {
+    const identity = { username: row.username, name: row.name };
+    const key = migrationPermissionCacheKey(identity);
+    const old = previousByUser.get(key);
+    const cached = migrationCachedPermissionsFor(identity);
+
+    // KRİTİK: endpoint allowed_categories alanını hiç döndürmediyse bunu [] sayma.
+    // Aksi halde veritabanında FİLM/PPF kayıtlı olsa bile her GET'te UI sıfırlanıyordu.
+    const serverHasAllowed = Object.prototype.hasOwnProperty.call(row, 'allowed_categories') && Array.isArray(row.allowed_categories);
+    const serverHasPermissions = Object.prototype.hasOwnProperty.call(row, 'permissions') && row.permissions && typeof row.permissions === 'object' && !Array.isArray(row.permissions);
+
+    const allowedCategories = serverHasAllowed
+      ? row.allowed_categories
+      : (cached?.allowedCategories || old?.allowedCategories || []);
+    const permissions = serverHasPermissions
+      ? row.permissions
+      : (cached?.permissions || old?.permissions || {});
+
+    const normalized = normalizeStaffItem({
+      authUserId: row.auth_user_id,
+      username: row.username,
+      name: row.name,
+      role: row.role,
+      isActive: row.is_active,
+      lastSeenAt: row.last_seen_at,
+      lastLoginAt: row.last_login_at,
+      allowedCategories,
+      permissions
+    });
+
+    // Sunucu alanı gerçekten döndürdüyse cache'i de onunla hizala.
+    if (serverHasAllowed || serverHasPermissions) {
+      cacheMigrationUserPermissions(
+        normalized,
+        serverHasAllowed ? normalized.allowedCategories : (cached?.allowedCategories || old?.allowedCategories || []),
+        serverHasPermissions ? normalized.permissions : (cached?.permissions || old?.permissions || {})
+      );
+    }
+    return normalized;
+  }));
+
   localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleaned));
   const freshCurrent = cleaned.find(x =>
     (state.currentUser?.username && migrationUsernameKey(x.username) === migrationUsernameKey(state.currentUser.username)) ||
@@ -1873,23 +1981,74 @@ window.saveUserCategoryPermissions = async function() {
     setLoading(true);
     const list = readStaffList();
     const cards = [...document.querySelectorAll('[data-user-permission-card]')];
+    const desiredByKey = new Map();
+
     for (const card of cards) {
       const user = list.find(s => s.name === card.dataset.userPermissionCard);
       if (!user) continue;
       const userId = migrationUserIdFor(user);
-      if (!userId) continue;
-      const allowed_categories = [...card.querySelectorAll('[data-user-category]:checked')].map(x => x.value);
+      if (!userId) throw new Error(`${user.name || 'Personel'} için VDS kullanıcı ID bulunamadı`);
+
+      const allowed_categories = uniqueCleanValues(
+        [...card.querySelectorAll('[data-user-category]:checked')].map(x => x.value)
+      );
       const permissions = {};
       card.querySelectorAll('[data-user-action]').forEach(x => permissions[x.dataset.userAction] = x.checked);
-      await apiFetch(`/api/users/${encodeURIComponent(userId)}`, { method: "PATCH", body: { allowed_categories, permissions } });
+
+      const key = migrationPermissionCacheKey(user);
+      desiredByKey.set(key, { allowed_categories, permissions });
+
+      const response = await apiFetch(`/api/users/${encodeURIComponent(userId)}`, {
+        method: "PATCH",
+        body: { allowed_categories, permissions }
+      });
+
+      // API güncellenen kullanıcıyı döndürüyorsa yazılan kategorileri hemen doğrula.
+      const returnedUser = response?.user || response?.data?.user || null;
+      if (returnedUser && Array.isArray(returnedUser.allowed_categories)) {
+        const wanted = allowed_categories.map(normalizeText).sort();
+        const got = returnedUser.allowed_categories.map(v => normalizeText(v)).filter(Boolean).sort();
+        if (JSON.stringify(wanted) !== JSON.stringify(got)) {
+          throw new Error(`${user.name || 'Personel'} kategori yetkileri sunucuda beklenen şekilde kaydolmadı`);
+        }
+      }
+
+      user.allowedCategories = allowed_categories;
+      user.permissions = { ...permissions };
+      cacheMigrationUserPermissions(user, allowed_categories, permissions);
     }
+
+    // Başarılı PATCH'leri anında yerelde işle; ardından GET yalnızca server alanı
+    // gerçekten mevcutsa bu değerleri değiştirebilir.
+    localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(list)));
     await loadStaffListFromServer();
+
+    // Eski /api/users route'u allowed_categories alanını atlıyorsa reload sonrası
+    // kullanıcıya verilen kategorileri kaybetme.
+    const refreshed = readStaffList();
+    refreshed.forEach(user => {
+      const wanted = desiredByKey.get(migrationPermissionCacheKey(user));
+      if (!wanted) return;
+      if (!Array.isArray(user.allowedCategories) || user.allowedCategories.length === 0 && wanted.allowed_categories.length) {
+        user.allowedCategories = [...wanted.allowed_categories];
+        user.permissions = { ...wanted.permissions };
+      }
+    });
+    localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(refreshed)));
+
+    await loadUserPermissionCategorySources().catch(err => {
+      console.warn('Kaydetme sonrası kategori kaynakları yenilenemedi:', err?.message || err);
+    });
     renderUserCategoryPermissions();
     applyRoleVisibility();
     await logActivity("user_category_permissions", "Personel kategori ve işlem yetkileri PostgreSQL'e kaydedildi", "app_users", "permissions");
     showToast("Kategori ve işlem yetkileri kaydedildi ✅");
-  } catch (err) { showToast(err?.message || "Yetkiler kaydedilemedi", true); }
-  finally { setLoading(false); }
+  } catch (err) {
+    console.error('Kategori yetkisi kaydetme hatası:', err);
+    showToast(err?.message || "Yetkiler kaydedilemedi", true);
+  } finally {
+    setLoading(false);
+  }
 };
 
 window.saveRolePermissions = async function() {
