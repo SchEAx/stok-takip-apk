@@ -321,7 +321,7 @@
 /* === Sade stok modu === */
 .legacy-page{display:none!important}
 .operation-card{grid-template-columns:1fr auto!important}
-.product-card-img,.product-thumb{display:none!important}
+.product-card-img,.product-thumb{display:flex!important}
 @media(max-width:900px){.top-nav{grid-template-columns:repeat(2,1fr)}}
 
 
@@ -372,7 +372,7 @@
 @media(max-width:960px){.users-permission-grid{grid-template-columns:1fr}}
 
 
-/* === Ürün Resmi / Supabase Storage === */
+/* === Ürün Resmi / eski veri katmanı Storage === */
 .product-image-panel{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);border-radius:16px;padding:12px}
 .product-image-preview{width:100%;min-height:150px;border:1px dashed rgba(148,163,184,.35);border-radius:16px;background:#0b1324;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
 .product-image-preview img{width:100%;max-height:260px;object-fit:contain;display:block}
@@ -901,3 +901,1152 @@ th,td{color:var(--text)!important;border-color:var(--border)!important}
   .movement-audit-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:430px){.movement-audit-grid{grid-template-columns:1fr}}
+
+/* === Migration Test safety locks === */
+.migration-test-mode button[onclick^="assignBarcodeToStockGroup"] { display:none !important; }
+/* v15: Müşteri Memnuniyeti PostgreSQL API üzerinden aktif. */
+/* v12: Excel paneli PostgreSQL API'ye taşındı ve migration-testte açık. */
+
+
+/* Migration Test v6 - Talepler */
+.request-page-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);align-items:start}
+#reservationPanel{position:sticky;top:12px}
+.request-reservation-box{border:1px solid var(--border);border-radius:14px;padding:12px;background:rgba(255,255,255,.02)}
+.request-reservation-box .movement-item{padding:10px}
+#requestNavBadge{margin-left:6px}
+@media(max-width:960px){#reservationPanel{position:static}.request-page-grid{grid-template-columns:1fr}}
+
+/* Migration Test v7 - purchase safety */
+.migration-test-mode #page-purchaseOrders button[onclick="clearPurchaseOrderDraft()"]{display:none!important}
+.migration-purchase-warning{margin:10px 0 14px;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;font-size:12px;font-weight:700;opacity:.85}
+
+
+/* Migration Test v8 - user management */
+.migration-staff-editor-row{grid-template-columns:minmax(130px,1fr) minmax(150px,1.2fr) 120px minmax(170px,1.2fr) auto!important}
+.migration-staff-editor-row input,.migration-staff-editor-row select{min-width:0}
+@media(max-width:900px){.migration-staff-editor-row{grid-template-columns:1fr!important}.migration-staff-editor-row .btn{width:100%}}
+
+
+/* Migration Test v9.3 - Loglar artık taşındı; eski safety-lock tarafından gizlenmemeli. */
+.migration-test-mode #nav-logs:not(.hidden){display:block!important;}
+
+/* Migration Test v10 - Kategori Değerleri artık PostgreSQL API üzerinde aktif. */
+.migration-test-mode #nav-categoryValues:not(.hidden){display:flex!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important;width:100%!important;justify-self:stretch!important;}
+
+
+/* v10.1 - responsive nav alignment */
+.top-nav button{display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2;white-space:normal;}
+@media(max-width:960px){.top-nav button{min-height:46px}.migration-test-mode #nav-categoryValues:not(.hidden){display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;}}
+
+/* v10.1 - per-product price editor */
+.category-price-editor-card{max-width:1100px;width:min(1100px,calc(100vw - 24px));max-height:88vh;overflow:auto;}
+.category-price-editor-tools{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,2fr) auto;gap:10px;align-items:end;margin:12px 0;}
+.category-price-editor-table input{min-width:120px;padding:9px 10px;}
+.category-price-editor-table td:last-child{white-space:nowrap;}
+.category-price-editor-meta{font-size:12px;color:var(--muted);margin-top:4px;}
+.category-price-edit-btn{padding:7px 10px!important;font-size:12px!important;white-space:nowrap;}
+@media(max-width:760px){.category-price-editor-tools{grid-template-columns:1fr}.category-price-editor-tools .btn{width:100%}.category-price-editor-card{width:calc(100vw - 12px);padding:12px}.category-price-editor-table{min-width:760px}}
+
+
+/* Migration Test v11 - Yönetim / SİLİNECEK toplu silme */
+.delete-marked-preview-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0 4px;
+}
+.delete-marked-preview-grid.hidden{display:none!important}
+.delete-marked-preview-grid>div{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  background:rgba(255,255,255,.025);
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.delete-marked-preview-grid span{
+  color:var(--muted);
+  font-size:12px;
+}
+.delete-marked-preview-grid strong{
+  font-size:18px;
+}
+.migration-test-mode #page-management .danger-zone{
+  border-color:rgba(220,38,38,.55);
+}
+@media(max-width:720px){
+  .delete-marked-preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Migration Test v12 - Excel */
+.migration-test-mode #page-add .excel-panel{
+  display:block!important;
+}
+.migration-test-mode #page-add .excel-filter-summary{
+  line-height:1.45;
+}
+
+
+/* === v13 PWA / Güncelleme cilası === */
+.update-check-btn{
+  background:linear-gradient(135deg,#0f766e,#059669);
+  box-shadow:0 8px 24px rgba(5,150,105,.18);
+}
+.update-check-btn:hover{filter:brightness(1.08)}
+.pwa-install-btn{
+  background:linear-gradient(135deg,#1d4ed8,#2563eb);
+  box-shadow:0 8px 24px rgba(37,99,235,.18);
+}
+.update-notice{
+  animation:updateNoticeIn .22s ease-out;
+}
+.update-notice::before{
+  content:"";
+  width:8px;
+  align-self:stretch;
+  border-radius:999px;
+  background:linear-gradient(180deg,#f59e0b,#22c55e);
+}
+.update-now-btn:hover{filter:brightness(1.08)}
+@keyframes updateNoticeIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media(max-width:640px){
+  .top-actions #pwaInstallBtn,
+  .top-actions #checkUpdateBtn,
+  .top-actions #refreshBtn,
+  .top-actions #logoutBtn{
+    min-width:calc(50% - 5px);
+  }
+}
+
+
+/* ==========================================================
+   GarageFlow UI v14
+   Masaüstü: sol navigasyon
+   Mobil/tablet: üstte yatay hızlı sekmeler
+   ========================================================== */
+
+:root{
+  --flow-sidebar-w:222px;
+  --flow-blue:#2f6fed;
+  --flow-blue-soft:rgba(47,111,237,.16);
+  --flow-green:#19c37d;
+  --flow-surface:rgba(13,22,38,.90);
+  --flow-surface-2:rgba(18,30,50,.94);
+}
+
+/* Genel zemin */
+body{
+  background:
+    radial-gradient(circle at 10% 0%, rgba(47,111,237,.10), transparent 34%),
+    radial-gradient(circle at 95% 12%, rgba(25,195,125,.07), transparent 30%),
+    linear-gradient(180deg,#07101d 0%,#091422 48%,#0b1626 100%) !important;
+}
+
+.app-shell{
+  width:min(1480px,calc(100% - 24px));
+}
+
+/* Header */
+.topbar{
+  min-height:78px;
+  padding:10px 14px;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:20px;
+  background:rgba(7,16,29,.82);
+  box-shadow:0 12px 38px rgba(0,0,0,.20);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+
+.brand-wrap{
+  gap:13px;
+}
+
+.app-logo{
+  width:52px!important;
+  height:52px!important;
+  border-radius:15px!important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.08),
+    0 10px 25px rgba(0,0,0,.30);
+}
+
+.topbar h1{
+  font-size:25px;
+  letter-spacing:-.45px;
+}
+
+.brand-accent{
+  color:#76a2ff;
+  font-weight:800;
+}
+
+.flow-subtitle{
+  margin-top:1px!important;
+  font-size:12.5px!important;
+}
+
+.flow-route-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  margin-top:6px;
+}
+
+.flow-route-pill,
+.flow-live-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:24px;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  border:1px solid rgba(148,163,184,.15);
+  background:rgba(255,255,255,.035);
+  color:#cbd5e1;
+}
+
+.flow-route-pill{
+  color:#bfdbfe;
+  border-color:rgba(59,130,246,.22);
+  background:rgba(37,99,235,.10);
+}
+
+.flow-live-pill{
+  color:#a7f3d0;
+  border-color:rgba(16,185,129,.20);
+  background:rgba(16,185,129,.08);
+}
+
+.flow-live-pill i{
+  display:block;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#34d399;
+  box-shadow:0 0 0 4px rgba(52,211,153,.10);
+}
+
+/* Header aksiyonları GarageFlow kompakt */
+.top-actions{
+  align-items:center;
+}
+
+.top-actions .btn{
+  min-height:40px;
+  border-radius:12px;
+  padding:10px 14px;
+}
+
+.user-pill{
+  min-height:40px;
+  border-radius:13px!important;
+  box-shadow:inset 0 0 0 1px rgba(96,165,250,.10);
+}
+
+/* Card cilası */
+.card,
+.management-tool-card,
+.inner-card,
+.purchase-order-card,
+.purchase-draft-item{
+  border-color:rgba(148,163,184,.12)!important;
+  background:
+    linear-gradient(180deg,rgba(18,30,50,.94),rgba(14,24,41,.94))!important;
+  box-shadow:
+    0 14px 38px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.018)!important;
+}
+
+.card{
+  border-radius:18px!important;
+}
+
+.stat-card{
+  position:relative;
+  overflow:hidden;
+  min-height:92px;
+  padding:17px 18px!important;
+  transition:transform .18s ease,border-color .18s ease;
+}
+
+.stat-card:hover{
+  transform:translateY(-2px);
+  border-color:rgba(96,165,250,.22)!important;
+}
+
+.stat-card::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:3px;
+  background:linear-gradient(90deg,#3b82f6,#60a5fa);
+  opacity:.85;
+}
+
+.stats-grid .stat-card:nth-child(2)::after{
+  background:linear-gradient(90deg,#10b981,#34d399);
+}
+.stats-grid .stat-card:nth-child(3)::after{
+  background:linear-gradient(90deg,#8b5cf6,#a78bfa);
+}
+.stats-grid .stat-card:nth-child(4)::after{
+  background:linear-gradient(90deg,#ef4444,#fb7185);
+}
+
+.stat-card strong{
+  letter-spacing:-.6px;
+}
+
+/* Form alanları */
+input,textarea,select{
+  background:rgba(6,15,28,.78)!important;
+  border-color:rgba(148,163,184,.14)!important;
+  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
+}
+
+input:hover,textarea:hover,select:hover{
+  border-color:rgba(148,163,184,.24)!important;
+}
+
+input:focus,textarea:focus,select:focus{
+  background:#09172a!important;
+  border-color:rgba(59,130,246,.78)!important;
+  box-shadow:0 0 0 3px rgba(59,130,246,.14)!important;
+}
+
+/* Tablo başlığı sabit / daha okunaklı */
+.table-wrap{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.02);
+}
+
+.table-wrap thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#0b1728!important;
+  color:#cbd5e1!important;
+  font-size:12px;
+  text-transform:none;
+}
+
+tbody tr{
+  transition:background .12s ease;
+}
+tbody tr:hover{
+  background:rgba(59,130,246,.045);
+}
+
+/* Sayfa geçişi */
+.flow-page-enter{
+  animation:flowPageIn .18s ease-out;
+}
+
+@keyframes flowPageIn{
+  from{opacity:.45;transform:translateY(5px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* Butonlar */
+.btn,
+.top-nav button{
+  transition:
+    transform .14s ease,
+    filter .14s ease,
+    background .14s ease,
+    border-color .14s ease,
+    box-shadow .14s ease;
+}
+
+.btn:not(:disabled):active,
+.top-nav button:active{
+  transform:scale(.985);
+}
+
+/* Masaüstü GarageFlow sol menü */
+@media(min-width:1080px){
+  .app-shell{
+    position:relative;
+    padding-left:calc(var(--flow-sidebar-w) + 18px);
+  }
+
+  .topbar{
+    position:sticky;
+    top:10px;
+    z-index:90;
+    /* Header, sidebar'ın üstüne taşmasın; içerikle aynı hizada başlasın. */
+    margin-left:0;
+    margin-right:0;
+    width:100%;
+    max-width:100%;
+    margin-bottom:16px;
+  }
+
+  .top-nav{
+    position:fixed!important;
+    z-index:70!important;
+    top:108px!important;
+    left:max(12px,calc((100vw - 1480px)/2 + 12px))!important;
+    width:var(--flow-sidebar-w)!important;
+    max-height:calc(100vh - 124px);
+    overflow-y:auto;
+    overflow-x:hidden;
+    display:flex!important;
+    flex-direction:column!important;
+    gap:6px!important;
+    padding:10px!important;
+    margin:0!important;
+    border:1px solid rgba(148,163,184,.12);
+    border-radius:18px;
+    background:rgba(7,16,29,.88)!important;
+    box-shadow:0 16px 42px rgba(0,0,0,.24);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    scrollbar-width:thin;
+  }
+
+  .top-nav::before{
+    content:"GARAGEFLOW";
+    display:block;
+    padding:5px 9px 8px;
+    color:#64748b;
+    font-size:10px;
+    font-weight:900;
+    letter-spacing:1.35px;
+  }
+
+  .top-nav button{
+    position:relative;
+    width:100%!important;
+    min-height:43px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:9px;
+    padding:9px 11px!important;
+    border-radius:12px!important;
+    border:1px solid transparent!important;
+    background:transparent!important;
+    color:#cbd5e1!important;
+    text-align:left!important;
+    font-size:13px!important;
+    font-weight:750!important;
+    white-space:nowrap;
+  }
+
+  .top-nav button::before{
+    width:20px;
+    text-align:center;
+    opacity:.92;
+    flex:0 0 20px;
+  }
+
+  #nav-operation::before{content:"⚡"}
+  #nav-add::before{content:"➕"}
+  #nav-requests::before{content:"📌"}
+  #nav-movements::before{content:"↕️"}
+  #nav-critical::before{content:"🚨"}
+  #nav-categoryValues::before{content:"💰"}
+  #nav-orderSuggestion::before{content:"🛒"}
+  #nav-purchaseOrders::before{content:"📦"}
+  #nav-management::before{content:"🧰"}
+  #nav-settings::before{content:"⚙️"}
+  #nav-users::before{content:"👥"}
+  #nav-surveys::before{content:"⭐"}
+  #nav-logs::before{content:"🧾"}
+
+  .top-nav button:hover{
+    color:#fff!important;
+    background:rgba(148,163,184,.07)!important;
+  }
+
+  .top-nav button.active{
+    color:#fff!important;
+    background:linear-gradient(135deg,rgba(47,111,237,.98),rgba(37,99,235,.82))!important;
+    border-color:rgba(147,197,253,.26)!important;
+    box-shadow:
+      0 8px 22px rgba(37,99,235,.20),
+      inset 0 1px 0 rgba(255,255,255,.10)!important;
+  }
+
+  .top-nav button.active::after{
+    content:"";
+    position:absolute;
+    right:7px;
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:#bfdbfe;
+    box-shadow:0 0 0 4px rgba(191,219,254,.08);
+  }
+
+  .stats-grid{
+    margin-top:2px;
+  }
+}
+
+/* Tablet / mobil: GarageFlow üst hızlı sekmeler */
+@media(max-width:1079px){
+  .app-shell{
+    padding-left:0!important;
+  }
+
+  .topbar{
+    position:static!important;
+    margin-left:0!important;
+    width:auto!important;
+  }
+
+  .top-nav{
+    position:sticky!important;
+    top:0!important;
+    z-index:80!important;
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    grid-template-columns:none!important;
+    gap:7px!important;
+    padding:9px 2px 10px!important;
+    margin-bottom:12px!important;
+    background:
+      linear-gradient(180deg,rgba(7,16,29,.98),rgba(7,16,29,.91))!important;
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    scrollbar-width:none;
+  }
+
+  .top-nav::-webkit-scrollbar{
+    display:none;
+  }
+
+  .top-nav button{
+    flex:0 0 auto!important;
+    width:auto!important;
+    min-width:max-content;
+    min-height:41px;
+    padding:10px 13px!important;
+    border-radius:12px!important;
+    font-size:12.5px!important;
+    white-space:nowrap;
+  }
+
+  .top-nav button.active{
+    box-shadow:0 6px 18px rgba(37,99,235,.22)!important;
+  }
+}
+
+/* Telefon header */
+@media(max-width:640px){
+  .app-shell{
+    width:calc(100% - 14px)!important;
+    margin-top:8px!important;
+  }
+
+  .topbar{
+    padding:10px!important;
+    border-radius:16px!important;
+  }
+
+  .brand-wrap{
+    align-items:flex-start!important;
+  }
+
+  .app-logo{
+    width:45px!important;
+    height:45px!important;
+  }
+
+  .topbar h1{
+    font-size:21px!important;
+  }
+
+  .flow-route-row{
+    margin-top:5px;
+  }
+
+  .flow-live-pill{
+    display:none;
+  }
+
+  .stats-grid{
+    gap:9px!important;
+  }
+
+  .stat-card{
+    min-height:82px;
+    padding:14px!important;
+  }
+
+  .stat-card strong{
+    font-size:23px!important;
+  }
+
+  .card{
+    border-radius:15px!important;
+    padding:14px!important;
+  }
+}
+
+/* Scrollbar */
+*{
+  scrollbar-color:#334155 transparent;
+  scrollbar-width:thin;
+}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:999px;
+}
+*::-webkit-scrollbar-thumb:hover{background:#475569}
+
+
+/* ==========================================================
+   GarageFlow v14.1 - taşma / sol menü düzeltmeleri
+   ========================================================== */
+
+html,
+body{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden!important;
+}
+
+/* Grid/flex içeriği viewport'u büyütmesin. */
+.app-shell,
+.stats-grid,
+.page,
+.page > section,
+.card,
+.grid-2,
+.form-grid,
+.section-head,
+.section-head > *,
+.management-tool-card,
+.management-tool-content,
+.users-permission-grid,
+.permission-editor,
+.permission-role-card,
+.permission-check-grid,
+.theme-picker,
+.category-value-summary,
+.category-price-update-grid,
+.stock-filter-row,
+.category-order-grid,
+.movement-list,
+.movement-item,
+.movement-top,
+.row-gap{
+  min-width:0!important;
+  max-width:100%;
+}
+
+/* Geniş tablolar sayfayı değil kendi kutusunu kaydırsın. */
+.table-wrap{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto!important;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* Uzun metinler kartı sağa itemesin. */
+.movement-item,
+.movement-item *,
+.user-row,
+.user-row *,
+.permission-role-card,
+.permission-role-card *,
+.management-tool-content,
+.management-tool-content *{
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+/* Kullanıcılar / yetkiler */
+.users-permission-grid{
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)!important;
+}
+
+.permission-editor{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+
+/* Ayarlar / kategori fiyat formu */
+.category-price-update-grid,
+.password-change-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+
+.theme-picker{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+}
+
+/* Sipariş önerisi filtreleri ekranı büyütmesin. */
+.order-filter-row{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;
+}
+
+.order-filter-row .search-input{
+  min-width:0!important;
+  max-width:none!important;
+  width:100%!important;
+}
+
+/* Kategori Değerleri: v10'dan kalan ortalama zorlamasını desktopta iptal et. */
+@media(min-width:1080px){
+  .migration-test-mode #nav-categoryValues:not(.hidden){
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    text-align:left!important;
+    width:100%!important;
+  }
+
+  .app-shell > .stats-grid,
+  .app-shell > .page{
+    width:100%;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+}
+
+/* Dar ekranlarda tüm problemli gridler tek kolon. */
+@media(max-width:1079px){
+  .users-permission-grid,
+  .permission-editor,
+  .category-price-update-grid,
+  .password-change-grid,
+  .order-filter-row{
+    grid-template-columns:1fr!important;
+  }
+
+  .theme-picker{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+
+@media(max-width:560px){
+  .theme-picker{
+    grid-template-columns:1fr!important;
+  }
+}
+
+
+/* ==========================================================
+   GarageFlow v14.2 - gerçek kök düzeltme
+   ========================================================== */
+
+/* appShell içindeki bütün sayfalar sidebar kolonundan başlamalı. */
+@media(min-width:1080px){
+  #appShell > .page{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    margin-left:0!important;
+    margin-right:0!important;
+  }
+
+  #appShell > .page > .card,
+  #appShell > .page > section,
+  #appShell > .page > .grid-2{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    margin-left:0!important;
+    margin-right:0!important;
+  }
+
+  .migration-test-mode #nav-categoryValues:not(.hidden){
+    justify-content:flex-start!important;
+    text-align:left!important;
+  }
+}
+
+/* Eski dışarı taşan sayfalardan kalan yatay genişlik davranışını kapat. */
+#page-categoryValues,
+#page-orderSuggestion,
+#page-management,
+#page-settings,
+#page-users,
+#page-logs{
+  box-sizing:border-box;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow-x:clip;
+}
+
+/* Sadece gerçek tablo/listeler kendi içinde kayabilsin. */
+#page-categoryValues .table-wrap,
+#page-orderSuggestion .table-wrap,
+#page-users .table-wrap,
+#page-logs .table-wrap{
+  overflow-x:auto!important;
+}
+
+/* Mobil/tablette kategori sekmesi diğer üst sekmeler gibi ortalı. */
+@media(max-width:1079px){
+  .migration-test-mode #nav-categoryValues:not(.hidden){
+    justify-content:center!important;
+    text-align:center!important;
+  }
+}
+
+/* ==========================================================
+   GarageFlow v15.2 - Tema tam zemin / yüzey düzeltmesi
+   v14 GarageFlow cilasındaki sabit lacivert renkler tema
+   değişimini ezmesin; tüm ana yüzeyler aktif temadan beslensin.
+   ========================================================== */
+html{
+  background:var(--bg)!important;
+}
+
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 10% 0%, color-mix(in srgb,var(--primary) 13%,transparent), transparent 34%),
+    radial-gradient(circle at 95% 12%, color-mix(in srgb,var(--success) 9%,transparent), transparent 30%),
+    linear-gradient(180deg,var(--bg) 0%,color-mix(in srgb,var(--bg) 68%,var(--bg-2)) 48%,var(--bg-2) 100%)!important;
+  background-attachment:fixed!important;
+}
+
+/* Üst bar ve sol/üst navigasyon artık temaya bağlı. */
+.topbar{
+  background:color-mix(in srgb,var(--panel) 90%,transparent)!important;
+  border-color:var(--border)!important;
+}
+
+.brand-accent{
+  color:var(--primary)!important;
+}
+
+.flow-route-pill{
+  color:color-mix(in srgb,var(--primary) 42%,var(--text-strong))!important;
+  border-color:color-mix(in srgb,var(--primary) 38%,var(--border))!important;
+  background:color-mix(in srgb,var(--primary) 11%,var(--card))!important;
+}
+
+.flow-live-pill{
+  color:color-mix(in srgb,var(--success) 42%,var(--text-strong))!important;
+  border-color:color-mix(in srgb,var(--success) 34%,var(--border))!important;
+  background:color-mix(in srgb,var(--success) 9%,var(--card))!important;
+}
+
+.flow-live-pill i{
+  background:var(--success)!important;
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--success) 12%,transparent)!important;
+}
+
+/* GarageFlow v14'ün sabit lacivert kart cilasını tema değişkenleriyle ez. */
+.card,
+.management-tool-card,
+.inner-card,
+.purchase-order-card,
+.purchase-draft-item{
+  border-color:var(--border)!important;
+  background:linear-gradient(
+    180deg,
+    color-mix(in srgb,var(--card) 94%,var(--panel-2)),
+    var(--card)
+  )!important;
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 color-mix(in srgb,var(--text) 2%,transparent)!important;
+}
+
+/* Formlar ve tablolar da seçilen temanın yüzeyini kullansın. */
+input,
+textarea,
+select{
+  background:var(--input-bg)!important;
+  color:var(--input-text)!important;
+  border-color:var(--border)!important;
+}
+
+input:hover,
+textarea:hover,
+select:hover{
+  border-color:color-mix(in srgb,var(--primary) 30%,var(--border))!important;
+}
+
+input:focus,
+textarea:focus,
+select:focus{
+  background:var(--input-bg)!important;
+  border-color:color-mix(in srgb,var(--primary) 78%,var(--border))!important;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 15%,transparent)!important;
+}
+
+.table-wrap thead th{
+  background:var(--table-head)!important;
+  color:var(--text-strong)!important;
+}
+
+tbody tr:hover{
+  background:color-mix(in srgb,var(--primary) 5%,transparent)!important;
+}
+
+@media(min-width:1080px){
+  .top-nav{
+    background:color-mix(in srgb,var(--panel) 91%,transparent)!important;
+    border-color:var(--border)!important;
+  }
+
+  .top-nav::before{
+    color:var(--muted)!important;
+  }
+
+  .top-nav button{
+    color:var(--text)!important;
+  }
+
+  .top-nav button:hover{
+    color:var(--text-strong)!important;
+    background:var(--soft-surface-2)!important;
+  }
+
+  .top-nav button.active{
+    color:var(--primary-contrast)!important;
+    background:linear-gradient(
+      135deg,
+      color-mix(in srgb,var(--primary) 96%,white 4%),
+      color-mix(in srgb,var(--primary) 82%,black 18%)
+    )!important;
+    border-color:color-mix(in srgb,var(--primary) 42%,var(--border))!important;
+    box-shadow:
+      0 8px 22px color-mix(in srgb,var(--primary) 20%,transparent),
+      inset 0 1px 0 color-mix(in srgb,var(--primary-contrast) 12%,transparent)!important;
+  }
+
+  .top-nav button.active::after{
+    background:color-mix(in srgb,var(--primary-contrast) 82%,var(--primary))!important;
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--primary-contrast) 8%,transparent)!important;
+  }
+}
+
+@media(max-width:1079px){
+  .top-nav{
+    background:linear-gradient(
+      180deg,
+      color-mix(in srgb,var(--panel) 98%,transparent),
+      color-mix(in srgb,var(--panel) 91%,transparent)
+    )!important;
+    border-color:var(--border)!important;
+  }
+}
+
+/* Migration test rozetleri tema dışı sabit lacivert kalmasın. */
+body::before{
+  background:color-mix(in srgb,var(--panel) 94%,transparent)!important;
+  color:var(--text)!important;
+  border-color:var(--border)!important;
+}
+
+
+/* ==========================================================
+   GarageFlow v15.6 - Mobil / Tablet Header & Nav düzeltmesi
+   - 641-1079px: header tekrar kompakt yatay düzene geçer.
+   - Telefon: aksiyonlar 2 kolon, Çıkış tam satır.
+   - Kategori Değerleri eski width:100% zorlamasından kurtarılır.
+   - Mobilde üst Migration rozeti header'ın üstünü kapatmaz.
+   ========================================================== */
+@media (min-width:641px) and (max-width:1079px){
+  .topbar{
+    flex-direction:row!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:12px!important;
+  }
+
+  .brand-wrap{
+    flex:1 1 auto!important;
+    min-width:0!important;
+  }
+
+  .top-actions{
+    flex:0 1 auto!important;
+    width:auto!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    flex-wrap:wrap!important;
+    gap:7px!important;
+  }
+
+  .top-actions .btn{
+    width:auto!important;
+    min-width:82px!important;
+    padding:9px 12px!important;
+  }
+
+  .top-actions .user-pill{
+    width:auto!important;
+    min-width:0!important;
+  }
+}
+
+@media (max-width:640px){
+  .topbar{
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:10px!important;
+  }
+
+  .top-actions{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:8px!important;
+  }
+
+  .top-actions .user-pill{
+    grid-column:1 / -1!important;
+    width:100%!important;
+    justify-content:flex-start!important;
+  }
+
+  .top-actions .btn{
+    width:100%!important;
+    min-width:0!important;
+  }
+
+  #logoutBtn{
+    grid-column:1 / -1!important;
+  }
+}
+
+@media (max-width:1079px){
+  .migration-test-mode #nav-categoryValues:not(.hidden){
+    width:auto!important;
+    max-width:none!important;
+    flex:0 0 auto!important;
+    justify-self:auto!important;
+  }
+
+  .powered-badge{
+    display:none!important;
+  }
+}
+
+
+/* ==========================================================
+   GarageFlow v15.8 - bilgi balonu / tutarlı aktif menü / görsel
+   ========================================================== */
+.garage-info-source{display:none!important}
+.garage-info-wrap{position:relative;display:inline-flex;vertical-align:middle;margin:2px 0 8px}
+.garage-info-btn{
+  width:28px;height:28px;border-radius:999px;border:1px solid color-mix(in srgb,var(--primary) 55%,var(--border));
+  background:color-mix(in srgb,var(--primary) 16%,var(--card));color:var(--text-strong);font-weight:950;font-size:16px;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none!important;line-height:1
+}
+.garage-info-btn:hover{background:color-mix(in srgb,var(--primary) 25%,var(--card))}
+.garage-info-bubble{
+  position:absolute;z-index:500;top:36px;left:0;width:min(420px,calc(100vw - 36px));padding:12px 14px;border-radius:14px;
+  border:1px solid color-mix(in srgb,var(--primary) 40%,var(--border));background:color-mix(in srgb,var(--panel) 96%,#000 4%);
+  color:var(--text);box-shadow:0 14px 35px rgba(0,0,0,.32);font-size:13px;line-height:1.5
+}
+.garage-info-bubble strong{display:block;margin-bottom:5px;color:var(--text-strong)}
+@media(max-width:640px){.garage-info-bubble{position:fixed;left:12px;right:12px;top:auto;bottom:18px;width:auto}}
+
+/* Tarayıcılar arası aktif menü görünümü aynı kalsın: beyaz sızıntı yerine tema glow'u. */
+@media(min-width:1080px){
+  .top-nav button.active{
+    background:var(--primary)!important;
+    border-color:color-mix(in srgb,var(--primary) 70%,var(--border))!important;
+    box-shadow:0 5px 14px color-mix(in srgb,var(--primary) 28%,transparent)!important;
+  }
+  .top-nav button.active::after{
+    background:rgba(255,255,255,.88)!important;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 28%,transparent)!important;
+  }
+}
+
+/* Eski sade-stok kuralı artık ürün görsellerini gizlemesin. */
+.product-card-img,.product-thumb{display:flex!important}
+img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
+
+/* Plaka Geçmişi migration-testte gerçek sayfa. */
+.migration-test-mode #page-history{display:block}
+.migration-test-mode #page-history.hidden{display:none!important}
+
+
+/* === v16.3 Sesli arama + barkod tarama === */
+.operation-search-tools{display:grid;grid-template-columns:minmax(0,1fr) 46px 46px;gap:8px;align-items:center}
+.operation-search-tools input{min-width:0}
+.search-tool-btn{width:46px;height:46px;padding:0;border:1px solid var(--border);border-radius:14px;background:#1e293b;color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.search-tool-btn:hover{border-color:rgba(59,130,246,.7);background:#243249}
+.search-tool-btn:active{transform:scale(.96)}
+.search-tool-btn svg{width:23px;height:23px;fill:currentColor}
+.search-tool-btn.is-active{background:#dc2626;border-color:#f87171;box-shadow:0 0 0 4px rgba(248,113,113,.15);animation:searchToolPulse 1.15s ease-in-out infinite}
+.search-tool-btn.is-scanning{background:#2563eb;border-color:#60a5fa;box-shadow:0 0 0 4px rgba(96,165,250,.15)}
+@keyframes searchToolPulse{0%,100%{box-shadow:0 0 0 3px rgba(248,113,113,.12)}50%{box-shadow:0 0 0 7px rgba(248,113,113,.04)}}
+.barcode-scanner-modal{position:fixed;inset:0;z-index:22000;display:flex;align-items:center;justify-content:center;padding:18px}
+.barcode-scanner-modal.hidden{display:none!important}
+.barcode-scanner-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(7px)}
+.barcode-scanner-card{position:relative;width:min(680px,100%);background:var(--card,#111827);border:1px solid var(--border);border-radius:22px;padding:16px;box-shadow:0 28px 90px rgba(0,0,0,.62)}
+.barcode-scanner-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;font-size:16px}
+.barcode-scanner-close{width:42px;height:42px;border:1px solid var(--border);border-radius:13px;background:#1e293b;color:#fff;font-size:28px;line-height:1;cursor:pointer}
+.barcode-scanner-viewport{position:relative;overflow:hidden;border-radius:18px;background:#000;aspect-ratio:4/3}
+.barcode-scanner-viewport video{display:block;width:100%;height:100%;object-fit:cover;background:#000}
+.barcode-scanner-guide{position:absolute;inset:30% 8%;border:3px solid #22c55e;border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.28)}
+.barcode-scanner-status{text-align:center;color:var(--muted);font-size:13px;font-weight:700;padding:12px 4px 2px}
+@media(max-width:700px){.operation-search-tools{grid-template-columns:minmax(0,1fr) 46px 46px}.barcode-scanner-modal{padding:0;align-items:stretch}.barcode-scanner-card{width:100%;height:100%;border-radius:0;display:flex;flex-direction:column;padding:14px}.barcode-scanner-viewport{flex:1;min-height:0;aspect-ratio:auto}.barcode-scanner-status{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8px)}}
+
+
+/* === v16.4 Barkod hızlı stok işlem penceresi === */
+.barcode-action-modal{position:fixed;inset:0;z-index:22100;display:flex;align-items:center;justify-content:center;padding:18px}
+.barcode-action-modal.hidden{display:none!important}
+.barcode-action-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(7px)}
+.barcode-action-card{position:relative;width:min(620px,100%);max-height:min(780px,94vh);overflow:auto;background:var(--card,#111827);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:0 28px 90px rgba(0,0,0,.62)}
+.barcode-action-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
+.barcode-action-head h3{margin:0 0 5px;font-size:21px;line-height:1.2}
+.barcode-action-total{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+.barcode-action-total .badge{font-size:13px;padding:8px 10px}
+.barcode-not-found{border:1px dashed var(--border);border-radius:18px;padding:22px 18px;text-align:center;background:rgba(255,255,255,.025);margin-top:8px}
+.barcode-not-found-icon{width:54px;height:54px;margin:0 auto 12px;display:grid;place-items:center;border-radius:16px;background:rgba(34,197,94,.14);font-size:34px;font-weight:900;line-height:1}
+.barcode-not-found-title{font-size:20px;font-weight:900;margin-bottom:5px}
+.barcode-not-found-code{margin:16px auto 18px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);word-break:break-all}
+.barcode-not-found-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.barcode-not-found-actions .btn{min-height:48px;font-weight:800}
+.barcode-location-wrap{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:16px;background:rgba(15,23,42,.28)}
+.barcode-location-title{font-size:15px;font-weight:800;margin-bottom:3px}
+.barcode-location-hint{font-size:12px;margin-bottom:10px}
+.barcode-location-list{display:grid;gap:8px}
+.barcode-location-option{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;width:100%;padding:12px 14px;text-align:left;border:1px solid var(--border);border-radius:14px;background:rgba(30,41,59,.65);color:inherit;cursor:pointer}
+.barcode-location-option:hover,.barcode-location-option:focus{border-color:#3b82f6;outline:none}
+.barcode-location-option.active{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.14);background:rgba(37,99,235,.13)}
+.barcode-location-main{font-weight:800}
+.barcode-location-sub{grid-column:1;color:var(--muted);font-size:12px}
+.barcode-location-stock{grid-column:2;grid-row:1 / span 2;align-self:center;font-size:13px;font-weight:800;white-space:nowrap}
+.barcode-selected-product{margin-top:14px}
+.barcode-selected-stock{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:rgba(15,23,42,.32);line-height:1.6}
+.barcode-qty-wrap{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:16px 0 14px;font-weight:800}
+.barcode-qty-control{display:grid;grid-template-columns:44px 88px 44px;gap:7px;align-items:center}
+.barcode-qty-control input{height:44px;text-align:center;font-size:19px;font-weight:900;padding:6px 8px}
+.barcode-qty-control .btn{height:44px;padding:0;font-size:20px}
+.barcode-action-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.barcode-action-buttons .btn{min-height:58px;font-size:17px;font-weight:900}
+.barcode-action-buttons .btn[disabled]{opacity:.45;cursor:not-allowed}
+@media(max-width:620px){
+  .barcode-action-modal{padding:10px;align-items:flex-end}
+  .barcode-action-card{width:100%;max-height:92vh;border-radius:20px 20px 12px 12px;padding:15px}
+  .barcode-location-option{grid-template-columns:1fr}
+  .barcode-location-stock{grid-column:1;grid-row:auto}
+  .barcode-action-buttons{grid-template-columns:1fr 1fr}
+  .barcode-not-found-actions{grid-template-columns:1fr 1fr}
+  .barcode-action-buttons .btn{font-size:15px;padding:10px 8px}
+}

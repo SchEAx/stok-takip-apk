@@ -1,9 +1,10 @@
 // Uygulama giriş/runtime dosyası. Asıl özellikler ./js klasöründe modüllere ayrıldı.
 async function checkVersion() {
   try {
+    const runtimeVersion = String(window.GARAGE_BUILD_VERSION || APP_VERSION).trim();
     const localVersion = localStorage.getItem('app_version');
-    if (localVersion !== APP_VERSION) {
-      localStorage.setItem('app_version', APP_VERSION);
+    if (localVersion !== runtimeVersion) {
+      localStorage.setItem('app_version', runtimeVersion);
       if ('caches' in window) {
         const names = await caches.keys();
         for (const name of names) {
@@ -82,7 +83,4 @@ if (document.readyState === 'loading') {
   node.addEventListener("change", updateBulkPricePreview);
   node.addEventListener("input", updateBulkPricePreview);
 });
-// Oturum başka sekmede kapanırsa uygulamayı da kilitle.
-supabaseClient.auth.onAuthStateChange((event) => {
-  if (event === "SIGNED_OUT") { state.currentUser = null; showLogin(); }
-});
+// Migration test: eski veri katmanı auth listener kapalı.

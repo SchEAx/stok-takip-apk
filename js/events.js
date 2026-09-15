@@ -26,60 +26,36 @@ el.productForm.addEventListener("submit", async (e) => {
     return showToast("Zorunlu alanlar: Ürün Kategorisi, Araç Markası, Araç Modeli", true);
   }
 
-  try {
-    setLoading(true);
-    rememberProductSuggestions(payload);
 
-    if (payload.id) {
-      const { data: beforeRow, error: beforeError } = await supabaseClient
-        .from("stock_products")
-        .select("quantity,product_name")
-        .eq("id", payload.id)
-        .maybeSingle();
-      if (beforeError) throw beforeError;
 
-      const uploaded = await uploadProductImageIfNeeded(payload.id);
-      payload.imageUrl = uploaded.imageUrl;
-      payload.imageThumbUrl = uploaded.imageThumbUrl;
-      const { error } = await supabaseClient.from("stock_products").update(toProductRow(payload)).eq("id", payload.id);
-      if (error) throw error;
-
-      const auditOk = await safeRecordDirectStockDelta({
-        productId: payload.id,
-        beforeQty: Number(beforeRow?.quantity || 0),
-        afterQty: Number(payload.stock || 0),
-        source: "Ürün kartı düzenleme",
-        productName: beforeRow?.product_name || `${payload.category} ${payload.carBrand} ${payload.carModel}`
-      });
-      await logActivity("product_update", `Ürün güncellendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", payload.id);
-      showToast(auditOk ? "Ürün güncellendi" : "Ürün güncellendi; hareket kaydında uyarı var ⚠️", !auditOk);
-    } else {
-      const tempImageId = crypto.randomUUID();
-      const uploaded = await uploadProductImageIfNeeded(tempImageId);
-      payload.imageUrl = uploaded.imageUrl;
-      payload.imageThumbUrl = uploaded.imageThumbUrl;
-      const { data, error } = await supabaseClient.from("stock_products").insert(toProductRow(payload)).select("id").single();
-      if (error) throw error;
-      const auditOk = await safeRecordDirectStockDelta({
-        productId: data?.id,
-        beforeQty: 0,
-        afterQty: Number(payload.stock || 0),
-        source: "Yeni ürün ilk stok",
-        productName: `${payload.category} ${payload.carBrand} ${payload.carModel}`
-      });
-      await logActivity("product_insert", `Ürün eklendi: ${payload.category} ${payload.carBrand} ${payload.carModel}`, "stock_products", data?.id);
-      showToast(auditOk ? "Ürün kaydedildi" : "Ürün kaydedildi; hareket kaydında uyarı var ⚠️", !auditOk);
+    try {
+      setLoading(true);
+      rememberProductSuggestions(payload);
+      const wasEdit = Boolean(payload.id);
+      const result = await migrationSaveProduct(payload);
+      const productId = result?.product?.id || payload.id;
+      await logActivity(
+        wasEdit ? "product_update" : "product_insert",
+        `${wasEdit ? "Ürün güncellendi" : "Ürün eklendi"}: ${payload.category} ${payload.carBrand} ${payload.carModel}`,
+        "stock_products",
+        productId
+      );
+      showToast(wasEdit ? "Ürün güncellendi ✅" : "Ürün kaydedildi ✅");
+      clearProductForm();
+      state.operationFilterOptionsLoaded = false;
+      state.operationCacheKey = "";
+      await Promise.allSettled([
+        loadDashboardStats(),
+        loadOperationFilterOptions(),
+        loadMovements()
+      ]);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Ürün kaydedilemedi", true);
+    } finally {
+      setLoading(false);
     }
-
-    clearProductForm();
-    state.operationFilterOptionsLoaded = false;
-    await Promise.all([loadDashboardStats(), loadOperationFilterOptions().catch(() => {}), loadMovements().catch(() => {})]);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Ürün kaydedilemedi", true);
-  } finally {
-    setLoading(false);
-  }
+  
 });
 if (el.clearProductBtn) el.clearProductBtn.addEventListener("click", clearProductForm);
 if (el.productImageFile) el.productImageFile.addEventListener("change", handleProductImageFile);
@@ -100,6 +76,9 @@ async function smartRefresh() {
   await loadAll();
 }
 if (el.refreshBtn) el.refreshBtn.addEventListener("click", smartRefresh);
+if (el.checkUpdateBtn) el.checkUpdateBtn.addEventListener("click", forceCheckAppUpdate);
+if (el.pwaInstallBtn) el.pwaInstallBtn.addEventListener("click", installPwaApp);
+
 if (el.enableNotifyBtn) el.enableNotifyBtn.addEventListener("click", enablePushNotifications);
 if (el.searchInput) el.searchInput.addEventListener("input", applySearch);
 if (el.movementSearchInput) el.movementSearchInput.addEventListener("input", renderMovementSearchResults);
@@ -136,38 +115,32 @@ if (el.historySearchInput) el.historySearchInput.addEventListener("keydown", (e)
   .filter(Boolean).forEach(select => select.addEventListener("change", updateExcelFilterSummary));
 if (el.categoryValueForm) el.categoryValueForm.addEventListener("submit", saveCategoryValueFromForm);
 initProductSuggestionInputs();
-if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.error)); }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => registerPwaServiceWorker().catch(console.error));
+}
 async function bootApp() {
-  await initAuthGate();
-  const { data } = await supabaseClient.auth.getSession();
-  if (data?.session && state.currentUser) {
+  const authenticated = await initAuthGate();
+  if (authenticated && state.currentUser) {
     renderStaffSelector();
-    switchTab(canAccessTab("operation") ? "operation" : (ROLE_DEFAULT_TAB[currentStaff().role] || "operation"));
+    switchTab("operation");
     loadActivityLogs();
-    loadDashboardStats().catch(err => console.error(err));
-    loadMovements().catch(err => console.error(err));
+    await Promise.all([
+      loadDashboardStats().catch(err => console.error(err)),
+      loadMovements().catch(err => console.error(err)),
+      loadOperationFilterOptions().catch(err => console.error(err))
+    ]);
   }
-  // Araç kabul entegrasyonu askıda: talepler/bildirimler arka planda yüklenmiyor.
   initUpdateChecker();
 }
 bootApp();
 async function heartbeatCurrentUser() {
+  if (!migrationToken() || !state.currentUser) return;
   try {
-    const { data } = await supabaseClient.auth.getSession();
-    if (!data?.session || !state.currentUser?.authUserId) return;
-
-    await supabaseClient
-      .from("app_users")
-      .update({
-        last_seen_at: new Date().toISOString()
-      })
-      .eq("auth_user_id", state.currentUser?.authUserId || "00000000-0000-0000-0000-000000000000");
-
+    const payload = await apiFetch("/api/auth/heartbeat", { method: "PATCH" });
+    updateStaffMeta(state.currentUser.name, { lastSeenAt: payload.last_seen_at || new Date().toISOString(), role: state.currentUser.role });
   } catch (err) {
-    console.warn("Heartbeat hatası:", err);
+    console.warn("Heartbeat hatası:", err?.message || err);
   }
 }
-
 setInterval(heartbeatCurrentUser, 30000);
-
 heartbeatCurrentUser();

@@ -26,71 +26,16 @@ function updateBulkPricePreview() {
   const field = el.bulkPriceField?.value || "average_sale_price";
   const mode = el.bulkPriceMode?.value || "percent";
   const amount = Number(el.bulkPriceAmount?.value || 0);
-  if (!category || !(amount > 0)) {
+  if (!category || !Number.isFinite(amount) || (mode === "fixed" ? amount === 0 : amount <= 0)) {
     el.bulkPricePreview.textContent = "Kategori ve tutar seçildiğinde işlem özeti burada görünür.";
     return;
   }
   const count = (state.products || []).filter(p => normalizeText(p.category) === normalizeText(category)).length;
   const fieldLabel = field === "purchase_price" ? "alış fiyatı" : field === "both" ? "alış ve satış fiyatları" : "ortalama satış fiyatı";
-  el.bulkPricePreview.textContent = `${count} ürünün ${fieldLabel} ${mode === "percent" ? `%${amount}` : formatTL(amount)} artırılacak.`;
+  el.bulkPricePreview.textContent = `${count} ürünün ${fieldLabel} ${mode === "percent" ? `%${amount} artırılacak` : amount < 0 ? `${formatTL(Math.abs(amount))} düşürülecek` : `${formatTL(amount)} artırılacak`}.`;
 }
 
-async function applyCategoryPriceUpdate() {
-  const category = String(el.bulkPriceCategory?.value || "").trim();
-  const field = el.bulkPriceField?.value || "average_sale_price";
-  const mode = el.bulkPriceMode?.value || "percent";
-  const amount = Number(el.bulkPriceAmount?.value || 0);
-  if (!category) return showToast("Önce kategori seç", true);
-  if (!(amount > 0)) return showToast("Artış miktarı 0'dan büyük olmalı", true);
-
-  const { data, error } = await supabaseClient
-    .from("stock_products")
-    .select("id,product_name,category,purchase_price,average_sale_price")
-    .eq("category", category);
-  if (error) return showToast(error.message || "Kategori ürünleri alınamadı", true);
-  if (!data?.length) return showToast("Bu kategoride ürün bulunamadı", true);
-
-  const fieldLabel = field === "purchase_price" ? "alış fiyatı" : field === "both" ? "alış ve satış fiyatları" : "ortalama satış fiyatı";
-  const increaseLabel = mode === "percent" ? `%${amount}` : formatTL(amount);
-  const zeroCount = data.filter(row => {
-    const values = field === "both" ? [row.purchase_price, row.average_sale_price] : [row[field]];
-    return values.some(v => Number(v || 0) <= 0);
-  }).length;
-  const warning = zeroCount ? `\n\n${zeroCount} üründe mevcut fiyat 0. Yüzde artışta bu fiyatlar 0 kalır; sabit artışta girilen tutar eklenir.` : "";
-  const ok = await appConfirm(`${category} kategorisindeki ${data.length} ürünün ${fieldLabel} ${increaseLabel} artırılacak.${warning}\n\nDevam edilsin mi?`, { title: "Toplu fiyat güncelleme", okText: "Güncelle" });
-  if (!ok) return;
-
-  const calc = (oldValue) => {
-    const old = Number(oldValue || 0);
-    const next = mode === "percent" ? old * (1 + amount / 100) : old + amount;
-    return Math.max(0, Math.round((next + Number.EPSILON) * 100) / 100);
-  };
-  const updates = data.map(row => {
-    const out = { id: row.id };
-    if (field === "purchase_price" || field === "both") out.purchase_price = calc(row.purchase_price);
-    if (field === "average_sale_price" || field === "both") out.average_sale_price = calc(row.average_sale_price);
-    return out;
-  });
-
-  const chunkSize = 200;
-  for (let i = 0; i < updates.length; i += chunkSize) {
-    const chunk = updates.slice(i, i + chunkSize);
-    const { error: updateError } = await supabaseClient.from("stock_products").upsert(chunk, { onConflict: "id" });
-    if (updateError) return showToast(`Fiyat güncelleme yarıda kaldı: ${updateError.message}`, true);
-  }
-
-  await logActivity(
-    "bulk_price_update",
-    `${category} kategorisinde ${updates.length} ürünün ${fieldLabel} ${increaseLabel} artırıldı`,
-    "stock_products",
-    null
-  );
-  showToast(`${updates.length} ürünün fiyatı güncellendi`);
-  if (el.bulkPriceAmount) el.bulkPriceAmount.value = "";
-  await loadProducts();
-  await loadCategoryValues();
-  updateBulkPricePreview();
-}
+async function applyCategoryPriceUpdate() { throw new Error("VDS API yüklenmeden fiyat güncellemesi yapılamaz."); }
 window.applyCategoryPriceUpdate = applyCategoryPriceUpdate;
 
 window.loadCategoryValues = loadCategoryValues;
@@ -147,8 +92,8 @@ function renderCategoryValues() {
   if (el.categoryValueDetail) {
     el.categoryValueDetail.innerHTML = rows.length ? `
       <div class="table-wrap"><table class="category-value-table">
-        <thead><tr><th>Kategori</th><th>Stok</th><th>Ort. Alış</th><th>Ort. Satış</th><th>Alış Toplam</th><th>Satış Toplam</th><th>Fark</th></tr></thead>
-        <tbody>${rows.map(r => `<tr class="${r.hasPrice ? "" : "missing-price"}"><td>${escapeHtml(r.category)}${r.hasPrice ? "" : " <span class='muted'>(fiyat yok)</span>"}</td><td>${r.qty}</td><td>${formatTL(r.purchase)}</td><td>${formatTL(r.sale)}</td><td>${formatTL(r.totalPurchase)}</td><td>${formatTL(r.totalSale)}</td><td>${formatTL(r.estimatedDiff)}</td></tr>`).join("")}</tbody>
+        <thead><tr><th>Kategori</th><th>Stok</th><th>Ort. Alış</th><th>Ort. Satış</th><th>Alış Toplam</th><th>Satış Toplam</th><th>Fark</th><th>Fiyat</th></tr></thead>
+        <tbody>${rows.map(r => `<tr class="${r.hasPrice ? "" : "missing-price"}"><td>${escapeHtml(r.category)}${r.hasPrice ? "" : " <span class='muted'>(fiyat yok)</span>"}</td><td>${r.qty}</td><td>${formatTL(r.purchase)}</td><td>${formatTL(r.sale)}</td><td>${formatTL(r.totalPurchase)}</td><td>${formatTL(r.totalSale)}</td><td>${formatTL(r.estimatedDiff)}</td><td><button class="action-btn edit category-price-edit-btn" type="button" data-category="${escapeHtml(r.category)}" onclick="openCategoryPriceEditorFromButton(this)">Ürünleri Düzenle</button></td></tr>`).join("")}</tbody>
       </table></div>
     ` : `<div class="empty-state">Hesaplanacak stok bulunamadı.</div>`;
   }
@@ -169,35 +114,9 @@ window.clearCategoryValueForm = function() {
   if (el.categoryValuePurchase) el.categoryValuePurchase.value = "";
   if (el.categoryValueSale) el.categoryValueSale.value = "";
 };
-async function saveCategoryValueFromForm(e) {
-  e?.preventDefault?.();
-  const category = String(el.categoryValueCategory?.value || "").trim();
-  if (!category) return showToast("Kategori adı boş olamaz", true);
-  const payload = {
-    category,
-    purchase_price: Number(el.categoryValuePurchase?.value || 0),
-    average_sale_price: Number(el.categoryValueSale?.value || 0)
-  };
-  const id = el.categoryValueId?.value || "";
-  let error;
-  if (id) {
-    ({ error } = await supabaseClient.from("category_values").update(payload).eq("id", id));
-  } else {
-    ({ error } = await supabaseClient.from("category_values").upsert(payload, { onConflict: "category" }));
-  }
-  if (error) return showToast(error.message || "Kategori değeri kaydedilemedi", true);
-  clearCategoryValueForm();
-  await loadCategoryValues();
-  showToast("Kategori değeri kaydedildi ✅");
-}
+async function saveCategoryValueFromForm(e) { e?.preventDefault?.(); showToast("Kategori değerleri yazma endpointi VDS tarafında henüz yok", true); }
 window.saveCategoryValueFromForm = saveCategoryValueFromForm;
-window.deleteCategoryValue = async function(id) {
-  if (!(await appConfirm("Bu kategori fiyat kaydı silinsin mi? Stok ürünleri silinmez, sadece fiyat tanımı gider.", { danger: true }))) return;
-  const { error } = await supabaseClient.from("category_values").delete().eq("id", id);
-  if (error) return showToast(error.message || "Silinemedi", true);
-  await loadCategoryValues();
-  showToast("Kategori fiyatı silindi");
-};
+window.deleteCategoryValue = async function() { showToast("Kategori değerleri silme endpointi VDS tarafında henüz yok", true); };
 
 
 
@@ -242,27 +161,7 @@ function orderProductLabel(p = {}) {
   return [p.productBrand, p.category, p.carBrand, p.carModel, p.carType, p.vehicleYear]
     .filter(Boolean).join(" ").replace(/\s+/g, " ").trim() || p.name || "-";
 }
-async function fetchRecentOutgoingMovements(days = 7) {
-  const start = new Date();
-  start.setDate(start.getDate() - Number(days || 7));
-  let rows = [];
-  let from = 0;
-  const pageSize = 1000;
-  while (true) {
-    const to = from + pageSize - 1;
-    const { data, error } = await supabaseClient
-      .from("stock_movements")
-      .select("product_id,quantity,movement_type,created_at,description,stock_products(product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,location)")
-      .gte("created_at", start.toISOString())
-      .order("created_at", { ascending: false })
-      .range(from, to);
-    if (error) throw error;
-    rows = rows.concat(data || []);
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-  return rows.filter(m => isOutgoingMovementType(m.movement_type));
-}
+async function fetchRecentOutgoingMovements() { return []; }
 function buildOrderSuggestionRows(movements) {
   const productMap = new Map((state.products || []).map(p => [String(p.id), p]));
   const grouped = new Map();
@@ -442,6 +341,19 @@ function computeCategoryBrandRows() {
   );
 }
 function renderCategoryBrandManagement() {
+  if (typeof MIGRATION_TEST_MODE !== "undefined" && MIGRATION_TEST_MODE) {
+    if (el.managementCategoryBrandSummary) {
+      el.managementCategoryBrandSummary.innerHTML = `
+        <div class="empty-state">Kategori / marka tam sayımı Excel modülü taşındıktan sonra PostgreSQL API üzerinden açılacak.</div>
+      `;
+    }
+    if (el.managementCategoryBrandList) {
+      el.managementCategoryBrandList.innerHTML = `
+        <div class="empty-state">Migration testte bu liste geçici olarak kapalı. SİLİNECEK toplu temizleme aracı aktiftir.</div>
+      `;
+    }
+    return;
+  }
   const rows = computeCategoryBrandRows();
   const totalProductCards = rows.reduce((s,r) => s + Number(r.productCount || 0), 0);
   const totalStockQty = rows.reduce((s,r) => s + Number(r.stockQty || 0), 0);
@@ -469,129 +381,12 @@ window.renderCategoryBrandManagement = renderCategoryBrandManagement;
 const DELETE_MARK_TEXT = "SİLİNECEK";
 const DELETE_MARK_VARIANTS = ["SİLİNECEK", "SILINECEK", "Silinecek", "silinecek"];
 
-async function loadDeleteMarkedCount() {
-  const countEl = document.getElementById("deleteMarkedCount");
-  const infoEl = document.getElementById("deleteMarkedInfo");
-  const deleteBtn = document.getElementById("deleteMarkedProductsBtn");
-  if (countEl) countEl.textContent = "...";
-  if (infoEl) infoEl.textContent = "Sayı kontrol ediliyor...";
-  if (deleteBtn) deleteBtn.disabled = true;
-
-  try {
-    const { count, error } = await supabaseClient
-      .from("stock_products")
-      .select("id", { count: "exact", head: true })
-      .in("vehicle_brand", DELETE_MARK_VARIANTS);
-
-    if (error) throw error;
-
-    const total = Number(count || 0);
-    if (countEl) countEl.textContent = String(total);
-    if (infoEl) infoEl.textContent = total
-      ? `${total} ürün kalıcı silmeye hazır. Araç Markası alanı "${DELETE_MARK_TEXT}" olanlar silinecek.`
-      : `Araç Markası alanı "${DELETE_MARK_TEXT}" olan ürün bulunamadı.`;
-    if (deleteBtn) deleteBtn.disabled = total <= 0;
-    return total;
-  } catch (err) {
-    console.error(err);
-    if (countEl) countEl.textContent = "!";
-    if (infoEl) infoEl.textContent = err.message || "Silinecek ürün sayısı alınamadı.";
-    showToast(err.message || "Silinecek ürün sayısı alınamadı", true);
-    return 0;
-  }
-}
+async function loadDeleteMarkedCount() { throw new Error("VDS API yüklenmeden işaretli ürün sayısı alınamaz."); }
 window.loadDeleteMarkedCount = loadDeleteMarkedCount;
 
-async function fetchDeleteMarkedProductIds() {
-  const ids = [];
-  let from = 0;
-  const pageSize = 1000;
+async function fetchDeleteMarkedProductIds() { return []; }
 
-  while (true) {
-    const { data, error } = await supabaseClient
-      .from("stock_products")
-      .select("id")
-      .in("vehicle_brand", DELETE_MARK_VARIANTS)
-      .range(from, from + pageSize - 1);
-
-    if (error) throw error;
-    const batch = data || [];
-    ids.push(...batch.map(row => row.id).filter(Boolean));
-    if (batch.length < pageSize) break;
-    from += pageSize;
-  }
-
-  return ids;
-}
-
-async function deleteMarkedProducts() {
-  if (!requireRoleAction(["admin"], "Toplu silme işlemini sadece Admin yapabilir")) return;
-
-  const count = await loadDeleteMarkedCount();
-  if (!count) return;
-
-  const ok = await appConfirm(
-    `${count} ürün kalıcı olarak silinecek. Bu işlem geri alınamaz. Devam edilsin mi?`,
-    { title: "Toplu Ürün Silme", okText: "Kalıcı Olarak Sil", cancelText: "Vazgeç", danger: true }
-  );
-  if (!ok) return;
-
-  const secondOk = await appConfirm(
-    `Son kontrol knk: Araç Markası "${DELETE_MARK_TEXT}" olan ${count} ürün tamamen silinsin mi?`,
-    { title: "Son Onay", okText: "Evet, Sil", cancelText: "İptal", danger: true }
-  );
-  if (!secondOk) return;
-
-  const deleteBtn = document.getElementById("deleteMarkedProductsBtn");
-  const infoEl = document.getElementById("deleteMarkedInfo");
-  try {
-    if (deleteBtn) deleteBtn.disabled = true;
-    if (infoEl) infoEl.textContent = "Silinecek ürünler hazırlanıyor...";
-
-    const ids = await fetchDeleteMarkedProductIds();
-    if (!ids.length) {
-      showToast("Silinecek ürün bulunamadı");
-      await loadDeleteMarkedCount();
-      return;
-    }
-
-    const chunkSize = 500;
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      if (infoEl) infoEl.textContent = `Hareket kayıtları temizleniyor: ${Math.min(i + chunk.length, ids.length)} / ${ids.length}`;
-      await supabaseClient.from("stock_movements").delete().in("product_id", chunk);
-    }
-
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      if (infoEl) infoEl.textContent = `Ürünler siliniyor: ${Math.min(i + chunk.length, ids.length)} / ${ids.length}`;
-      const { error } = await supabaseClient.from("stock_products").delete().in("id", chunk);
-      if (error) throw error;
-    }
-
-    state.products = state.products.filter(p => !ids.includes(p.id));
-    state.operationFilterOptionsLoaded = false;
-    await Promise.all([
-      loadDashboardStats().catch(() => {}),
-      loadMovements().catch(() => {}),
-      loadOperationFilterOptions().catch(() => {})
-    ]);
-    updateStats();
-    refreshProductQuickLists();
-    refreshOperationFilters();
-    renderOperationResults();
-    await loadDeleteMarkedCount();
-
-    logActivity("bulk_delete", `${ids.length} ürün Araç Markası ${DELETE_MARK_TEXT} olduğu için kalıcı silindi`, "stock_products", DELETE_MARK_TEXT);
-    showToast(`${ids.length} ürün kalıcı olarak silindi ✅`);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Toplu silme başarısız oldu", true);
-    await loadDeleteMarkedCount();
-  } finally {
-    if (deleteBtn) deleteBtn.disabled = false;
-  }
-}
+async function deleteMarkedProducts() { throw new Error("VDS API yüklenmeden toplu silme yapılamaz."); }
 window.deleteMarkedProducts = deleteMarkedProducts;
 
 

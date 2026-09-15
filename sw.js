@@ -1,45 +1,86 @@
-const CACHE_NAME = "garage-stock-v3-13-1-staff-auth-fix";
+const CACHE_NAME = "garage-stock-16-6";
+
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css",
-  "./js/core.js",
-  "./js/inventory.js",
-  "./js/sales-dashboard.js",
-  "./js/staff.js",
-  "./js/sales.js",
-  "./js/requests.js",
-  "./js/surveys.js",
-  "./js/management.js",
-  "./js/purchasing.js",
-  "./js/navigation.js",
-  "./js/reports.js",
-  "./js/events.js",
-  "./js/excel.js",
-  "./app.js",
-  "./manifest.webmanifest",
+  "./style.css?v=16.6",
+  "./js/core.js?v=16.6",
+  "./js/inventory.js?v=16.6",
+  "./js/sales-dashboard.js?v=16.6",
+  "./js/staff.js?v=16.6",
+  "./js/sales.js?v=16.6",
+  "./js/requests.js?v=16.6",
+  "./js/surveys.js?v=16.6",
+  "./js/management.js?v=16.6",
+  "./js/purchasing.js?v=16.6",
+  "./js/navigation-v16.6.js?v=16.6",
+  "./js/reports.js?v=16.6",
+  "./js/migration-api.js?v=16.6",
+  "./js/search-tools.js?v=16.6",
+  "./js/events.js?v=16.6",
+  "./js/excel.js?v=16.6",
+  "./js/migration-excel.js?v=16.6",
+  "./app.js?v=16.6",
+  "./manifest.webmanifest?v=16.6",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon-64.png",
   "./logo.png",
   "./notification.mp3"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(ASSETS).catch(() =>
-        cache.addAll(ASSETS.filter((x) => !x.includes("logo.png") && !x.includes("notification.mp3")))
-      )
-    )
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn("PWA cache atlandı:", asset);
+        }
+      }
+    })
   );
+
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key.startsWith("garage-stock-") && key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    const oldGarageCaches = keys.filter(
+      key => key.startsWith("garage-stock-") && key !== CACHE_NAME
+    );
+    const isUpgrade = oldGarageCaches.length > 0;
+
+    await Promise.all(oldGarageCaches.map(key => caches.delete(key)));
+    await self.clients.claim();
+
+    // Gerçek bir eski GarageFlow cache'i bulunduysa açık PC/mobil sekmelerini
+    // bir kez cache-busting URL'ye taşı. Böylece Ctrl+F5 / Güncelle butonu gerekmez.
+    if (isUpgrade) {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true
+      });
+      await Promise.all(windows.map(async (client) => {
+        try {
+          const url = new URL(client.url);
+          if (url.origin !== self.location.origin) return;
+          url.searchParams.set("__garage_build", "16.6");
+          url.searchParams.set("__garage_sw", String(Date.now()));
+          await client.navigate(url.href);
+        } catch {}
+      }));
+    }
+  })());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -48,49 +89,101 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase.co")) {
-    event.respondWith(fetch(request));
+  // API ve sürüm dosyası daima canlı ağdan.
+  if (
+    url.hostname === "api.scheax.com.tr"
+    || url.pathname.endsWith("/version.json")
+  ) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
     return;
   }
 
-  if (request.mode === "navigate" || request.headers.get("accept")?.includes("text/html")) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
+  // v16.6: Cache-first tamamen kaldırıldı.
+  // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
+  event.respondWith(
+    fetch(request, { cache: "no-cache" })
+      .then((response) => {
+        if (
+          response
+          && response.ok
+          && url.origin === self.location.origin
+        ) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", clone));
-          return response;
-        })
-        .catch(() => caches.match("./index.html"))
-    );
-    return;
-  }
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put(request, clone))
+            .catch(() => {});
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(request);
+        if (cached) return cached;
 
-  event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
+        if (
+          request.mode === "navigate"
+          || request.headers.get("accept")?.includes("text/html")
+        ) {
+          return (
+            await caches.match("./index.html")
+            || await caches.match("./")
+          );
+        }
+
+        throw new Error("Offline ve cache kaydı yok");
+      })
+  );
 });
 
 self.addEventListener("push", (event) => {
   let data = {
     title: "Depo Talebi",
     body: "1 yeni sipariş var, uygulamayı kontrol et",
-    url: "/"
+    url: "./"
   };
 
   try {
     data = event.data.json();
   } catch {}
 
+  const iconUrl =
+    new URL("./icons/icon-192.png", self.registration.scope).href;
+
   event.waitUntil(
-    self.registration.showNotification(data.title || "Depo Talebi", {
-      body: data.body || "1 yeni sipariş var",
-      icon: "/logo.png",
-      badge: "/logo.png",
-      data: { url: data.url || "/" }
-    })
+    self.registration.showNotification(
+      data.title || "Depo Talebi",
+      {
+        body: data.body || "1 yeni sipariş var",
+        icon: iconUrl,
+        badge: iconUrl,
+        data: { url: data.url || "./" }
+      }
+    )
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data?.url || "/"));
+
+  const target =
+    event.notification.data?.url
+    || "./";
+
+  event.waitUntil(
+    clients.matchAll({
+      type: "window",
+      includeUncontrolled: true
+    }).then((windows) => {
+      const existing =
+        windows.find(client =>
+          client.url.startsWith(self.registration.scope)
+        );
+
+      if (existing) {
+        existing.focus();
+        return existing.navigate(target);
+      }
+
+      return clients.openWindow(target);
+    })
+  );
 });

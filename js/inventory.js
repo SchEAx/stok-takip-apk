@@ -36,154 +36,15 @@ function setLoading(flag) { state.loading = flag; el.refreshBtn.disabled = flag;
   el.movementSearchInput.disabled = flag;
 } el.refreshBtn.textContent = flag ? "Yükleniyor..." : "Yenile"; el.saveProductBtn.textContent = flag ? "Kaydediliyor..." : "Ürünü Kaydet"; }
 
-async function loadDashboardStats() {
-  // Önce Supabase SQL fonksiyonunu dener. Fonksiyon yoksa eski güvenli yönteme düşer.
-  // Böylece SQL paketini çalıştırmadan da uygulama bozulmaz.
-  try {
-    const { data, error } = await supabaseClient.rpc("stock_dashboard_stats");
-    if (error) throw error;
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) throw new Error("Sayaç sonucu boş geldi");
-
-    if (el.totalProductCount) el.totalProductCount.textContent = Number(row.total_products || 0);
-    if (el.totalStockCount) el.totalStockCount.textContent = Number(row.total_stock || 0);
-    if (el.reservedStockCount) el.reservedStockCount.textContent = Number(row.reserved_stock || 0);
-    if (el.criticalStockCount) el.criticalStockCount.textContent = Number(row.critical_stock || 0);
-    return;
-  } catch (rpcErr) {
-    console.warn("stock_dashboard_stats RPC yok/çalışmadı, eski sayaç yöntemine düşüldü:", rpcErr?.message || rpcErr);
-  }
-
-  try {
-    const { count, error: countError } = await supabaseClient
-      .from("stock_products")
-      .select("id", { count: "exact", head: true });
-    if (countError) throw countError;
-
-    let totalStock = 0;
-    let reserved = 0;
-    let critical = 0;
-    let from = 0;
-    const pageSize = 1000;
-
-    while (true) {
-      const to = from + pageSize - 1;
-      const { data, error } = await supabaseClient
-        .from("stock_products")
-        .select("quantity,reserved_quantity,min_stock")
-        .range(from, to);
-      if (error) throw error;
-
-      (data || []).forEach(row => {
-        const qty = Number(row.quantity || 0);
-        const res = Number(row.reserved_quantity || 0);
-        const min = Number(row.min_stock || 0);
-        totalStock += qty;
-        reserved += res;
-        if ((qty - res) <= min) critical += 1;
-      });
-
-      if (!data || data.length < pageSize) break;
-      from += pageSize;
-    }
-
-    if (el.totalProductCount) el.totalProductCount.textContent = Number(count || 0);
-    if (el.totalStockCount) el.totalStockCount.textContent = totalStock;
-    if (el.reservedStockCount) el.reservedStockCount.textContent = reserved;
-    if (el.criticalStockCount) el.criticalStockCount.textContent = critical;
-  } catch (err) {
-    console.warn("Sayaçlar alınamadı:", err?.message || err);
-    if (state.products?.length) updateStats();
-  }
-}
+async function loadDashboardStats() { throw new Error("VDS API yüklenmeden sayaçlar alınamaz."); }
 window.loadDashboardStats = loadDashboardStats;
 
-async function loadOperationFilterOptions() {
-  if (state.operationFilterOptionsLoaded) {
-    refreshOperationFilters();
-    return;
-  }
-  let rows = [];
-  let from = 0;
-  const pageSize = 1000;
-  while (true) {
-    const to = from + pageSize - 1;
-    const { data, error } = await supabaseClient
-      .from("stock_products")
-      .select("category,vehicle_brand")
-      .range(from, to);
-    if (error) throw error;
-    rows = rows.concat(data || []);
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-  state.operationCategories = uniqueCleanValues(rows.map(r => r.category));
-  state.operationBrands = uniqueCleanValues(rows.map(r => r.vehicle_brand));
-  state.operationFilterOptionsLoaded = true;
-  refreshOperationFilters();
-}
+async function loadOperationFilterOptions() { throw new Error("VDS API yüklenmeden filtreler alınamaz."); }
 window.loadOperationFilterOptions = loadOperationFilterOptions;
 
-async function loadProducts() {
-  let allRows = [];
-  let from = 0;
-  const pageSize = 1000;
-
-  while (true) {
-    const to = from + pageSize - 1;
-
-    const { data, error } = await supabaseClient
-      .from("stock_products")
-      .select("*")
-      .order("product_name", { ascending: true })
-      .range(from, to);
-
-    if (error) throw error;
-
-    allRows = allRows.concat(data || []);
-
-    if (!data || data.length < pageSize) break;
-
-    from += pageSize;
-  }
-
-  state.products = filterProductsByCurrentUser(allRows.map(mapProduct));
-
-  applySearch();
-  updateStats();
-  refreshProductQuickLists();
-  refreshOperationFilters();
-  if (state.activeTab === "operation" && (el.operationBrandFilter?.value || el.operationCategoryFilter?.value || String(el.operationSearchInput?.value || "").trim().length >= 2)) {
-    renderOperationResults();
-  }
-
-  if (typeof renderSaleProducts === "function") {
-    renderSaleProducts();
-  }
-  if (state.activeTab === "management") renderCategoryBrandManagement();
-  if (state.activeTab === "categoryValues") renderCategoryValues();
-}
-async function loadMovements() { const { data, error } = await supabaseClient.from("stock_movements").select("*, stock_products(product_name, barcode, category)").order("created_at", { ascending: false }).limit(300); if (error) throw error; state.movements = (data || []).filter(row => currentStaff().role === "admin" || canAccessCategory(row.stock_products?.category || "")); renderMovements(); if (typeof renderSaleDashboard === "function") renderSaleDashboard(); }
-async function loadStockRequests() {
-  const { data, error } = await supabaseClient.from("stock_requests").select("*").in("status", ["bekliyor", "rezerve_edildi", "teslim_edildi", "montaj_bitti", "iptal"]).order("created_at", { ascending: false }).limit(150);
-  if (error) { el.stockRequestsBox.innerHTML = `<div class="empty-state">Talep alınamadı: ${escapeHtml(error.message)}</div>`; return; }
-  state.stockRequests = data || []; const todayTR = new Date().toLocaleDateString("tr-TR", {
-  timeZone: "Europe/Istanbul"
-});
-
-state.stockRequests = state.stockRequests.filter(req => {
-  if (req.status !== "montaj_bitti") return true;
-
-  const reqDateTR = new Date(req.created_at).toLocaleDateString("tr-TR", {
-    timeZone: "Europe/Istanbul"
-  });
-
-  return reqDateTR === todayTR;
-});
-  state.stockRequests.forEach((r) => state.seenRequestIds.add(r.id));
-  updateRequestBadge();
-  renderStockRequests();
-}
+async function loadProducts() { throw new Error("VDS API yüklenmeden ürünler alınamaz."); }
+async function loadMovements() { throw new Error("VDS API yüklenmeden hareketler alınamaz."); }
+async function loadStockRequests() { throw new Error("VDS API yüklenmeden talepler alınamaz."); }
 
 window.loadStockRequests = loadStockRequests;
 async function loadAll() { try { setLoading(true); await Promise.all([loadDashboardStats(), loadMovements()]); } catch (err) { console.error(err); showToast(err.message || "Veriler yüklenemedi", true); } finally { setLoading(false); } }
@@ -426,106 +287,7 @@ function renderProducts() {
   }).join("");
 }
 
-window.assignBarcodeToStockGroup = async function(seedId) {
-  if (!requireRoleAction(["admin", "depo"], "Toplu barkod verme yetkisi sadece Admin/Depo")) return;
-  const sourcePool = uniqueRowsById([
-    ...(state.products || []),
-    ...(state.operationResults || []),
-    ...(state.movementResults || [])
-  ]);
-  const seed = sourcePool.find(p => String(p.id) === String(seedId));
-  if (!seed) return showToast("Ürün bulunamadı", true);
-
-  const key = groupedStockIdentityKey(seed);
-  let members = sourcePool.filter(p => groupedStockIdentityKey(p) === key);
-
-  // Günlük işlem ekranında tüm ürünler state.products'a yüklenmemiş olabilir.
-  // Aynı kimlikteki diğer rafları Supabase'den de tamamla.
-  try {
-    let groupQuery = supabaseClient.from("stock_products").select(STOCK_PRODUCT_SELECT).limit(500);
-    if (seed.category) groupQuery = groupQuery.eq("category", seed.category);
-    if (seed.carBrand) groupQuery = groupQuery.eq("vehicle_brand", seed.carBrand);
-    if (seed.carModel) groupQuery = groupQuery.eq("vehicle_model", seed.carModel);
-    if (seed.productBrand) groupQuery = groupQuery.eq("product_brand", seed.productBrand);
-    const { data, error } = await groupQuery;
-    if (!error && data) {
-      members = uniqueRowsById([...members, ...data.map(mapProduct)])
-        .filter(p => groupedStockIdentityKey(p) === key);
-    }
-  } catch (err) {
-    console.warn("Toplu barkod grup tamamlama atlandı:", err);
-  }
-
-  if (!members.length) return showToast("Birleştirilecek ürün kaydı bulunamadı", true);
-
-  const existing = [...new Set(members.map(p => String(p.barcode || "").trim()).filter(Boolean))];
-  const defaultBarcode = existing.length === 1 ? existing[0] : "";
-  const barcode = await appPrompt(
-    `${seed.name || seed.category || "Ürün"}
-${members.length} ayrı stok kaydına aynı barkod verilecek.
-
-Yeni barkod:`,
-    defaultBarcode,
-    { title: "Toplu Barkod Ver", okText: "Barkodu Kaydet" }
-  );
-  if (barcode === null) return;
-  const cleanBarcode = String(barcode || "").trim();
-  if (!cleanBarcode) return showToast("Barkod boş olamaz", true);
-
-  let conflict = sourcePool.find(p =>
-    String(p.barcode || "").trim() === cleanBarcode && groupedStockIdentityKey(p) !== key
-  );
-  if (!conflict) {
-    try {
-      const { data } = await supabaseClient
-        .from("stock_products")
-        .select(STOCK_PRODUCT_SELECT)
-        .eq("barcode", cleanBarcode)
-        .limit(20);
-      conflict = (data || []).map(mapProduct).find(p => groupedStockIdentityKey(p) !== key) || null;
-    } catch (err) {
-      console.warn("Barkod çakışma kontrolü atlandı:", err);
-    }
-  }
-  if (conflict) {
-    return showToast(`Bu barkod başka bir üründe kullanılıyor: ${conflict.name || conflict.category || "Ürün"}`, true);
-  }
-
-  if (!(await appConfirm(`${members.length} kayıt aynı barkoda geçirilecek:
-${cleanBarcode}
-
-Konum ve stok adetleri ayrı kalacak. Devam edilsin mi?`, { okText: "Uygula" }))) return;
-
-  try {
-    setLoading(true);
-    const ids = members.map(p => p.id);
-    const chunkSize = 200;
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const { error } = await supabaseClient.from("stock_products").update({ barcode: cleanBarcode }).in("id", ids.slice(i, i + chunkSize));
-      if (error) throw error;
-    }
-    members.forEach(p => { p.barcode = cleanBarcode; });
-    const changedIds = new Set(ids.map(String));
-    [state.products, state.filteredProducts, state.operationResults, state.movementResults].forEach(list => {
-      (list || []).forEach(p => { if (changedIds.has(String(p.id))) p.barcode = cleanBarcode; });
-    });
-    await logActivity(
-      "group_barcode_update",
-      `${seed.name || seed.category || "Ürün"}: ${members.length} stok kaydına ${cleanBarcode} barkodu verildi`,
-      "stock_products",
-      seed.id
-    );
-    applySearch();
-    if (el.operationResultBox) renderOperationCards(state.operationResults || []);
-    if (el.movementSearchList && state.movementResults?.length) renderMovementCards(state.movementResults);
-    showToast(`${members.length} kayda aynı barkod verildi ✅`);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Toplu barkod verilemedi", true);
-  } finally {
-    setLoading(false);
-  }
-};
+window.assignBarcodeToStockGroup = async function() { showToast("Toplu barkod işlemi VDS endpointine taşınmadı", true); };
 function renderMovements() {
   if (!state.movements.length) { el.movementList.innerHTML = `<div class="empty-state">Henüz hareket yok</div>`; return; }
   el.movementList.innerHTML = state.movements.map((m) => { const productName = m.stock_products?.product_name || m.description || "-"; const type = String(m.movement_type || "").toLowerCase(); const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis"; return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`; }).join("");
@@ -617,7 +379,7 @@ function getOperationQty(productId) {
 function setOperationQty(productId, value) {
   const qty = Math.max(1, Number(value || 1));
   state.operationQty[productId] = qty;
-  // Miktar değişince Supabase'e tekrar sorgu atma; sadece mevcut kartları yeniden çiz.
+  // Miktar değişince eski veri katmanı'e tekrar sorgu atma; sadece mevcut kartları yeniden çiz.
   renderOperationCards(state.operationResults || []);
 }
 window.setOperationQty = setOperationQty;
@@ -716,26 +478,7 @@ function escapeIlikeValue(value) {
   return String(value || "").replace(/[%_,]/g, "");
 }
 
-async function fetchOperationProductRows({ brand = "", category = "", token = "", limit = 600 } = {}) {
-  let query = supabaseClient
-    .from("stock_products")
-    .select(STOCK_PRODUCT_SELECT)
-    .order("product_name", { ascending: true })
-    .limit(limit);
-
-  if (brand) query = query.eq("vehicle_brand", brand);
-  if (category) query = query.eq("category", category);
-
-  const safeToken = escapeIlikeValue(token);
-  if (safeToken) {
-    const columns = ["barcode", "product_name", "product_brand", "category", "vehicle_brand", "vehicle_model", "vehicle_type", "vehicle_year", "location", "note"];
-    query = query.or(columns.map(col => `${col}.ilike.%${safeToken}%`).join(","));
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
-}
+async function fetchOperationProductRows() { return []; }
 
 function uniqueRowsById(rows) {
   const map = new Map();
@@ -746,51 +489,7 @@ function uniqueRowsById(rows) {
   return [...map.values()];
 }
 
-async function searchStockProducts({ brand = "", category = "", search = "", limit = 120 } = {}) {
-  const rawSearch = String(search || "").trim();
-
-  // SQL paketindeki search_stock_products fonksiyonu varsa tek sorgu ile hızlı arar.
-  // Fonksiyon henüz kurulmadıysa catch içinde mevcut güvenli JS/Supabase arama mantığı devam eder.
-  try {
-    const { data, error } = await supabaseClient.rpc("search_stock_products", {
-      p_brand: brand || null,
-      p_category: category || null,
-      p_search: rawSearch || null,
-      p_limit: Number(limit || 120)
-    });
-    if (error) throw error;
-    const rpcRows = data || [];
-    const needsFullPriceRows = rpcRows.some(row =>
-      row && !(Object.prototype.hasOwnProperty.call(row, "average_sale_price") || Object.prototype.hasOwnProperty.call(row, "purchase_price"))
-    );
-    if (needsFullPriceRows && rpcRows.length) {
-      const ids = rpcRows.map(row => row.id).filter(Boolean);
-      if (ids.length) {
-        const { data: fullRows, error: fullError } = await supabaseClient
-          .from("stock_products")
-          .select(STOCK_PRODUCT_SELECT)
-          .in("id", ids);
-        if (!fullError && fullRows) {
-          const order = new Map(ids.map((id, index) => [String(id), index]));
-          return fullRows.sort((a, b) => (order.get(String(a.id)) ?? 999999) - (order.get(String(b.id)) ?? 999999));
-        }
-      }
-    }
-    return rpcRows;
-  } catch (rpcErr) {
-    console.warn("search_stock_products RPC yok/çalışmadı, eski arama yöntemine düşüldü:", rpcErr?.message || rpcErr);
-  }
-
-  const q = normalizeText(rawSearch);
-  const tokens = q.split(" ").filter(t => t.length >= 2).slice(0, 6);
-  if (tokens.length) {
-    const searches = tokens.map(token =>
-      fetchOperationProductRows({ brand, category, token, limit: Math.max(Number(limit || 120) * 4, 400) })
-    );
-    return uniqueRowsById((await Promise.all(searches)).flat()).slice(0, Math.max(Number(limit || 120) * 4, 400));
-  }
-  return fetchOperationProductRows({ brand, category, token: "", limit });
-}
+async function searchStockProducts() { throw new Error("VDS API yüklenmeden ürün aranamaz."); }
 
 async function queryOperationProducts() {
   if (!el.operationResultBox) return;
@@ -862,65 +561,7 @@ window.clearOperationFilters = function() {
   state.operationCacheKey = "";
   if (el.operationResultBox) el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
 };
-window.operationStockAction = async function(id, type) {
-  const direction = String(type || "").trim().toLowerCase();
-  if (!['giris', 'cikis'].includes(direction)) {
-    return showToast("Hareket tipi belirlenemedi", true);
-  }
-
-  const product = [...(state.operationResults || []), ...(state.products || [])]
-    .find((p) => String(p.id) === String(id));
-  if (!product) return showToast("Ürün bulunamadı", true);
-  if (!canAccessCategory(product.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
-  if (direction === "giris" && !requireUserAction("stockIn", "Stok giriş yetkin yok")) return;
-  if (direction === "cikis" && !requireUserAction("stockOut", "Stok çıkış yetkin yok")) return;
-
-  const quantity = getOperationQty(id);
-  const available = Number(product.stock || 0) - Number(product.reserved || 0);
-  if (direction === "cikis" && available < quantity) {
-    return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  }
-
-  const label = direction === "giris" ? "giriş" : "çıkış";
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-
-  try {
-    setLoading(true);
-
-    const { data: newQuantity, error } = await supabaseClient.rpc("apply_manual_stock_movement", {
-      p_product_id: id,
-      p_direction: direction,
-      p_quantity: Number(quantity),
-      p_description: `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`,
-      p_actor: currentStaff()?.username || currentStaff()?.name || "Sistem"
-    });
-
-    if (error) throw error;
-
-    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
-
-    const updatedQty = Number(newQuantity ?? (direction === "giris"
-      ? Number(product.stock || 0) + Number(quantity)
-      : Number(product.stock || 0) - Number(quantity)));
-
-    product.stock = updatedQty;
-    const idx = state.operationResults.findIndex(p => String(p.id) === String(id));
-    if (idx >= 0) state.operationResults[idx] = product;
-    const allIdx = state.products.findIndex(p => String(p.id) === String(id));
-    if (allIdx >= 0) state.products[allIdx].stock = updatedQty;
-
-    renderOperationCards(state.operationResults || []);
-    await loadMovements();
-    renderMovementSearchResults();
-    loadDashboardStats().catch(() => updateStats());
-    showToast(`${quantity} adet ${label} kaydedildi ✅`);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "İşlem kaydedilemedi", true);
-  } finally {
-    setLoading(false);
-  }
-};
+window.operationStockAction = async function() { throw new Error("VDS API yüklenmeden stok işlemi yapılamaz."); };
 
 function renderStockRequests() {
   updateRequestBadge();
@@ -937,77 +578,6 @@ window.setRequestFilter = function(status) { state.requestFilter = status; rende
 function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.productPurchasePrice, el.productAverageSalePrice, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); }
 function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
-window.deleteProduct = async function(id) { if (!requireRoleAction(["admin"], "Ürün silme yetkisi sadece Admin")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!(await appConfirm("Bu ürünü silmek istediğine emin misin?", { danger: true, okText: "Sil" }))) return; try { setLoading(true); const { error } = await supabaseClient.from("stock_products").delete().eq("id", id); if (error) throw error; await logActivity("product_delete", `Ürün silindi: ${product?.name || id}`, "stock_products", id); state.products = (state.products || []).filter(p => String(p.id) !== String(id)); state.filteredProducts = (state.filteredProducts || []).filter(p => String(p.id) !== String(id)); state.operationResults = (state.operationResults || []).filter(p => String(p.id) !== String(id)); state.movementResults = (state.movementResults || []).filter(p => String(p.id) !== String(id)); if (el.productTableBody) renderProducts(); if (el.operationResultBox) renderOperationCards(state.operationResults || []); showToast("Ürün silindi"); state.operationFilterOptionsLoaded = false; await loadDashboardStats(); if (state.activeTab === "operation") { await queryOperationProducts(); await loadMovements(); } else { await loadMovements(); } } catch (err) { console.error(err); showToast(err.message || "Ürün silinemedi", true); } finally { setLoading(false); } };
-window.quickStockAction = async function(id, type, fixedQty = null) {
-  if (!requireRoleAction(["admin", "depo"], "Stok giriş/çıkış yetkisi sadece Admin/Depo")) return;
-
-  const direction = String(type || "").trim().toLowerCase();
-  if (!['giris', 'cikis'].includes(direction)) return showToast("Hareket tipi belirlenemedi", true);
-
-  const product = [...(state.movementResults || []), ...(state.operationResults || []), ...(state.products || [])]
-    .find((p) => String(p.id) === String(id));
-  if (!product) return showToast("Ürün bulunamadı", true);
-
-  const quantity = Number(fixedQty || getQuickQty(id) || 1);
-  if (!quantity || quantity <= 0) return showToast("Geçerli miktar gir", true);
-
-  const available = Number(product.stock || 0) - Number(product.reserved || 0);
-  if (direction === "cikis" && available < quantity) {
-    return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  }
-
-  const label = direction === "giris" ? "giriş" : "çıkış";
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-
-  try {
-    setLoading(true);
-
-    const { data: newQuantity, error } = await supabaseClient.rpc("apply_manual_stock_movement", {
-      p_product_id: id,
-      p_direction: direction,
-      p_quantity: Number(quantity),
-      p_description: `Ürün ekle ekranı manuel stok ${label}${actorSuffix()}`,
-      p_actor: currentStaff()?.username || currentStaff()?.name || "Sistem"
-    });
-    if (error) throw error;
-
-    const updatedQty = Number(newQuantity ?? (direction === "giris"
-      ? Number(product.stock || 0) + quantity
-      : Number(product.stock || 0) - quantity));
-
-    product.stock = updatedQty;
-    const midx = state.movementResults.findIndex(p => String(p.id) === String(id));
-    if (midx >= 0) state.movementResults[midx].stock = updatedQty;
-    const oidx = state.operationResults.findIndex(p => String(p.id) === String(id));
-    if (oidx >= 0) state.operationResults[oidx].stock = updatedQty;
-    const pidx = state.products.findIndex(p => String(p.id) === String(id));
-    if (pidx >= 0) state.products[pidx].stock = updatedQty;
-
-    if (direction === "cikis") {
-      const minStock = Number(product.minStock || 0);
-      const willAvailable = updatedQty - Number(product.reserved || 0);
-      if (willAvailable <= minStock) {
-        await createNotification({
-          title: "Kritik stok uyarısı",
-          message: `${product.name || product.category || "Ürün"} kritik seviyede. Kullanılabilir: ${willAvailable}, Min: ${minStock}`,
-          type: "critical_stock",
-          target_role: "depo",
-          source_table: "stock_products",
-          source_id: id
-        });
-      }
-    }
-
-    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
-    await loadMovements();
-    renderMovementCards(state.movementResults || []);
-    loadDashboardStats().catch(() => updateStats());
-    showToast(`${quantity} adet ${label} kaydedildi ✅`);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Hareket kaydedilemedi", true);
-  } finally {
-    setLoading(false);
-  }
-};
+window.deleteProduct = async function() { throw new Error("VDS API yüklenmeden ürün silinemez."); };
+window.quickStockAction = async function() { throw new Error("VDS API yüklenmeden hızlı stok işlemi yapılamaz."); };
 

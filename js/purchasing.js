@@ -4,39 +4,8 @@ let purchaseDraftRealtimeChannel = null;
 function purchaseProductById(id) {
   return [...(state.operationResults || []), ...(state.products || [])].find(p => String(p.id) === String(id));
 }
-async function loadSharedPurchaseOrderDraft() {
-  try {
-    const { data, error } = await supabaseClient
-      .from("purchase_order_draft_items")
-      .select("product_id,quantity,supplier_hint,note,updated_at,stock_products(product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year)")
-      .order("updated_at", { ascending: true });
-    if (error) throw error;
-    state.purchaseOrderDraft = (data || []).map(row => {
-      const p = row.stock_products || {};
-      return {
-        productId: row.product_id,
-        name: p.product_name || p.category || "Ürün",
-        productBrand: p.product_brand || "",
-        category: p.category || "",
-        detail: [p.product_brand, p.category, p.vehicle_brand, p.vehicle_model, p.vehicle_type, p.vehicle_year].filter(Boolean).join(" · "),
-        quantity: Number(row.quantity || 1),
-        supplierHint: row.supplier_hint || p.product_brand || "",
-        note: row.note || ""
-      };
-    });
-    renderPurchaseOrderDraft();
-  } catch (err) {
-    console.error(err);
-    showToast("Sipariş havuzu alınamadı. v3.7 SQL dosyasını çalıştır.", true);
-  }
-}
-function subscribeSharedPurchaseOrderDraft() {
-  if (purchaseDraftRealtimeChannel || !supabaseClient?.channel) return;
-  purchaseDraftRealtimeChannel = supabaseClient
-    .channel("shared-purchase-order-draft")
-    .on("postgres_changes", { event: "*", schema: "public", table: "purchase_order_draft_items" }, () => loadSharedPurchaseOrderDraft().catch(() => {}))
-    .subscribe();
-}
+async function loadSharedPurchaseOrderDraft() { throw new Error("VDS API yüklenmeden sipariş taslağı alınamaz."); }
+function subscribeSharedPurchaseOrderDraft() { return null; }
 function renderPurchaseOrderDraft() {
   if (!el.purchaseDraftList) return;
   const rows = state.purchaseOrderDraft || [];
@@ -54,43 +23,11 @@ function renderPurchaseOrderDraft() {
   </div>`).join("");
   if (el.purchaseDraftTotal) el.purchaseDraftTotal.textContent = rows.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
 }
-window.addProductToPurchaseOrder = async function(productId) {
-  if (!requireUserAction("addToOrderPool", "Sipariş havuzuna ekleme yetkin yok")) return;
-  const p = purchaseProductById(productId);
-  if (!p) return showToast("Ürün bulunamadı", true);
-  if (!canAccessCategory(p.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
-  const qty = getOperationQty(productId);
-  try {
-    const { error } = await supabaseClient.rpc("add_purchase_order_draft_item", { p_product_id: productId, p_quantity: qty, p_actor: currentStaff().name });
-    if (error) throw error;
-    await loadSharedPurchaseOrderDraft();
-    showToast(`${p.name || p.category || "Ürün"} sipariş havuzuna eklendi ✅`);
-  } catch (err) { console.error(err); showToast(err.message || "Ürün havuza eklenemedi", true); }
-};
-window.setPurchaseOrderItemQty = async function(productId, value) {
-  const qty = Math.max(1, Number(value || 1));
-  const { error } = await supabaseClient.from("purchase_order_draft_items").update({ quantity: qty, updated_at: new Date().toISOString(), added_by: currentStaff().name }).eq("product_id", productId);
-  if (error) return showToast(error.message, true);
-  await loadSharedPurchaseOrderDraft();
-};
-window.setPurchaseDraftSupplier = async function(productId, value) {
-  const { error } = await supabaseClient.from("purchase_order_draft_items").update({ supplier_hint: String(value || "").trim() || null, updated_at: new Date().toISOString() }).eq("product_id", productId);
-  if (error) return showToast(error.message, true);
-  const row = state.purchaseOrderDraft.find(x => String(x.productId) === String(productId));
-  if (row) row.supplierHint = String(value || "").trim();
-};
-window.removePurchaseOrderItem = async function(productId) {
-  const { error } = await supabaseClient.from("purchase_order_draft_items").delete().eq("product_id", productId);
-  if (error) return showToast(error.message, true);
-  await loadSharedPurchaseOrderDraft();
-};
-window.clearPurchaseOrderDraft = async function() {
-  if (!state.purchaseOrderDraft.length) return;
-  if (!(await appConfirm("Sipariş havuzu bütün cihazlarda temizlensin mi?", { danger: true, okText: "Temizle" }))) return;
-  const { error } = await supabaseClient.from("purchase_order_draft_items").delete().not("product_id", "is", null);
-  if (error) return showToast(error.message, true);
-  await loadSharedPurchaseOrderDraft();
-};
+window.addProductToPurchaseOrder = async function() { throw new Error("VDS API yüklenmeden sipariş işlemi yapılamaz."); };
+window.setPurchaseOrderItemQty = async function() { throw new Error("VDS API yüklenmeden sipariş işlemi yapılamaz."); };
+window.setPurchaseDraftSupplier = async function() { throw new Error("VDS API yüklenmeden sipariş işlemi yapılamaz."); };
+window.removePurchaseOrderItem = async function() { throw new Error("VDS API yüklenmeden sipariş işlemi yapılamaz."); };
+window.clearPurchaseOrderDraft = async function() { throw new Error("VDS API yüklenmeden sipariş işlemi yapılamaz."); };
 function purchaseOrderNo() {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
@@ -142,30 +79,7 @@ window.openPurchaseOrderGroupModal = async function(seedProductId = null) {
 };
 window.closePurchaseOrderGroupModal = function() { el.purchaseGroupModal?.classList.add("hidden"); };
 window.updatePurchaseGroupSelectedCount = updatePurchaseGroupSelectedCount;
-window.createGroupedPurchaseOrder = async function() {
-  const ids = selectedPurchaseGroupIds();
-  if (!ids.length) return showToast("En az bir ürün seç", true);
-  const supplier = String(el.purchaseGroupSupplier?.value || "").trim();
-  if (!supplier) return showToast("Tedarikçi adını yaz", true);
-  const selected = state.purchaseOrderDraft.filter(x => ids.includes(String(x.productId)));
-  if (!(await appConfirm(`${supplier} için ${selected.length} kalem sipariş oluşturulsun mu?`, { okText: "Sipariş Oluştur" }))) return;
-  try {
-    setLoading(true);
-    const orderNo = purchaseOrderNo();
-    const { data: order, error: orderError } = await supabaseClient.from("purchase_orders").insert({ order_no: orderNo, supplier, expected_date: el.purchaseGroupExpectedDate?.value || null, note: String(el.purchaseGroupNote?.value || "").trim() || null, status: "bekleniyor", created_by: currentStaff().name }).select("id").single();
-    if (orderError) throw orderError;
-    const items = selected.map(i => ({ order_id: order.id, product_id: i.productId, ordered_quantity: Number(i.quantity), received_quantity: 0 }));
-    const { error: itemError } = await supabaseClient.from("purchase_order_items").insert(items);
-    if (itemError) throw itemError;
-    const { error: clearError } = await supabaseClient.from("purchase_order_draft_items").delete().in("product_id", ids);
-    if (clearError) throw clearError;
-    await logActivity("purchase_order_create", `${orderNo} - ${supplier} - ${items.length} kalem`, "purchase_orders", order.id);
-    closePurchaseOrderGroupModal();
-    await Promise.all([loadSharedPurchaseOrderDraft(), loadPurchaseOrders()]);
-    showToast(`Sipariş oluşturuldu: ${orderNo} ✅`);
-  } catch (err) { console.error(err); showToast(err.message || "Sipariş oluşturulamadı", true); }
-  finally { setLoading(false); }
-};
+window.createGroupedPurchaseOrder = async function() { throw new Error("VDS API yüklenmeden sipariş oluşturulamaz."); };
 window.savePurchaseOrder = window.createGroupedPurchaseOrder;
 function purchaseOrderStatusLabel(status) {
   return status === "tamamlandi" ? "Tamamlandı" : status === "kismi" ? "Kısmi Geldi" : status === "iptal" ? "İptal" : "Sipariş Verildi";
@@ -188,59 +102,13 @@ function renderPurchaseOrders() {
     </div>`;
   }).join("");
 }
-window.loadPurchaseOrders = async function() {
-  if (!el.purchaseOrderList) return;
-  try {
-    const { data, error } = await supabaseClient.from("purchase_orders")
-      .select("id,order_no,supplier,expected_date,note,status,created_at,completed_at,purchase_order_items(id,product_id,ordered_quantity,received_quantity,stock_products(product_name,category,vehicle_brand,vehicle_model))")
-      .order("created_at", { ascending: false }).limit(100);
-    if (error) throw error;
-    state.purchaseOrders = data || [];
-    renderPurchaseOrders();
-  } catch (err) { console.error(err); el.purchaseOrderList.innerHTML = `<div class="empty-state">Siparişler alınamadı. v3.7 SQL dosyasını çalıştır.</div>`; }
-};
+window.loadPurchaseOrders = async function() { throw new Error("VDS API yüklenmeden siparişler alınamaz."); };
 window.fillPurchaseReceiveRemaining = function(orderId, itemId, remaining) {
   const input = document.querySelector(`[data-receive-order="${orderId}"][data-receive-item="${itemId}"]`);
   if (input) input.value = Math.max(0, Number(remaining || 0));
 };
-window.receivePurchaseOrderPartial = async function(orderId) {
-  const inputs = [...document.querySelectorAll(`[data-receive-order="${orderId}"]`)];
-  const lines = inputs.map(x => ({ item_id: x.dataset.receiveItem, quantity: Number(x.value || 0) })).filter(x => x.quantity > 0);
-  if (!lines.length) return showToast("Gelen adetleri yaz", true);
-  if (!(await appConfirm(`${lines.length} kalem için girilen miktarlar stoğa işlensin mi?`, { okText: "Stoğa İşle" }))) return;
-  try {
-    setLoading(true);
-    const { error } = await supabaseClient.rpc("receive_purchase_order_partial", { p_order_id: orderId, p_lines: lines, p_actor: currentStaff().name });
-    if (error) throw error;
-    await logActivity("purchase_receive_partial", `${lines.length} kalem / ${lines.reduce((s,x)=>s+Number(x.quantity||0),0)} adet sipariş stoğa işlendi`, "purchase_orders", orderId);
-    await Promise.all([loadPurchaseOrders(), loadDashboardStats(), loadMovements()]);
-    showToast("Gelen ürünler stoğa işlendi ✅");
-  } catch (err) { console.error(err); showToast(err.message || "Kısmi giriş yapılamadı", true); }
-  finally { setLoading(false); }
-};
-window.receivePurchaseOrderAll = async function(orderId) {
-  const order = state.purchaseOrders.find(o => String(o.id) === String(orderId));
-  if (!order) return;
-  const lines = (order.purchase_order_items || []).map(i => ({ item_id: i.id, quantity: Math.max(Number(i.ordered_quantity||0)-Number(i.received_quantity||0),0) })).filter(x => x.quantity>0);
-  if (!lines.length) return showToast("Bu siparişte bekleyen ürün yok", true);
-  if (!(await appConfirm(`Siparişte kalan toplam ${lines.reduce((s,x)=>s+x.quantity,0)} ürün stoğa işlensin mi?`, { okText: "Tamamını Al" }))) return;
-  try {
-    setLoading(true);
-    const { error } = await supabaseClient.rpc("receive_purchase_order_partial", { p_order_id: orderId, p_lines: lines, p_actor: currentStaff().name });
-    if (error) throw error;
-    await logActivity("purchase_receive_all", `${lines.length} kalem / ${lines.reduce((s,x)=>s+Number(x.quantity||0),0)} adet siparişin kalanı stoğa işlendi`, "purchase_orders", orderId);
-    await Promise.all([loadPurchaseOrders(), loadDashboardStats(), loadMovements()]);
-    showToast("Siparişin kalanının tamamı stoğa işlendi ✅");
-  } catch (err) { console.error(err); showToast(err.message || "Sipariş stoğa işlenemedi", true); }
-  finally { setLoading(false); }
-};
+window.receivePurchaseOrderPartial = async function() { throw new Error("VDS API yüklenmeden sipariş girişi yapılamaz."); };
+window.receivePurchaseOrderAll = async function() { throw new Error("VDS API yüklenmeden sipariş girişi yapılamaz."); };
 window.receivePurchaseOrder = window.receivePurchaseOrderAll;
-window.cancelPurchaseOrder = async function(orderId) {
-  const order = state.purchaseOrders.find(o => String(o.id) === String(orderId));
-  if (!order || !(await appConfirm(`${order.order_no} iptal edilsin mi? Stok değişmeyecek.`, { danger: true, okText: "İptal Et" }))) return;
-  const { error } = await supabaseClient.from("purchase_orders").update({ status: "iptal" }).eq("id", orderId).in("status", ["bekleniyor", "kismi"]);
-  if (error) return showToast(error.message, true);
-  await logActivity("purchase_order_cancel", `${order.order_no || "Sipariş"} iptal edildi`, "purchase_orders", orderId);
-  await loadPurchaseOrders(); showToast("Sipariş iptal edildi");
-};
+window.cancelPurchaseOrder = async function() { throw new Error("VDS API yüklenmeden sipariş iptal edilemez."); };
 

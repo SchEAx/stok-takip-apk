@@ -1,12 +1,11 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '3.12.0-grouped-stock-audit';
+const APP_VERSION = '16.6';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
-const SUPABASE_URL = "https://dmsovrbkoeivkvmlzals.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc292cmJrb2Vpdmt2bWx6YWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTg3NTMsImV4cCI6MjA5MjkzNDc1M30.Tf_8-AEkON4hvKsWiljiDV5z_LJW7KUebIkU-0R8x_A";
-const VAPID_PUBLIC_KEY = "BAi5RqXIHt50gvHTCOLT0XJxzW6f8OB_pYt_JN4nOKIIP8Cj9KkUu44hsLRZKLxxOKrZVdPFX_c5qc141bJt4Hc";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const VAPID_PUBLIC_KEY = "";
+// VDS-only build: eski bulut veri istemcisi tamamen kaldırıldı.
+
 
 const state = {
   products: [], filteredProducts: [], movements: [], stockRequests: [], requestFilter: "all",
@@ -31,7 +30,7 @@ originalTitle: document.title,
 
 const el = {
   totalProductCount: document.getElementById("totalProductCount"), totalStockCount: document.getElementById("totalStockCount"), reservedStockCount: document.getElementById("reservedStockCount"), criticalStockCount: document.getElementById("criticalStockCount"),
-  refreshBtn: document.getElementById("refreshBtn"), enableNotifyBtn: document.getElementById("enableNotifyBtn"), productForm: document.getElementById("productForm"), productId: document.getElementById("productId"), barcode: document.getElementById("barcode"),
+  refreshBtn: document.getElementById("refreshBtn"), checkUpdateBtn: document.getElementById("checkUpdateBtn"), pwaInstallBtn: document.getElementById("pwaInstallBtn"), enableNotifyBtn: document.getElementById("enableNotifyBtn"), productForm: document.getElementById("productForm"), productId: document.getElementById("productId"), barcode: document.getElementById("barcode"),
   productBrand: document.getElementById("productBrand"), category: document.getElementById("category"), carBrand: document.getElementById("carBrand"), carModel: document.getElementById("carModel"), carType: document.getElementById("carType"), vehicleYear: document.getElementById("vehicleYear"), stock: document.getElementById("stock"), minStock: document.getElementById("minStock"), location: document.getElementById("location"), note: document.getElementById("note"),
   saveProductBtn: document.getElementById("saveProductBtn"), clearProductBtn: document.getElementById("clearProductBtn"), movementSearchInput: document.getElementById("movementSearchInput"), movementSearchList: document.getElementById("movementSearchList"), searchInput: document.getElementById("searchInput"), productTableBody: document.getElementById("productTableBody"), movementList: document.getElementById("movementList"),
   stockRequestsBox: document.getElementById("stockRequestsBox"), reservationPanel: document.getElementById("reservationPanel"), requestedTextBox: document.getElementById("requestedTextBox"), productSearchInput: document.getElementById("productSearchInput"), productMatchBox: document.getElementById("productMatchBox"), toast: document.getElementById("toast"),
@@ -183,12 +182,14 @@ const ROLE_PERMISSION_STORE_KEY = "garage_role_permissions_v1";
 const TAB_DEFINITIONS = [
   { key: "operation", label: "İşlem" },
   { key: "add", label: "Ürün Ekle" },
+  { key: "requests", label: "Talepler" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
   { key: "categoryValues", label: "Kategori Değerleri" },
   { key: "orderSuggestion", label: "Sipariş Önerisi" },
   { key: "purchaseOrders", label: "Verilen Siparişler" },
   { key: "surveys", label: "Müşteri Memnuniyeti" },
+  { key: "history", label: "Plaka Geçmişi" },
   { key: "management", label: "Yönetim" },
   { key: "settings", label: "Ayarlar" },
   { key: "users", label: "Kullanıcılar / Yetkiler" },
@@ -197,8 +198,8 @@ const TAB_DEFINITIONS = [
 const ALL_TAB_KEYS = TAB_DEFINITIONS.map(t => t.key);
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: [...ALL_TAB_KEYS],
-  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "settings", "surveys"],
-  kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys"],
+  depo: ["operation", "add", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "history", "settings", "surveys"],
+  kasa: ["operation", "movements", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "history", "surveys"],
   satis: ["operation", "movements", "critical"],
   usta: ["operation", "movements", "critical"]
 };
@@ -223,25 +224,11 @@ function readRolePermissions() {
 function writeRolePermissions(permissions) {
   const normalized = normalizeRolePermissions(permissions);
   localStorage.setItem(ROLE_PERMISSION_STORE_KEY, JSON.stringify(normalized));
-  saveRolePermissionsToSupabase(normalized).catch(() => {});
+  saveRolePermissionsToServer(normalized).catch(() => {});
   return normalized;
 }
-async function loadRolePermissionsFromSupabase() {
-  try {
-    const { data, error } = await supabaseClient.from("app_settings").select("value").eq("key", "role_permissions").maybeSingle();
-    if (error || !data?.value) return;
-    localStorage.setItem(ROLE_PERMISSION_STORE_KEY, JSON.stringify(normalizeRolePermissions(data.value)));
-  } catch (err) {
-    console.warn("Yetki ayarları Supabase'den alınamadı, local devam:", err?.message || err);
-  }
-}
-async function saveRolePermissionsToSupabase(permissions) {
-  try {
-    await supabaseClient.from("app_settings").upsert({ key: "role_permissions", value: normalizeRolePermissions(permissions), updated_at: new Date().toISOString() }, { onConflict: "key" });
-  } catch (err) {
-    console.warn("Yetki ayarları Supabase'e yazılamadı:", err?.message || err);
-  }
-}
+async function loadRolePermissionsFromServer() { throw new Error("VDS API yüklenmeden rol izinleri okunamaz."); }
+async function saveRolePermissionsToServer() { throw new Error("VDS API yüklenmeden rol izinleri kaydedilemez."); }
 function permissionsForRole(role) { return readRolePermissions()[role] || readRolePermissions().kasa; }
 function canAccessTab(tab, role = currentStaff().role) {
   const staff = currentStaff();
@@ -258,37 +245,8 @@ function updateStaffMeta(name, patch) {
   writeStaffMeta(meta);
 }
 function currentSession() { try { return JSON.parse(localStorage.getItem(SESSION_STORE_KEY) || "null"); } catch { return null; } }
-function setCurrentSession(staff) {
-  const session = { name: staff.name, role: staff.role, loginAt: new Date().toISOString(), sessionId: Date.now() + "_" + Math.random().toString(16).slice(2) };
-  localStorage.setItem(SESSION_STORE_KEY, JSON.stringify(session));
-  localStorage.setItem(CURRENT_STAFF_STORE_KEY, staff.name);
-  updateStaffMeta(staff.name, { lastLoginAt: session.loginAt, lastSeenAt: session.loginAt, role: staff.role });
-  state.currentUser = session;
-  supabaseClient
-  .from("app_users")
-  .update({
-    last_seen_at: new Date().toISOString(),
-    last_login_at: new Date().toISOString()
-  })
-  .eq("auth_user_id", staff.authUserId || "00000000-0000-0000-0000-000000000000");
-  return session;
-}
-async function setUserOffline() {
-  try {
-    const session = currentSession();
-    if (!session?.name) return;
-
-    await supabaseClient
-      .from("app_users")
-      .update({
-        last_seen_at: null
-      })
-      .eq("auth_user_id", state.currentUser?.authUserId || "00000000-0000-0000-0000-000000000000");
-
-  } catch (err) {
-    console.warn("Offline güncellenemedi:", err);
-  }
-}
+function setCurrentSession(staff) { state.currentUser = staff || null; }
+async function setUserOffline() { return true; }
 
 function clearCurrentSession() {
   setUserOffline();
@@ -304,34 +262,10 @@ function authEmailForUsername(username) {
   return `${slug || "personel"}@garage.local`;
 }
 function populateLoginStaffSelect() {
-  // Supabase Auth + RLS modunda kullanıcı listesi girişten önce veritabanından gösterilmez.
+  // eski veri katmanı Auth + RLS modunda kullanıcı listesi girişten önce veritabanından gösterilmez.
   // Alan artık serbest kullanıcı adı girişidir.
 }
-async function loadAuthenticatedProfile() {
-  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-  if (authError || !authData?.user) throw authError || new Error("Oturum bulunamadı");
-  const { data, error } = await supabaseClient
-    .from("app_users")
-    .select("auth_user_id,username,name,role,is_active,last_seen_at,last_login_at,allowed_categories,permissions")
-    .eq("auth_user_id", authData.user.id)
-    .single();
-  if (error) throw error;
-  if (!data?.is_active) throw new Error("Bu personel hesabı pasif");
-  const profile = normalizeStaffItem({
-    authUserId: data.auth_user_id,
-    username: data.username,
-    name: data.name,
-    role: data.role,
-    allowedCategories: data.allowed_categories || [],
-    permissions: data.permissions || {},
-    lastSeenAt: data.last_seen_at,
-    lastLoginAt: data.last_login_at
-  });
-  localStorage.setItem(STAFF_STORE_KEY, JSON.stringify([profile]));
-  localStorage.setItem(CURRENT_STAFF_STORE_KEY, profile.name);
-  state.currentUser = profile;
-  return profile;
-}
+async function loadAuthenticatedProfile() { throw new Error("VDS API yüklenmeden profil alınamaz."); }
 function updateUserPill() {
   const staff = currentStaff();
   if (el.activeUserName) el.activeUserName.textContent = staff.name || "-";
@@ -357,94 +291,17 @@ function hideLogin() {
   if (el.loginOverlay) el.loginOverlay.classList.add("hidden");
   if (el.appShell) el.appShell.classList.remove("locked");
 }
-async function loginWithSelectedStaff() {
-  const username = String(el.loginStaffSelect?.value || "").trim();
-  const pass = String(el.loginPasswordInput?.value || "");
-  if (!username || !pass) return showToast("Kullanıcı adı ve şifre gerekli", true);
-  try {
-    setLoading(true);
-    const { error } = await supabaseClient.auth.signInWithPassword({ email: authEmailForUsername(username), password: pass });
-    if (error) throw error;
-    const staff = await loadAuthenticatedProfile();
-    if (el.loginPasswordInput) el.loginPasswordInput.value = "";
-    hideLogin(); updateUserPill(); applyRoleVisibility();
-    await loadStaffListFromSupabase();
-    renderStaffSelector(); renderUsersList(); renderRolePermissionEditor(); renderUserCategoryPermissions();
-    const target = canAccessTab(state.activeTab, staff.role) ? state.activeTab : (ROLE_DEFAULT_TAB[staff.role] || "operation");
-    switchTab(target);
-    await logActivity("login", `${staff.name} giriş yaptı`, "staff", staff.name);
-    showToast(`Hoş geldin ${staff.name} ✅`);
-  } catch (err) {
-    await supabaseClient.auth.signOut({ scope: "local" }).catch(() => {});
-    showToast(err?.message === "Invalid login credentials" ? "Kullanıcı adı veya şifre hatalı" : (err?.message || "Giriş yapılamadı"), true);
-  } finally { setLoading(false); }
-}
-async function initAuthGate() {
-  const { data } = await supabaseClient.auth.getSession();
-  if (!data?.session) { showLogin(); return; }
-  try {
-    const staff = await loadAuthenticatedProfile();
-    hideLogin();
-    await loadRolePermissionsFromSupabase();
-    await loadStaffListFromSupabase();
-    updateUserPill(); applyRoleVisibility(); renderUsersList(); renderRolePermissionEditor(); renderUserCategoryPermissions();
-  } catch (err) {
-    console.warn("Güvenli oturum açılamadı:", err);
-    await supabaseClient.auth.signOut({ scope: "local" });
-    showLogin();
-  }
-}
-window.logoutCurrentUser = async function() {
-  const staff = currentStaff();
-  await logActivity("logout", `${staff.name} çıkış yaptı`, "staff", staff.name).catch(() => {});
-  await supabaseClient.auth.signOut({ scope: "local" });
-  localStorage.removeItem(SESSION_STORE_KEY);
-  localStorage.removeItem(CURRENT_STAFF_STORE_KEY);
-  localStorage.removeItem(STAFF_STORE_KEY);
-  state.currentUser = null;
-  showLogin(); showToast("Çıkış yapıldı");
-};
+async function loginWithSelectedStaff() { throw new Error("VDS API yüklenmeden giriş yapılamaz."); }
+async function initAuthGate() { throw new Error("VDS API yüklenmeden oturum başlatılamaz."); }
+window.logoutCurrentUser = async function() { state.currentUser = null; showLogin(); };
 function localActivityPush(item) {
   const logs = readLocalActivityLogs();
   logs.unshift(item);
   localStorage.setItem(ACTIVITY_STORE_KEY, JSON.stringify(logs.slice(0, 300)));
 }
 function readLocalActivityLogs() { try { return JSON.parse(localStorage.getItem(ACTIVITY_STORE_KEY) || "[]"); } catch { return []; } }
-async function logActivity(action, description, entity_table = null, entity_id = null) {
-  const staff = currentStaff();
-  const item = { id: "local_" + Date.now() + "_" + Math.random().toString(16).slice(2), actor_name: staff.name, actor_role: staff.role, action, description, entity_table, entity_id: entity_id ? String(entity_id) : null, created_at: new Date().toISOString() };
-  localActivityPush(item);
-  // Ekranda eski state.activityLogs doluysa yeni yerel kayıt görünmüyordu.
-  // Yeni logu anında state'e de ekle; sayfa yenilemeden görünür olsun.
-  state.activityLogs = [item, ...(state.activityLogs || []).filter(x => String(x.id) !== String(item.id))].slice(0, 120);
-  if (state.activityLogTableReady) {
-    try {
-      const { error } = await supabaseClient.from("app_activity_logs").insert({ actor_name: item.actor_name, actor_role: item.actor_role, action: item.action, description: item.description, entity_table: item.entity_table, entity_id: item.entity_id });
-      if (error) throw error;
-    } catch (err) {
-      console.warn("app_activity_logs tablosu yok veya erişilemiyor, yerel log tutuluyor:", err);
-      state.activityLogTableReady = false;
-    }
-  }
-  renderActivityLogs();
-  renderUsersList();
-  renderRolePermissionEditor();
-}
-async function loadActivityLogs() {
-  let rows = readLocalActivityLogs();
-  if (state.activityLogTableReady) {
-    try {
-      const { data, error } = await supabaseClient.from("app_activity_logs").select("*").order("created_at", { ascending: false }).limit(120);
-      if (error) throw error;
-      rows = data || rows;
-    } catch (err) {
-      console.warn("Aktivite logları Supabase'den alınamadı:", err);
-      state.activityLogTableReady = false;
-    }
-  }
-  state.activityLogs = rows || [];
-  renderActivityLogs();
-}
+async function logActivity() { return false; }
+async function loadActivityLogs() { state.activityLogs = []; if (typeof renderActivityLogs === "function") renderActivityLogs(); return []; }
 window.loadActivityLogs = loadActivityLogs;
 function renderActivityLogs() {
   if (!el.activityLogList) return;
@@ -529,7 +386,7 @@ window.saveUserCategoryPermissions = async function() {
     card.querySelectorAll('[data-user-action]').forEach(x => user.permissions[x.dataset.userAction] = x.checked);
   });
   localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(list)));
-  const ok = await saveStaffListToSupabase(list);
+  const ok = await saveStaffListToServer(list);
   if (!ok) return;
   renderUserCategoryPermissions(); applyRoleVisibility();
   await logActivity("user_category_permissions", "Personel kategori ve işlem yetkileri güncellendi", "app_users", "permissions");
@@ -729,61 +586,19 @@ function pushLocalNotification({ title, message, type = "system", source_table =
   return item;
 }
 async function createNotification({ title, message, type = "system", target_role = "depo", source_table = null, source_id = null, silent = false }) {
-  const payload = { title, message, type, target_role, source_table, source_id, is_read: false };
-  if (!state.notificationTableReady) {
-    const item = pushLocalNotification(payload);
-    if (!silent) playNotificationSound();
-    return item;
-  }
-  try {
-    const { data, error } = await supabaseClient.from("notifications").insert(payload).select("*").single();
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    console.warn("notifications tablosu kullanılamıyor, yerel bildirime düşüldü:", err);
-    state.notificationTableReady = false;
-    const item = pushLocalNotification(payload);
-    if (!silent) playNotificationSound();
-    return item;
-  }
+  const item = { id: `local-${Date.now()}`, title, message, type, target_role, source_table, source_id, silent, is_read: false, created_at: new Date().toISOString() };
+  state.notifications.unshift(item); state.notifications = state.notifications.slice(0, 120);
+  state.unreadNotificationCount = state.notifications.filter(n => !n.is_read).length;
+  if (typeof updateNotificationBadge === "function") updateNotificationBadge();
+  if (typeof renderNotifications === "function") renderNotifications();
+  if (!silent && typeof playNotificationSound === "function") playNotificationSound();
+  return item;
 }
-async function loadNotifications() {
-  if (!state.notificationTableReady) { renderNotifications(); return; }
-  try {
-    const { data, error } = await supabaseClient.from("notifications").select("*").order("created_at", { ascending: false }).limit(120);
-    if (error) throw error;
-    state.notifications = data || [];
-    state.unreadNotificationCount = state.notifications.filter(n => !n.is_read).length;
-    updateNotificationBadge();
-    renderNotifications();
-  } catch (err) {
-    console.warn("Bildirimler yüklenemedi:", err);
-    state.notificationTableReady = false;
-    renderNotifications();
-  }
-}
+async function loadNotifications() { state.notifications = state.notifications || []; state.unreadNotificationCount = state.notifications.filter(n => !n.is_read).length; if (typeof updateNotificationBadge === "function") updateNotificationBadge(); if (typeof renderNotifications === "function") renderNotifications(); return state.notifications; }
 window.loadNotifications = loadNotifications;
 window.setNotificationFilter = function(filter) { state.notificationFilter = filter || "all"; renderNotifications(); };
-window.markNotificationRead = async function(id) {
-  const item = state.notifications.find(n => String(n.id) === String(id));
-  if (item) item.is_read = true;
-  state.unreadNotificationCount = state.notifications.filter(n => !n.is_read).length;
-  updateNotificationBadge();
-  renderNotifications();
-  if (!String(id).startsWith("local_") && state.notificationTableReady) {
-    await supabaseClient.from("notifications").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", id);
-  }
-};
-window.markAllNotificationsRead = async function() {
-  state.notifications.forEach(n => n.is_read = true);
-  state.unreadNotificationCount = 0;
-  updateNotificationBadge();
-  renderNotifications();
-  if (state.notificationTableReady) {
-    await supabaseClient.from("notifications").update({ is_read: true, read_at: new Date().toISOString() }).eq("is_read", false);
-  }
-  showToast("Bildirimler okundu yapıldı ✅");
-};
+window.markNotificationRead = async function(id) { const item = state.notifications.find(n => String(n.id) === String(id)); if (item) item.is_read = true; state.unreadNotificationCount = state.notifications.filter(n => !n.is_read).length; updateNotificationBadge(); renderNotifications(); };
+window.markAllNotificationsRead = async function() { state.notifications.forEach(n => { n.is_read = true; }); state.unreadNotificationCount = 0; updateNotificationBadge(); renderNotifications(); };
 window.testInAppNotification = function() {
   pushLocalNotification({ title: "Test bildirimi", message: "Ses ve bildirim merkezi çalışıyor knk ✅", type: "system" });
   playNotificationSound();
@@ -861,21 +676,7 @@ function buildGroupedStockProductGroups(products) {
   return [...groups.values()];
 }
 
-async function insertStockMovementRecord({ productId, movementType, quantity, description, plate = null, recordNo = null }) {
-  const qty = Math.abs(Number(quantity || 0));
-  if (!productId || !qty) return false;
-  const payload = {
-    product_id: productId,
-    movement_type: String(movementType || "stok_duzeltme"),
-    quantity: qty,
-    description: String(description || "Stok hareketi")
-  };
-  if (plate) payload.plate = plate;
-  if (recordNo) payload.record_no = recordNo;
-  const { error } = await supabaseClient.from("stock_movements").insert(payload);
-  if (error) throw error;
-  return true;
-}
+async function insertStockMovementRecord() { throw new Error("VDS-only build: eski stok hareketi veri yolu kaldırıldı."); }
 
 async function recordDirectStockDelta({ productId, beforeQty, afterQty, source = "Stok düzeltme", productName = "Ürün" }) {
   const before = Number(beforeQty || 0);
@@ -1245,28 +1046,7 @@ window.closeProductCamera = closeProductCamera;
 window.switchProductCamera = switchProductCamera;
 window.captureProductCameraPhoto = captureProductCameraPhoto;
 
-async function uploadProductImageIfNeeded(productId) {
-  if (productImageRemoveRequested) return { imageUrl: "", imageThumbUrl: "" };
-  if (!selectedProductImageBlob) {
-    const current = String(el.productImage?.value || "").trim();
-    return { imageUrl: current, imageThumbUrl: current };
-  }
-  const safeId = String(productId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "");
-  const filePath = `${safeId}/main-${Date.now()}.${selectedProductImageExt || "webp"}`;
-  if (el.productImageStatus) el.productImageStatus.textContent = "Resim yükleniyor...";
-  const { error: uploadError } = await supabaseClient.storage
-    .from(STOCK_IMAGE_BUCKET)
-    .upload(filePath, selectedProductImageBlob, {
-      cacheControl: "31536000",
-      upsert: true,
-      contentType: selectedProductImageBlob.type || "image/webp"
-    });
-  if (uploadError) throw uploadError;
-  const { data } = supabaseClient.storage.from(STOCK_IMAGE_BUCKET).getPublicUrl(filePath);
-  const publicUrl = data?.publicUrl || "";
-  if (!publicUrl) throw new Error("Resim linki alınamadı");
-  return { imageUrl: publicUrl, imageThumbUrl: publicUrl };
-}
+async function uploadProductImageIfNeeded() { throw new Error("VDS API yüklenmeden görsel yüklenemez."); }
 
 window.removeSelectedProductImage = async function() {
   productImageRemoveRequested = true;
@@ -1325,4 +1105,3 @@ window.addEventListener("popstate", () => {
     closeProductImageModal(true);
   }
 });
-

@@ -2,9 +2,13 @@
 
 <html lang="tr">
 <head>
+<meta name="garage-build-version" content="16.6">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Stok Takip</title>
+<title>GarageFlow · Stok</title>
 <meta content="#111827" name="theme-color"/>
 <script>
 (function(){
@@ -16,20 +20,24 @@
   }
 })();
 </script>
-<link href="/logo.png" rel="apple-touch-icon"/>
-<link href="manifest.webmanifest" rel="manifest"/>
-<link href="style.css" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="./icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="./icons/favicon-64.png" rel="icon" sizes="64x64" type="image/png"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="Garage Stok" name="apple-mobile-web-app-title"/>
+<link href="manifest.webmanifest?v=16.6" rel="manifest"/>
+<link href="style.css?v=16.6" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
 </head>
 <body>
-<div class="powered-badge">⚡ Powered By <span>GPT</span> &amp; <b>SchEAx</b></div>
+<div class="powered-badge">GarageFlow · <span>GPT</span> &amp; <b>SchEAx</b></div>
 <div class="login-overlay" id="loginOverlay">
 <div class="login-card">
 <div class="login-logo-row">
-<img alt="Logo" onerror="this.style.display='none'" src="/logo.png"/>
+<img alt="Logo" onerror="this.style.display='none'" src="./logo.png"/>
 <div>
-<h1>Stok Takip</h1>
+<h1>GarageFlow · Stok</h1>
 <p class="muted">Personel girişi</p>
 </div>
 </div>
@@ -38,24 +46,26 @@
 <label>Şifre</label>
 <input autocomplete="current-password" id="loginPasswordInput" placeholder="Şifreni gir" type="password"/>
 <button class="btn primary full-btn" id="loginBtn" type="button">Giriş Yap</button>
-<div class="login-help">
-        Güvenli giriş: Supabase Auth hesabındaki kullanıcı adı ve şifre
-      </div>
 </div>
 </div>
 <div class="app-shell locked" id="appShell">
 <header class="topbar">
 <div class="brand-wrap">
-<img alt="Logo" class="app-logo" onerror="this.style.display='none'" src="/logo.png"/>
+<img alt="Logo" class="app-logo" onerror="this.style.display='none'" src="./logo.png"/>
 <div>
-<h1>Stok Takip</h1>
-<p class="muted">Sade stok giriş / çıkış sistemi</p>
+<h1>GarageFlow <span class="brand-accent">· Stok</span></h1>
+<p class="muted flow-subtitle">PostgreSQL hızlı stok yönetimi</p>
+<div class="flow-route-row">
+  <span class="flow-route-pill">📍 <strong id="activeSectionLabel">İşlem</strong></span>
+  <span class="flow-live-pill"><i></i> PostgreSQL canlı</span>
+</div>
 </div>
 </div>
 <div class="top-actions">
 <div class="user-pill" id="activeUserPill">👤 <strong id="activeUserName">-</strong><span id="activeUserRole">-</span></div>
 
 
+<button class="btn pwa-install-btn hidden" id="pwaInstallBtn" type="button">📲 Yükle</button>
 <button class="btn secondary" id="refreshBtn">Yenile</button>
 <button class="btn danger" id="logoutBtn" type="button">Çıkış</button>
 </div>
@@ -65,6 +75,7 @@
 
 
 <button id="nav-add" onclick="switchTab('add')">Ürün Ekle</button>
+<button id="nav-requests" onclick="switchTab('requests')">Talepler <span id="requestNavBadge" class="nav-count hidden">0</span></button>
 <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
 <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
 <button id="nav-categoryValues" onclick="switchTab('categoryValues')">Kategori Değerleri</button>
@@ -74,6 +85,7 @@
 <button id="nav-settings" onclick="switchTab('settings')">Ayarlar</button>
 <button id="nav-users" onclick="switchTab('users')">Kullanıcılar</button>
 <button id="nav-surveys" onclick="switchTab('surveys')">Müşteri Memnuniyeti</button>
+<button id="nav-history" onclick="switchTab('history')">Plaka Geçmişi</button>
 <button id="nav-logs" onclick="switchTab('logs')">Loglar</button>
 </nav>
 <section class="stats-grid stats-grid-4">
@@ -108,10 +120,18 @@
 </div>
 <div>
 <label>Model / Ürün Ara</label>
+<div class="operation-search-tools">
 <input autocomplete="off" id="operationSearchInput" placeholder="Megane 4, Egea, Clio..." type="text"/>
+<button class="search-tool-btn" id="operationVoiceSearchBtn" type="button" aria-label="Sesle ürün ara" aria-pressed="false">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2Z"/></svg>
+</button>
+<button class="search-tool-btn" id="operationBarcodeSearchBtn" type="button" aria-label="Barkod tara">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v14H3V5Zm4 0h1v14H7V5Zm3 0h2v14h-2V5Zm4 0h1v14h-1V5Zm3 0h3v14h-3V5Z"/></svg>
+</button>
 </div>
 </div>
-<div class="operation-hint">
+</div>
+<div class="operation-hint collapsible-info" data-info-title="Hızlı İşlem İpuçları">
 <strong>İpucu:</strong> Marka + kategori seçip sadece modeli yazarsan sonuç listesi çok daralır. Örn: Renault + Paspas + Megane 4.<br/>
 <strong>Toplu stok:</strong> Aynı ürün farklı raflarda bulunuyorsa tek kartta toplam stok görünür; rafların giriş/çıkış işlemleri kartın altında ayrı ayrı kalır.
         </div>
@@ -120,11 +140,44 @@
 </div>
 </section>
 </div>
+
+<div class="page hidden" id="page-requests">
+<section class="grid-2 request-page-grid">
+  <div class="card">
+    <div class="section-head">
+      <div><h2>Depo Talepleri</h2><p class="muted">Araç kabulden gelen talepleri görüntüle, stoktan ürün eşleştir ve rezerve et.</p></div>
+      <button class="btn secondary" type="button" onclick="loadStockRequests()">Yenile</button>
+    </div>
+    <div class="request-filter-row">
+      <button class="btn secondary" type="button" onclick="setRequestFilter('active')">Aktif</button>
+      <button class="btn ghost" type="button" onclick="setRequestFilter('bekliyor')">Bekliyor</button>
+      <button class="btn ghost" type="button" onclick="setRequestFilter('rezerve_edildi')">Rezerve</button>
+      <button class="btn ghost" type="button" onclick="setRequestFilter('montaj_bitti')">Tamamlanan</button>
+      <button class="btn ghost" type="button" onclick="setRequestFilter('all')">Tümü</button>
+    </div>
+    <div class="movement-list" id="stockRequestsBox"><div class="empty-state">Talepler yükleniyor...</div></div>
+  </div>
+  <div class="card hidden" id="reservationPanel">
+    <div class="section-head">
+      <div><h2>Ürün Eşleştir / Rezerve Et</h2><p class="muted">Talep için uygun ürünü ara ve kullanılabilir stoktan ayır.</p></div>
+      <button class="btn ghost" type="button" onclick="closeReservationPanel()">Kapat</button>
+    </div>
+    <div class="request-detail" id="requestedTextBox">Talep seçilmedi</div>
+    <div class="request-reservation-box">
+      <div class="section-head compact"><div><strong>Bu talepte rezerve edilenler</strong></div></div>
+      <div class="movement-list" id="requestReservationList"><div class="empty-state">Rezervasyon yok</div></div>
+    </div>
+    <div style="margin-top:16px;"><label>Stokta Ürün Ara</label><input autocomplete="off" id="productSearchInput" placeholder="Ürün, kategori, araç modeli, barkod..." type="text"/></div>
+    <div class="movement-search-list" id="productMatchBox"><div class="empty-state">Talep seçildiğinde uygun ürünler burada görünür</div></div>
+  </div>
+</section>
+</div>
+
 <div class="page hidden" id="page-purchaseOrders">
 <section class="grid-2 purchase-order-grid">
   <div class="card">
-    <div class="section-head"><div><h2>Sipariş Havuzu</h2><p class="muted">Ürünleri burada beklet; aynı tedarikçiye ait kalemleri seçip tek sipariş oluştur.</p></div><button class="btn secondary" type="button" onclick="clearPurchaseOrderDraft()">Havuzu Temizle</button></div>
-    <div class="purchase-pool-info">
+    <div class="section-head"><div><h2>Sipariş Havuzu</h2><p class="muted">Ürünleri burada beklet; aynı tedarikçiye ait kalemleri seçip tek sipariş oluştur.</p></div><button class="btn secondary" type="button" onclick="clearPurchaseOrderDraft()">Havuzu Temizle</button></div><div class="migration-purchase-warning">Güvenlik nedeniyle havuzu toplu temizleme kapalıdır; mevcut kayıtlar korunur.</div>
+    <div class="purchase-pool-info collapsible-info" data-info-title="Sipariş Havuzu Bilgisi">
       <strong>Nasıl çalışır?</strong>
       <span>Ürün kartından “Siparişe Ekle” dediğin kalemler burada ayrı ayrı bekler. Bir kalemde “Sipariş Oluştur” dediğinde aynı tedarikçiye ait diğer ürünleri de seçebilirsin.</span>
     </div>
@@ -163,7 +216,7 @@
 <div><label>Araç Markası *</label><input autocomplete="off" class="custom-suggest-input" id="carBrand" placeholder="Örn: Renault" type="text"/></div>
 <div><label>Araç Modeli *</label><input autocomplete="off" class="custom-suggest-input" id="carModel" placeholder="Örn: Megane 4" type="text"/></div>
 <div><label>Araç Tipi</label><input autocomplete="off" class="custom-suggest-input" id="carType" placeholder="Örn: HB / Sedan / SUV" type="text"/></div>
-<div><label>Araç Model Yılı</label><input autocomplete="off" class="custom-suggest-input" id="vehicleYear" placeholder="Örn: 2016-2020" type="text"/></div>
+<div><label>Araç Model Yılı</label><input autocomplete="off" class="custom-suggest-input" id="vehicleYear" placeholder="Örn: 2016-3020" type="text"/></div>
 <div><label>Mevcut Stok</label><input id="stock" min="0" placeholder="0" step="1" type="number"/></div>
 <div><label>Minimum Stok</label><input id="minStock" min="0" placeholder="0" step="1" type="number"/></div>
 <div><label>Alış Fiyatı</label><input id="productPurchasePrice" min="0" placeholder="Örn: 22500" step="0.01" type="number"/></div>
@@ -190,7 +243,7 @@
 <div class="excel-panel">
 <div class="excel-panel-head">
 <strong>Marka + kategoriye göre Excel indir / yükle</strong>
-<span class="muted">Barkodlu Excel düzenleme/yükleme içindir. Toplam Stok Excel aynı ürünleri tek satırda birleştirip toplam adedi raporlar.</span>
+<span class="muted">Barkodlu Excel PostgreSQL'den tam liste indirir ve toplu güncelleme/yeni ürün yükleme içindir. Toplam Stok Excel aynı ürünleri tek satırda birleştirip toplam adedi raporlar.</span>
 </div>
 <div class="excel-filter-grid">
 <div><label>Ürün Markası</label><select id="excelProductBrandFilter"><option value="">Tüm ürün markaları</option></select></div>
@@ -242,7 +295,7 @@
 <div class="full">
 <label>Ürün / Barkod Ara</label>
 <input autocomplete="off" id="saleSearchInput" placeholder="Barkod okut veya paspas, Megane, Rizline yaz..." type="text"/>
-<p class="muted sale-hint">Barkod birebir eşleşirse ürün otomatik sepete eklenir.</p>
+<p class="muted sale-hint collapsible-info" data-info-title="Hızlı Satış Bilgisi">Barkod birebir eşleşirse ürün otomatik sepete eklenir.</p>
 </div>
 </div>
 <div class="sale-product-list" id="saleProductList">
@@ -362,7 +415,7 @@
 </section>
 </div>
 
-<div class="page hidden legacy-page" id="page-history">
+<div class="page hidden" id="page-history">
 <section class="card">
 <div class="section-head">
 <div><h2>Müşteri / Plaka Geçmişi</h2><p class="muted">Plaka veya müşteri adı ile depo talepleri ve stok hareketlerini bul</p></div>
@@ -383,23 +436,8 @@
 </section>
 </section>
 </div>
-</div>
-<div class="modal-backdrop hidden" id="saleFavoriteEditor">
-<div class="modal-card">
-<div class="section-head compact">
-<h2>Favori Satış Butonları</h2>
-<button class="btn ghost" onclick="closeSaleFavoritesEditor()" type="button">Kapat</button>
-</div>
-<p class="muted">Her satıra bir buton adı yaz. Örn: Paspas, LED, Bagaj Havuzu</p>
-<textarea id="saleFavoriteTextarea" placeholder="Paspas
-Bagaj Havuzu
-LED" rows="8"></textarea>
-<div class="row-gap" style="margin-top:12px">
-<button class="btn success" onclick="saveSaleFavoritesFromEditor()" type="button">Kaydet</button>
-<button class="btn secondary" onclick="resetSaleFavorites()" type="button">Varsayılana Dön</button>
-</div>
-</div>
-</div>
+
+
 <div class="page hidden" id="page-categoryValues">
 <section class="card">
 <div class="section-head">
@@ -423,8 +461,8 @@ LED" rows="8"></textarea>
 <div class="form-grid category-price-update-grid">
 <div><label>Kategori *</label><select id="bulkPriceCategory"><option value="">Kategori seç</option></select></div>
 <div><label>Güncellenecek Fiyat *</label><select id="bulkPriceField"><option value="average_sale_price">Ortalama Satış Fiyatı</option><option value="purchase_price">Alış Fiyatı</option><option value="both">Alış + Satış Fiyatı</option></select></div>
-<div><label>Artış Türü *</label><select id="bulkPriceMode"><option value="percent">Yüzde (%)</option><option value="fixed">Sabit Tutar (₺)</option></select></div>
-<div><label>Artış Miktarı *</label><input id="bulkPriceAmount" min="0" step="0.01" type="number" placeholder="Örn: 10 veya 500"/></div>
+<div><label>Değişim Türü *</label><select id="bulkPriceMode"><option value="percent">Yüzde Artış (%)</option><option value="fixed">Sabit Tutar (+ / - ₺)</option></select></div>
+<div><label>Değişim Miktarı *</label><input id="bulkPriceAmount" step="0.01" type="number" placeholder="Örn: 10, 500 veya -5000"/></div>
 <div class="full category-price-update-actions">
 <button class="btn success" onclick="applyCategoryPriceUpdate()" type="button">Fiyatları Güncelle</button>
 <span class="muted" id="bulkPricePreview">Kategori ve tutar seçildiğinde işlem özeti burada görünür.</span>
@@ -440,6 +478,7 @@ LED" rows="8"></textarea>
 <div id="categoryValueDetail"><div class="empty-state">Veri bekleniyor...</div></div>
 </section>
 </div>
+
 <div class="page hidden" id="page-orderSuggestion">
 <section class="card">
 <div class="section-head">
@@ -457,7 +496,7 @@ LED" rows="8"></textarea>
 <select id="orderSuggestionProductBrandFilter" class="search-input stock-category-select" onchange="setOrderSuggestionProductBrandFilter(this.value)"><option value="all">Tüm Ürün Markaları</option></select>
 <select id="orderSuggestionCarBrandFilter" class="search-input stock-category-select" onchange="setOrderSuggestionCarBrandFilter(this.value)"><option value="all">Tüm Araç Markaları</option></select>
         </div>
-<div class="order-hint">
+<div class="order-hint collapsible-info" data-info-title="Sipariş Önerisi Bilgisi">
           Hesap: <strong>Önerilen Sipariş = Son 7 Gün Çıkış - Mevcut Stok</strong>. Sonuç eksi çıkarsa 0 gösterilir.
         </div>
 <div class="category-value-summary" id="orderSuggestionSummary">
@@ -469,6 +508,7 @@ LED" rows="8"></textarea>
 <div id="orderSuggestionList"><div class="empty-state">Veri bekleniyor...</div></div>
 </section>
 </div>
+
 <div class="page hidden" id="page-surveys">
 <section class="card">
 <div class="section-head compact">
@@ -483,7 +523,7 @@ LED" rows="8"></textarea>
 <button class="btn secondary" onclick="loadCustomerSurveyStats()" type="button">Yenile</button>
 </div>
 </div>
-<div class="survey-admin-note">
+<div class="survey-admin-note collapsible-info" data-info-title="Anket Bilgisi">
           QR linki: <strong>https://anket-five.vercel.app</strong> — Müşteriler bu sayfadan anonim değerlendirme gönderebilir.
         </div>
 <div id="customerSurveyPanel">
@@ -491,34 +531,7 @@ LED" rows="8"></textarea>
 </div>
 </section>
 </div>
-<style>
-      #page-surveys .survey-admin-note{background:#172033;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:14px;color:#dbeafe}
-      #page-surveys .survey-admin-note strong{color:#93c5fd}
-      #page-surveys .survey-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
-      #page-surveys .survey-stats .stat-card{padding:16px;border-radius:14px;border:1px solid #334155;background:#111827;color:#f8fafc;box-shadow:none}
-      #page-surveys .survey-stats .stat-card:nth-child(1){border-color:#38bdf8;background:#0f2537}
-      #page-surveys .survey-stats .stat-card:nth-child(2){border-color:#22c55e;background:#10291a}
-      #page-surveys .survey-stats .stat-card:nth-child(3){border-color:#f97316;background:#301c0d}
-      #page-surveys .survey-stats .stat-card:nth-child(4){border-color:#a78bfa;background:#221735}
-      #page-surveys .survey-stats .stat-card b{display:block;font-size:30px;color:#ffffff;line-height:1.1;margin-bottom:10px}
-      #page-surveys .survey-stats .stat-card:nth-child(1) b{color:#7dd3fc}
-      #page-surveys .survey-stats .stat-card:nth-child(2) b{color:#86efac}
-      #page-surveys .survey-stats .stat-card:nth-child(3) b{color:#fdba74}
-      #page-surveys .survey-stats .stat-card:nth-child(4) b{color:#c4b5fd}
-      #page-surveys .survey-stats .stat-card span{color:#e5e7eb;font-size:13px}
-      #page-surveys .survey-table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0 20px;background:#111827;border:1px solid #334155;border-radius:12px;overflow:hidden;color:#f8fafc}
-      #page-surveys .survey-table th{background:#1f2937;color:#93c5fd;font-weight:800}
-      #page-surveys .survey-table th,#page-surveys .survey-table td{border-bottom:1px solid #334155;padding:11px;text-align:left;color:#f8fafc}
-      #page-surveys .survey-table tr:last-child td{border-bottom:none}
-      #page-surveys .survey-table td:last-child{font-weight:800;color:#86efac}
-      #page-surveys .survey-comment{border:1px solid #334155;border-radius:12px;padding:12px;margin:10px 0;background:#111827;color:#f8fafc}
-      #page-surveys .survey-comment.danger{border-color:#ef4444;background:#2a1111}
-      #page-surveys .survey-comment strong{color:#93c5fd}
-      #page-surveys .survey-comment p{margin:8px 0 0;white-space:pre-wrap;color:#f8fafc}
-      #page-surveys .survey-comment small{display:block;color:#cbd5e1;margin-top:6px}
-    
-.purchase-order-grid{align-items:start}.purchase-order-head-fields{margin:14px 0}.purchase-order-head-fields .full{grid-column:1/-1}.purchase-order-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border,#dfe5ec)}.purchase-draft-item,.purchase-order-card{border:1px solid var(--border,#dfe5ec);border-radius:14px;padding:12px;background:var(--card,#fff)}.purchase-draft-item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}.purchase-draft-item input{width:84px}.purchase-order-card .order-items{margin-top:10px;display:grid;gap:7px}.purchase-order-card .order-line{display:flex;justify-content:space-between;gap:12px;padding:7px 9px;border-radius:9px;background:rgba(127,127,127,.08)}.purchase-order-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.nav-count{display:inline-flex;min-width:20px;height:20px;padding:0 6px;align-items:center;justify-content:center;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;margin-left:4px}.nav-count.hidden{display:none}@media(max-width:720px){.purchase-draft-item{grid-template-columns:1fr auto}.purchase-draft-item .remove-order-item{grid-column:1/-1}.purchase-order-footer{align-items:stretch;flex-direction:column}}
-</style>
+
 <div class="page hidden" id="page-management">
 <section class="card management-card">
 <div class="section-head">
@@ -545,12 +558,20 @@ LED" rows="8"></textarea>
 <div class="management-tool-icon">🧹</div>
 <div class="management-tool-content">
 <h3>Toplu Ürün Temizleme</h3>
-<p class="muted">Excel'de <b>Araç Markası</b> alanına <b>SİLİNECEK</b> yazıp yüklediğin ürünleri tek tuşla kalıcı siler.</p>
+<p class="muted">Excel'de veya ürün düzenlemede <b>Ürün Markası</b> alanına <b>SİLİNECEK</b> yazılan ürünleri kalıcı olarak temizler. İşlemden önce bağlı kayıtların tamamı önizlenir.</p>
 <div class="delete-marked-counter">
 <span>SİLİNECEK ürün</span>
 <strong id="deleteMarkedCount">0</strong>
 </div>
 <div class="muted management-info" id="deleteMarkedInfo">Sayı kontrol edilmedi.</div>
+<div class="delete-marked-preview-grid hidden" id="deleteMarkedPreviewDetails">
+  <div><span>Stok Hareketi</span><strong id="deleteMarkedMovementCount">0</strong></div>
+  <div><span>Rezervasyon</span><strong id="deleteMarkedReservationCount">0</strong></div>
+  <div><span>Sipariş Havuzu</span><strong id="deleteMarkedDraftCount">0</strong></div>
+  <div><span>Verilmiş Sipariş Kalemi</span><strong id="deleteMarkedPurchaseItemCount">0</strong></div>
+  <div><span>Toplam Stok</span><strong id="deleteMarkedStockCount">0</strong></div>
+  <div><span>Rezerve Stok</span><strong id="deleteMarkedReservedCount">0</strong></div>
+</div>
 <div class="row-gap management-actions">
 <button class="btn secondary" onclick="loadDeleteMarkedCount()" type="button">Tekrar Kontrol Et</button>
 <button class="btn danger" disabled="" id="deleteMarkedProductsBtn" onclick="deleteMarkedProducts()" type="button">Kalıcı Olarak Sil</button>
@@ -559,6 +580,7 @@ LED" rows="8"></textarea>
 </div>
 </section>
 </div>
+
 <div class="page hidden" id="page-settings">
 <section class="card settings-card">
 <div class="section-head"><div><h2>Ayarlar</h2><p class="muted">Program görünümünü kişiselleştir. Bu sekme Admin tarafından personele özel açılabilir.</p></div></div>
@@ -566,11 +588,11 @@ LED" rows="8"></textarea>
 <div class="management-tool-icon">🔐</div>
 <div class="management-tool-content">
 <h3>Hesabım ve Şifre</h3>
-<p class="muted">Mevcut şifreni doğrulayarak Supabase Auth hesabındaki giriş şifreni değiştirebilirsin.</p>
+<p class="muted">Mevcut şifreni doğrulayarak GarageFlow giriş şifreni değiştirebilirsin. Şifren PostgreSQL tarafında bcrypt ile güvenli olarak saklanır.</p>
 <div class="form-grid password-change-grid">
 <div><label for="currentPasswordInput">Mevcut şifre</label><input id="currentPasswordInput" type="password" autocomplete="current-password" inputmode="text" /></div>
-<div><label for="newPasswordInput">Yeni şifre</label><input id="newPasswordInput" type="password" autocomplete="new-password" minlength="6" /></div>
-<div><label for="repeatPasswordInput">Yeni şifre tekrar</label><input id="repeatPasswordInput" type="password" autocomplete="new-password" minlength="6" /></div>
+<div><label for="newPasswordInput">Yeni şifre</label><input id="newPasswordInput" type="password" autocomplete="new-password" minlength="4" /></div>
+<div><label for="repeatPasswordInput">Yeni şifre tekrar</label><input id="repeatPasswordInput" type="password" autocomplete="new-password" minlength="4" /></div>
 <div class="password-change-action"><button class="btn success" id="changePasswordBtn" onclick="changeOwnPassword()" type="button">Şifreyi Güncelle</button></div>
 </div>
 <small class="muted">Şifre değişince güvenlik için oturum kapatılır ve yeni şifreyle tekrar giriş yapılır.</small>
@@ -595,6 +617,7 @@ LED" rows="8"></textarea>
 
 </section>
 </div>
+
 <div class="page hidden" id="page-users">
 <section class="grid-2 users-permission-grid">
 <div class="card">
@@ -629,6 +652,7 @@ LED" rows="8"></textarea>
 </div>
 </section>
 </div>
+
 <div class="page hidden" id="page-logs">
 <section class="card">
 <div class="section-head compact">
@@ -641,19 +665,100 @@ LED" rows="8"></textarea>
 <div class="movement-list" id="activityLogList"><div class="empty-state">Kayıt bekleniyor...</div></div>
 </section>
 </div>
+
+</div>
+<div class="modal-backdrop hidden" id="saleFavoriteEditor">
+<div class="modal-card">
+<div class="section-head compact">
+<h2>Favori Satış Butonları</h2>
+<button class="btn ghost" onclick="closeSaleFavoritesEditor()" type="button">Kapat</button>
+</div>
+<p class="muted">Her satıra bir buton adı yaz. Örn: Paspas, LED, Bagaj Havuzu</p>
+<textarea id="saleFavoriteTextarea" placeholder="Paspas
+Bagaj Havuzu
+LED" rows="8"></textarea>
+<div class="row-gap" style="margin-top:12px">
+<button class="btn success" onclick="saveSaleFavoritesFromEditor()" type="button">Kaydet</button>
+<button class="btn secondary" onclick="resetSaleFavorites()" type="button">Varsayılana Dön</button>
+</div>
+</div>
+</div>
+
+
+
+<style>
+      #page-surveys .survey-admin-note{background:#172033;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:14px;color:#dbeafe}
+      #page-surveys .survey-admin-note strong{color:#93c5fd}
+      #page-surveys .survey-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
+      #page-surveys .survey-stats .stat-card{padding:16px;border-radius:14px;border:1px solid #334155;background:#111827;color:#f8fafc;box-shadow:none}
+      #page-surveys .survey-stats .stat-card:nth-child(1){border-color:#38bdf8;background:#0f2537}
+      #page-surveys .survey-stats .stat-card:nth-child(2){border-color:#22c55e;background:#10291a}
+      #page-surveys .survey-stats .stat-card:nth-child(3){border-color:#f97316;background:#301c0d}
+      #page-surveys .survey-stats .stat-card:nth-child(4){border-color:#a78bfa;background:#221735}
+      #page-surveys .survey-stats .stat-card b{display:block;font-size:30px;color:#ffffff;line-height:1.1;margin-bottom:10px}
+      #page-surveys .survey-stats .stat-card:nth-child(1) b{color:#7dd3fc}
+      #page-surveys .survey-stats .stat-card:nth-child(2) b{color:#86efac}
+      #page-surveys .survey-stats .stat-card:nth-child(3) b{color:#fdba74}
+      #page-surveys .survey-stats .stat-card:nth-child(4) b{color:#c4b5fd}
+      #page-surveys .survey-stats .stat-card span{color:#e5e7eb;font-size:13px}
+      #page-surveys .survey-table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0 20px;background:#111827;border:1px solid #334155;border-radius:12px;overflow:hidden;color:#f8fafc}
+      #page-surveys .survey-table th{background:#1f2937;color:#93c5fd;font-weight:800}
+      #page-surveys .survey-table th,#page-surveys .survey-table td{border-bottom:1px solid #334155;padding:11px;text-align:left;color:#f8fafc}
+      #page-surveys .survey-table tr:last-child td{border-bottom:none}
+      #page-surveys .survey-table td:last-child{font-weight:800;color:#86efac}
+      #page-surveys .survey-comment{border:1px solid #334155;border-radius:12px;padding:12px;margin:10px 0;background:#111827;color:#f8fafc}
+      #page-surveys .survey-comment.danger{border-color:#ef4444;background:#2a1111}
+      #page-surveys .survey-comment strong{color:#93c5fd}
+      #page-surveys .survey-comment p{margin:8px 0 0;white-space:pre-wrap;color:#f8fafc}
+      #page-surveys .survey-comment small{display:block;color:#cbd5e1;margin-top:6px}
+      /* v15.4 - Anket kayıt tablosu / tema uyumu */
+      #page-surveys .survey-table-scroll{width:100%;overflow:auto;border-radius:14px;border:1px solid var(--border);margin:10px 0 20px;background:color-mix(in srgb,var(--panel) 92%,transparent)}
+      #page-surveys .survey-table{margin:0;border:0;border-radius:0;background:var(--panel);color:var(--text)}
+      #page-surveys .survey-table th{position:sticky;top:0;z-index:1;background:color-mix(in srgb,var(--panel) 82%,#000 18%);color:var(--text);white-space:nowrap}
+      #page-surveys .survey-table th,#page-surveys .survey-table td{border-color:var(--border);color:var(--text);vertical-align:top}
+      #page-surveys .survey-average-table{min-width:520px}
+      #page-surveys .survey-record-table{min-width:1480px}
+      #page-surveys .survey-record-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-top:18px}
+      #page-surveys .survey-record-head h3{margin-bottom:4px}
+      #page-surveys .survey-table-comment{min-width:260px;max-width:420px;white-space:normal;line-height:1.4}
+      #page-surveys .survey-row-low td{background:color-mix(in srgb,var(--danger) 10%,transparent)}
+      #page-surveys .survey-delete-btn{padding:8px 12px;white-space:nowrap}
+      /* v15.4 - ID ve Sil sütunu yatay kaydırmada da görünür */
+      #page-surveys .survey-record-table th:nth-child(1),
+      #page-surveys .survey-record-table td:nth-child(1){position:sticky;left:0;z-index:3;background:var(--panel)!important;min-width:64px}
+      #page-surveys .survey-record-table th:nth-child(2),
+      #page-surveys .survey-record-table td:nth-child(2){position:sticky;left:64px;z-index:3;background:var(--panel)!important;min-width:82px;border-right:1px solid var(--border)!important}
+      #page-surveys .survey-record-table th:nth-child(1),
+      #page-surveys .survey-record-table th:nth-child(2){z-index:5;background:color-mix(in srgb,var(--panel) 82%,#000 18%)!important}
+      #page-surveys .survey-row-low td:nth-child(1),
+      #page-surveys .survey-row-low td:nth-child(2){background:color-mix(in srgb,var(--danger) 10%,var(--panel))!important}
+      #page-surveys .survey-comment{background:var(--panel);color:var(--text);border-color:var(--border)}
+      #page-surveys .survey-comment p{color:var(--text)}
+      #page-surveys .survey-comment small{color:var(--muted)}
+      #page-surveys .survey-admin-note{background:color-mix(in srgb,var(--panel) 88%,var(--primary) 12%);border-color:var(--border);color:var(--text)}
+      #page-surveys .survey-admin-note strong{color:var(--text)}
+      @media(max-width:700px){#page-surveys .survey-record-head{align-items:stretch;flex-direction:column}#page-surveys .survey-record-head .btn{width:100%}}
+
+    
+.purchase-order-grid{align-items:start}.purchase-order-head-fields{margin:14px 0}.purchase-order-head-fields .full{grid-column:1/-1}.purchase-order-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border,#dfe5ec)}.purchase-draft-item,.purchase-order-card{border:1px solid var(--border,#dfe5ec);border-radius:14px;padding:12px;background:var(--card,#fff)}.purchase-draft-item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}.purchase-draft-item input{width:84px}.purchase-order-card .order-items{margin-top:10px;display:grid;gap:7px}.purchase-order-card .order-line{display:flex;justify-content:space-between;gap:12px;padding:7px 9px;border-radius:9px;background:rgba(127,127,127,.08)}.purchase-order-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.nav-count{display:inline-flex;min-width:20px;height:20px;padding:0 6px;align-items:center;justify-content:center;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;margin-left:4px}.nav-count.hidden{display:none}@media(max-width:720px){.purchase-draft-item{grid-template-columns:1fr auto}.purchase-draft-item .remove-order-item{grid-column:1/-1}.purchase-order-footer{align-items:stretch;flex-direction:column}}
+</style>
+
+
+
+
 <div class="modal-backdrop hidden" id="staffEditor">
 <div class="modal-card wide">
 <div class="section-head compact">
 <h2>Personel Yönetimi</h2>
 <button class="btn ghost" onclick="closeStaffEditor()" type="button">Kapat</button>
 </div>
-<p class="muted">Personel adı, rolü ve şifresini buradan düzenle. Bu alana giriş için Admin şifresi gerekir.</p>
+<p class="muted">Kullanıcı adı, personel adı, rol ve şifreyi buradan yönet. “Pasife Al” hesabın girişini kapatır; geçmiş kayıtları silmez.</p>
 <div id="staffEditorBody"></div>
 <div class="staff-editor-message hidden" id="staffEditorMessage" role="status" aria-live="polite"></div>
 <div class="row-gap" style="margin-top:12px">
 <button class="btn secondary" onclick="addStaffEditorRow()" type="button">+ Personel Ekle</button>
 <button class="btn success" id="saveStaffEditorBtn" onclick="saveStaffEditor()" type="button">Kaydet</button>
-<button class="btn danger" onclick="resetStaffEditor()" type="button">Varsayılana Dön</button>
+<button class="btn danger" onclick="resetStaffEditor()" type="button">Toplu Sıfırlama Kapalı</button>
 </div>
 </div>
 </div>
@@ -701,6 +806,93 @@ LED" rows="8"></textarea>
     </div>
   </div>
 </div>
+
+<div class="modal-backdrop hidden" id="categoryPriceEditorModal">
+  <div class="modal-card category-price-editor-card">
+    <div class="section-head compact">
+      <div>
+        <h2>💰 Ürün Fiyatlarını Düzenle</h2>
+        <p class="muted" id="categoryPriceEditorTitle">Kategori seçilmedi</p>
+      </div>
+      <button class="btn ghost" type="button" onclick="closeCategoryPriceEditor()">Kapat</button>
+    </div>
+    <div class="category-price-editor-tools">
+      <div>
+        <label>Kategori</label>
+        <input id="categoryPriceEditorCategory" type="text" disabled/>
+      </div>
+      <div>
+        <label>Ürün / Marka / Araç Ara</label>
+        <input id="categoryPriceEditorSearch" type="search" placeholder="Örn: Corolla, Rizline, 2022..." oninput="scheduleCategoryPriceEditorSearch()"/>
+      </div>
+      <button class="btn secondary" type="button" onclick="loadCategoryPriceEditorProducts()">Yenile</button>
+    </div>
+    <div class="muted" id="categoryPriceEditorInfo">Ürünler yükleniyor...</div>
+    <div id="categoryPriceEditorList" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="barcode-scanner-modal hidden" id="operationBarcodeScannerModal" aria-modal="true" role="dialog" aria-label="Barkod tarayıcı">
+  <div class="barcode-scanner-backdrop" onclick="closeOperationBarcodeScanner()"></div>
+  <div class="barcode-scanner-card">
+    <div class="barcode-scanner-head">
+      <strong>Barkodu kameraya göster</strong>
+      <button class="barcode-scanner-close" id="operationBarcodeScannerCloseBtn" type="button" aria-label="Kapat">×</button>
+    </div>
+    <div class="barcode-scanner-viewport">
+      <video id="operationBarcodeScannerVideo" playsinline webkit-playsinline muted autoplay></video>
+      <div class="barcode-scanner-guide"></div>
+    </div>
+    <div class="barcode-scanner-status" id="operationBarcodeScannerStatus">Kamera hazırlanıyor...</div>
+  </div>
+</div>
+<div class="barcode-action-modal hidden" id="operationBarcodeActionModal" aria-modal="true" role="dialog" aria-label="Barkod stok işlemi">
+  <div class="barcode-action-backdrop" id="operationBarcodeActionBackdrop"></div>
+  <div class="barcode-action-card">
+    <div class="barcode-action-head">
+      <div>
+        <h3 id="operationBarcodeActionTitle">Barkodlu Ürün</h3>
+        <div class="muted" id="operationBarcodeActionMeta"></div>
+      </div>
+      <button class="barcode-scanner-close" id="operationBarcodeActionCloseBtn" type="button" aria-label="Kapat">×</button>
+    </div>
+
+    <div class="barcode-action-total" id="operationBarcodeActionTotal"></div>
+
+    <div class="barcode-not-found hidden" id="operationBarcodeNotFound">
+      <div class="barcode-not-found-icon" aria-hidden="true">＋</div>
+      <div class="barcode-not-found-title">Bu barkod kayıtlı değil</div>
+      <div class="muted">Ürün eklemek ister misiniz?</div>
+      <div class="barcode-not-found-code">Barkod: <strong id="operationBarcodeNotFoundValue">-</strong></div>
+      <div class="barcode-not-found-actions">
+        <button class="btn secondary" id="operationBarcodeNotFoundCancelBtn" type="button">Vazgeç</button>
+        <button class="btn success" id="operationBarcodeAddProductBtn" type="button">＋ Ürün Ekle</button>
+      </div>
+    </div>
+
+    <div class="barcode-location-wrap hidden" id="operationBarcodeLocationWrap">
+      <div class="barcode-location-title">Raf / Konum Seç</div>
+      <div class="muted barcode-location-hint">Bu barkod birden fazla konumda kayıtlı. İşlem yapılacak konumu seç.</div>
+      <div class="barcode-location-list" id="operationBarcodeLocationList"></div>
+    </div>
+
+    <div class="barcode-selected-product hidden" id="operationBarcodeSelectedProduct">
+      <div class="barcode-selected-stock" id="operationBarcodeSelectedStock"></div>
+      <div class="barcode-qty-wrap">
+        <span>Adet</span>
+        <div class="barcode-qty-control">
+          <button class="btn secondary mini" id="operationBarcodeQtyMinus" type="button">−</button>
+          <input id="operationBarcodeQty" type="number" min="1" step="1" inputmode="numeric" value="1" />
+          <button class="btn secondary mini" id="operationBarcodeQtyPlus" type="button">+</button>
+        </div>
+      </div>
+      <div class="barcode-action-buttons">
+        <button class="btn success" id="operationBarcodeStockInBtn" type="button">➕ Stok Girişi</button>
+        <button class="btn danger" id="operationBarcodeStockOutBtn" type="button">➖ Stok Çıkışı</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="toast hidden" id="toast"></div>
 <div aria-modal="true" class="app-confirm-overlay hidden" id="appConfirmOverlay" role="dialog">
 <div class="app-confirm-card">
@@ -719,19 +911,24 @@ LED" rows="8"></textarea>
 <datalist id="carTypeList"></datalist>
 <datalist id="vehicleYearList"></datalist>
 <datalist id="locationList"></datalist>
-<script src="js/core.js"></script>
-<script src="js/inventory.js"></script>
-<script src="js/sales-dashboard.js"></script>
-<script src="js/staff.js"></script>
-<script src="js/sales.js"></script>
-<script src="js/requests.js"></script>
-<script src="js/surveys.js"></script>
-<script src="js/management.js"></script>
-<script src="js/purchasing.js"></script>
-<script src="js/navigation.js"></script>
-<script src="js/reports.js"></script>
-<script src="js/events.js"></script>
-<script src="js/excel.js"></script>
-<script src="app.js"></script>
+<script>window.GARAGE_BUILD_VERSION = "16.6";</script>
+<script>console.info("[GarageFlow] HTML build 16.6 · otomatik PWA güncelleme");</script>
+<script src="js/core.js?v=16.6"></script>
+<script src="js/inventory.js?v=16.6"></script>
+<script src="js/sales-dashboard.js?v=16.6"></script>
+<script src="js/staff.js?v=16.6"></script>
+<script src="js/sales.js?v=16.6"></script>
+<script src="js/requests.js?v=16.6"></script>
+<script src="js/surveys.js?v=16.6"></script>
+<script src="js/management.js?v=16.6"></script>
+<script src="js/purchasing.js?v=16.6"></script>
+<script src="js/navigation-v16.6.js?v=16.6"></script>
+<script src="js/reports.js?v=16.6"></script>
+<script src="js/migration-api.js?v=16.6"></script>
+<script src="js/search-tools.js?v=16.6"></script>
+<script src="js/events.js?v=16.6"></script>
+<script src="js/excel.js?v=16.6"></script>
+<script src="js/migration-excel.js?v=16.6"></script>
+<script src="app.js?v=16.6"></script>
 </body>
 </html>

@@ -89,105 +89,15 @@ function writeStaffList(list) {
   localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleaned));
   return cleaned;
 }
-async function loadStaffListFromSupabase() {
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_users")
-      .select("auth_user_id, username, name, role, is_active, last_seen_at, last_login_at, allowed_categories, permissions")
-      .eq("is_active", true)
-      .order("name", { ascending: true });
-    if (error) throw error;
-
-    if (Array.isArray(data) && data.length) {
-      const cleaned = cleanStaffList(data.map(row => normalizeStaffItem(row)));
-      localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleaned));
-
-      if (state.currentUser?.authUserId) {
-        const freshCurrent = cleaned.find(item => item.authUserId === state.currentUser.authUserId);
-        if (freshCurrent) state.currentUser = { ...state.currentUser, ...freshCurrent };
-      }
-      return cleaned;
-    }
-    return readStaffList();
-  } catch (err) {
-    console.warn("Personel Supabase'den alınamadı, local devam:", err?.message || err);
-    return readStaffList();
-  }
+async function loadStaffListFromServer() { throw new Error("VDS API yüklenmeden personel listesi alınamaz."); }
+function setStaffEditorMessage(message = "", type = "") {
+  const box = document.getElementById("staffEditorMessage");
+  if (!box) return;
+  box.textContent = message;
+  box.className = `staff-editor-message${type ? ` ${type}` : ""}${message ? "" : " hidden"}`;
 }
-async function saveStaffListToSupabase(list) {
-  try {
-    const incoming = cleanStaffList(list);
-    const { data: existingData, error: readError } = await supabaseClient
-      .from("app_users")
-      .select("auth_user_id, username, name, role, is_active, last_seen_at, last_login_at, allowed_categories, permissions");
-    if (readError) throw readError;
 
-    const existing = (existingData || []).map(normalizeStaffItem);
-    const synced = [];
-    const unresolved = [];
-
-    for (const item of incoming) {
-      const wantedUsername = String(item.username || authEmailForUsername(item.name).split("@")[0] || "").trim();
-      const normalizedName = normalizeText(item.name);
-      const match =
-        (item.authUserId ? existing.find(row => row.authUserId === item.authUserId) : null) ||
-        (wantedUsername ? existing.find(row => String(row.username || "").toLocaleLowerCase("tr-TR") === wantedUsername.toLocaleLowerCase("tr-TR")) : null) ||
-        existing.find(row => normalizeText(row.name) === normalizedName);
-
-      const authUserId = item.authUserId || match?.authUserId || null;
-      if (!authUserId) {
-        unresolved.push(item.name);
-        continue;
-      }
-
-      const payload = {
-        auth_user_id: authUserId,
-        username: item.username || match?.username || wantedUsername,
-        name: item.name,
-        role: item.role,
-        allowed_categories: item.allowedCategories || [],
-        permissions: item.permissions || {},
-        is_active: true,
-        updated_at: new Date().toISOString()
-      };
-
-      const { error: updateError } = await supabaseClient
-        .from("app_users")
-        .update(payload)
-        .eq("auth_user_id", authUserId);
-      if (updateError) throw updateError;
-
-      synced.push(normalizeStaffItem({
-        ...item,
-        ...payload,
-        authUserId,
-        username: payload.username,
-        isActive: true,
-        lastSeenAt: match?.lastSeenAt || item.lastSeenAt || null,
-        lastLoginAt: match?.lastLoginAt || item.lastLoginAt || null
-      }));
-    }
-
-    if (unresolved.length) {
-      showToast(`Şu personeller Auth/app_users kaydıyla eşleşmedi: ${unresolved.join(", ")}`, true);
-      console.warn("Auth kaydı bulunamayan personeller:", unresolved);
-      return false;
-    }
-
-    localStorage.setItem(STAFF_STORE_KEY, JSON.stringify(cleanStaffList(synced)));
-
-    if (state.currentUser?.authUserId) {
-      const freshCurrent = synced.find(item => item.authUserId === state.currentUser.authUserId);
-      if (freshCurrent) state.currentUser = { ...state.currentUser, ...freshCurrent };
-    }
-
-    return true;
-  } catch (err) {
-    console.warn("Personel Supabase'e yazılamadı:", err?.message || err);
-    showToast("Personel Supabase'e yazılamadı: " + (err?.message || err), true);
-    return false;
-  }
-}
+async function saveStaffListToServer() { throw new Error("VDS API yüklenmeden personel kaydedilemez."); }
 
 function currentStaffName() {
   const saved = localStorage.getItem(CURRENT_STAFF_STORE_KEY);
@@ -278,6 +188,7 @@ window.setCurrentStaff = async function(name) {
 
 function staffEditorRow(item = { name: "", role: "kasa", password: "" }) {
   const normalized = normalizeStaffItem(item);
+  const isExistingAccount = Boolean(normalized.authUserId);
   return `
     <div class="staff-editor-row" data-staff-row
       data-staff-auth-id="${escapeHtml(normalized.authUserId || "")}"
@@ -291,7 +202,7 @@ function staffEditorRow(item = { name: "", role: "kasa", password: "" }) {
         <option value="depo" ${normalized.role === "depo" ? "selected" : ""}>Depo</option>
         <option value="usta" ${normalized.role === "usta" ? "selected" : ""}>Usta</option>
       </select>
-      <input data-staff-password type="password" value="${escapeHtml(normalized.password || "")}" placeholder="Şifre" />
+      <input data-staff-password type="password" value="" placeholder="${isExistingAccount ? "Değiştirmek için yeni şifre" : "Yeni personel şifresi"}" autocomplete="new-password" />
       <button type="button" class="btn danger" onclick="this.closest('[data-staff-row]').remove()">Sil</button>
     </div>`;
 }
@@ -302,6 +213,7 @@ window.openStaffEditor = async function() {
   if (!(await verifyAdminPassword())) return;
 
   el.staffEditorBody.innerHTML = readStaffList().map(staffEditorRow).join("");
+  setStaffEditorMessage("");
   el.staffEditor.classList.remove("hidden");
 };
 
@@ -312,12 +224,21 @@ window.closeStaffEditor = function() {
 window.addStaffEditorRow = function() {
   if (!el.staffEditorBody) return;
   el.staffEditorBody.insertAdjacentHTML("beforeend", staffEditorRow({ name: "", role: "kasa", password: "" }));
+  setStaffEditorMessage("Yeni personelin adını, rolünü ve şifresini doldur.", "info");
 };
 
 window.saveStaffEditor = async function() {
   if (!el.staffEditorBody) return;
+  const saveButton = document.getElementById("saveStaffEditorBtn");
+  if (saveButton?.disabled) return;
+  setStaffEditorMessage("");
   const previous = readStaffList();
   const rows = [...el.staffEditorBody.querySelectorAll("[data-staff-row]")];
+  const unnamedRow = rows.find((row) => !normalizeStaffName(row.querySelector("[data-staff-name]")?.value));
+  if (unnamedRow) {
+    setStaffEditorMessage("Personel adı boş bırakılamaz.", "error");
+    return;
+  }
   const staff = rows.map(row => {
     const role = row.querySelector("[data-staff-role]")?.value || "kasa";
     const authUserId = String(row.dataset.staffAuthId || "").trim() || null;
@@ -327,20 +248,39 @@ window.saveStaffEditor = async function() {
       (authUserId ? previous.find(item => item.authUserId === authUserId) : null) ||
       previous.find(item => normalizeText(item.name) === normalizeText(originalName));
 
-    return normalizeStaffItem({
-      ...(oldItem || {}),
-      authUserId: authUserId || oldItem?.authUserId || null,
-      username: username || oldItem?.username || "",
-      name: normalizeStaffName(row.querySelector("[data-staff-name]")?.value),
-      role,
-      password: normalizeStaffPassword(row.querySelector("[data-staff-password]")?.value, defaultPasswordForRole(role)),
-      allowedCategories: oldItem?.allowedCategories || [],
-      permissions: oldItem?.permissions || {}
-    });
+    const enteredPassword = String(row.querySelector("[data-staff-password]")?.value || "").trim();
+    return {
+      ...normalizeStaffItem({
+        ...(oldItem || {}),
+        authUserId: authUserId || oldItem?.authUserId || null,
+        username: username || oldItem?.username || "",
+        name: normalizeStaffName(row.querySelector("[data-staff-name]")?.value),
+        role,
+        password: oldItem?.password || defaultPasswordForRole(role),
+        allowedCategories: oldItem?.allowedCategories || [],
+        permissions: oldItem?.permissions || {}
+      }),
+      pendingPassword: enteredPassword
+    };
   }).filter(x => x.name);
 
+  const missingNewPassword = staff.find((item) => !item.authUserId && item.pendingPassword.length < 4);
+  if (missingNewPassword) {
+    setStaffEditorMessage(`${missingNewPassword.name} için en az 4 karakterli şifre gir.`, "error");
+    return;
+  }
+  const duplicateName = staff.find((item, index, list) => list.findIndex((other) => normalizeText(other.name) === normalizeText(item.name)) !== index);
+  if (duplicateName) {
+    setStaffEditorMessage(`${duplicateName.name} adı listede iki kez kullanılmış.`, "error");
+    return;
+  }
+
   const cleaned = cleanStaffList(staff);
-  const syncOk = await saveStaffListToSupabase(cleaned);
+  const pendingPasswords = new Map(staff.map((item) => [item.authUserId || normalizeText(item.name), item.pendingPassword]));
+  if (saveButton) { saveButton.disabled = true; saveButton.textContent = "Kaydediliyor…"; }
+  setStaffEditorMessage("Personel hesapları kaydediliyor…", "info");
+  const syncOk = await saveStaffListToServer(cleaned, pendingPasswords);
+  if (saveButton) { saveButton.disabled = false; saveButton.textContent = "Kaydet"; }
   if (!syncOk) return;
 
   const saved = readStaffList();
@@ -350,17 +290,16 @@ window.saveStaffEditor = async function() {
   renderStaffSelector();
   renderUserCategoryPermissions();
   closeStaffEditor();
-  showToast("Personel listesi kaydedildi ✅");
+  showToast("Personel listesi ve giriş hesapları kaydedildi ✅");
 };
 
 window.resetStaffEditor = async function() {
   if (!(await appConfirm("Personel listesi ve şifreler varsayılana dönsün mü?", { danger: true }))) return;
   localStorage.removeItem(STAFF_STORE_KEY);
   localStorage.removeItem(CURRENT_STAFF_STORE_KEY);
-  const syncOk = await saveStaffListToSupabase(DEFAULT_STAFF_LIST);
+  const syncOk = await saveStaffListToServer(DEFAULT_STAFF_LIST);
   if (!syncOk) return;
   if (el.staffEditorBody) el.staffEditorBody.innerHTML = readStaffList().map(staffEditorRow).join("");
   renderStaffSelector();
   showToast("Personel listesi ve şifreler varsayılana döndü ✅");
 };
-
