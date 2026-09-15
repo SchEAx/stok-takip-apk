@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.6';
+const APP_VERSION = '16.7';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -351,7 +351,30 @@ function renderRolePermissionEditor() {
 window.renderRolePermissionEditor = renderRolePermissionEditor;
 
 function allKnownCategories() {
-  return uniqueCleanValues([...(state.products || []).map(p => p.category), ...getSuggestionValues("category")]);
+  // Yetki ekranı yalnızca o anda yüklenmiş ürünlere bağlı kalmasın.
+  // VDS filtreleri + kategori istatistikleri + personellerde kayıtlı mevcut
+  // allowed_categories değerleri birlikte kullanılır. Böylece bir personelde
+  // daha önce kayıtlı PPF / Film gibi kategoriler listeden kaybolmaz.
+  const raw = [
+    ...(state.operationCategories || []),
+    ...(state.categoryValues || []).map(v => v?.category),
+    ...(state.categoryValueRows || []).map(v => v?.category),
+    ...(state.products || []).map(p => p?.category),
+    ...getSuggestionValues("category"),
+    ...readStaffList().flatMap(s => Array.isArray(s.allowedCategories) ? s.allowedCategories : [])
+  ];
+
+  // Büyük/küçük harf ve Türkçe karakter farkıyla aynı kategori iki kez görünmesin.
+  const byNormalizedName = new Map();
+  raw.forEach(value => {
+    const clean = String(value || "").trim();
+    if (!clean) return;
+    const key = normalizeText(clean);
+    if (!key || byNormalizedName.has(key)) return;
+    byNormalizedName.set(key, clean);
+  });
+
+  return [...byNormalizedName.values()].sort((a, b) => a.localeCompare(b, "tr"));
 }
 function renderUserCategoryPermissions() {
   const box = document.getElementById("userCategoryPermissionEditor");

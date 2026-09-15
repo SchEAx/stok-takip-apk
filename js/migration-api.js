@@ -275,6 +275,40 @@ loadCategoryValues = async function() {
 };
 window.loadCategoryValues = loadCategoryValues;
 
+// Kullanıcı kategori yetkisi ekranı için kategori kaynaklarını doğrudan VDS'den
+// tazele. Bu ekranın state.products veya tarayıcıdaki son önerilere bağımlı
+// kalması PPF / Film gibi gerçek kategorilerin görünmemesine yol açıyordu.
+window.loadUserPermissionCategorySources = async function() {
+  const [filterResult, valueResult] = await Promise.allSettled([
+    apiFetch('/api/product-filter-options'),
+    apiFetch('/api/category-values')
+  ]);
+
+  if (filterResult.status === 'fulfilled') {
+    const payload = filterResult.value || {};
+    state.operationCategories = uniqueCleanValues(payload.categories || []);
+    state.operationBrands = uniqueCleanValues(payload.vehicle_brands || []);
+    state.operationFilterOptionsLoaded = true;
+  }
+
+  if (valueResult.status === 'fulfilled') {
+    const payload = valueResult.value || {};
+    state.categoryValues = Array.isArray(payload.rows) ? payload.rows : [];
+    state.categoryValueRows = state.categoryValues
+      .map(migrationCategoryValueRow)
+      .sort((a, b) => a.category.localeCompare(b.category, 'tr'));
+  }
+
+  // İki endpoint birden başarısızsa sessizce eski/eksik liste göstermeyelim.
+  // Personellerin kayıtlı allowed_categories değerleri yine allKnownCategories
+  // içinde korunur; ayrıca hata kullanıcıya bildirilebilir.
+  if (filterResult.status === 'rejected' && valueResult.status === 'rejected') {
+    throw filterResult.reason || valueResult.reason || new Error('Kategori listesi alınamadı');
+  }
+
+  return allKnownCategories();
+};
+
 let migrationPricePreviewTimer = null;
 let migrationLastPricePreview = null;
 
