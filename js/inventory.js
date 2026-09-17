@@ -294,9 +294,20 @@ function renderMovements() {
     const productName = m.product_name || m.stock_products?.product_name || m.description || "-";
     const type = String(m.movement_type || "").toLowerCase();
     const typeClass = type.includes("giris") || type.includes("iade") || (type.includes("rezerv") && !type.includes("iptal")) ? "giris" : "cikis";
-    const locationText = m.location || m.stock_products?.location || "-";
+    // Hareket API'sinin kendi konumu önceliklidir. Ürünün güncel konumu
+    // yalnızca yedek gösterilir; geçmişteki işlem rafıymış gibi sunulmaz.
+    const recordedLocation = String(m.movement_location || m.location_at_movement || m.location || "").trim();
+    const currentLocation = String(m.stock_products?.location || "").trim();
+    const locationText = recordedLocation || currentLocation || "Konum bilgisi yok";
+    const locationLabel = recordedLocation ? "İşlem rafı / konum" : currentLocation ? "Güncel ürün rafı" : "Raf / Konum";
     const categoryText = m.category || m.stock_products?.category || "";
-    return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div><div>Miktar: <strong>${Number(m.quantity || 0)}</strong></div><div>Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div><div>Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div><div>Raf / Konum: <strong>${escapeHtml(locationText)}</strong></div>${categoryText ? `<div>Kategori: <strong>${escapeHtml(categoryText)}</strong></div>` : ""}<div>Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`;
+    return `<div class="movement-item"><div class="movement-top"><div><strong>${escapeHtml(productName)}</strong><div class="muted">${escapeHtml(m.description || "-")}</div></div><span class="badge ${typeClass}">${escapeHtml(m.movement_type || "-")}</span></div>
+      <div class="movement-detail-line">Miktar: <strong>${Number(m.quantity || 0)}</strong></div>
+      <div class="movement-detail-line">Plaka: <strong>${escapeHtml(m.plate || "-")}</strong></div>
+      <div class="movement-detail-line">Kayıt No: <strong>${escapeHtml(m.record_no || "-")}</strong></div>
+      <div class="movement-location-row ${recordedLocation ? "has-location" : ""}"><span class="movement-location-label">📍 ${escapeHtml(locationLabel)}</span><strong>${escapeHtml(locationText)}</strong></div>
+      ${categoryText ? `<div class="movement-detail-line">Kategori: <strong>${escapeHtml(categoryText)}</strong></div>` : ""}
+      <div class="movement-detail-line">Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`;
   }).join("");
 }
 function getQuickQty(productId) {
@@ -460,13 +471,13 @@ function renderOperationCards(results) {
 
     const detailPills = [
       p.productBrand ? `<div class="operation-meta-pill"><span class="pill-label">Marka</span><strong>${escapeHtml(p.productBrand)}</strong></div>` : "",
-      `<div class="operation-meta-pill"><span class="pill-label">Kategori</span><strong>${escapeHtml(p.category || "-")}</strong></div>`,
+      `<div class="operation-meta-pill operation-meta-category"><span class="pill-label">Kategori</span><strong>${escapeHtml(p.category || "-")}</strong></div>`,
       p.carBrand ? `<div class="operation-meta-pill"><span class="pill-label">Araç Markası</span><strong>${escapeHtml(p.carBrand)}</strong></div>` : "",
       p.carModel ? `<div class="operation-meta-pill"><span class="pill-label">Model</span><strong>${escapeHtml(p.carModel)}</strong></div>` : "",
       p.carType ? `<div class="operation-meta-pill"><span class="pill-label">Tip</span><strong>${escapeHtml(p.carType)}</strong></div>` : "",
       p.vehicleYear ? `<div class="operation-meta-pill"><span class="pill-label">Yıl</span><strong>${escapeHtml(p.vehicleYear)}</strong></div>` : "",
       `<div class="operation-meta-pill"><span class="pill-label">Barkod</span><strong>${barcodes.length ? (barcodes.length === 1 ? escapeHtml(barcodes[0]) : `${barcodes.length} farklı barkod`) : "Barkod yok"}</strong></div>`,
-      `<div class="operation-meta-pill"><span class="pill-label">Konum Sayısı</span><strong>${group.members.length}</strong></div>`
+      `<div class="operation-meta-pill operation-meta-location-count"><span class="pill-label">Konum Sayısı</span><strong>${group.members.length}</strong></div>`
     ].filter(Boolean).join("");
 
     return `<div class="operation-card grouped-operation-card">
@@ -483,7 +494,7 @@ function renderOperationCards(results) {
           <span>TOPLAM STOK: <b>${group.totalStock}</b></span>
           <span>Rezerve: <b>${group.totalReserved}</b></span>
           <span>Kullanılabilir: <b class="${totalAvailable <= 0 ? "stock-warning" : ""}">${totalAvailable}</b></span>
-          <span>Araç Özeti: <b>${escapeHtml(vehicle || "-")}</b></span>
+          <span class="operation-vehicle-summary">Araç Özeti: <b>${escapeHtml(vehicle || "-")}</b></span>
         </div>
         <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
         <div class="operation-location-list">${locationRows}</div>

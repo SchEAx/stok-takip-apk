@@ -2061,3 +2061,88 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
   .barcode-not-found-actions{grid-template-columns:1fr 1fr}
   .barcode-action-buttons .btn{font-size:15px;padding:10px 8px}
 }
+
+
+/* GarageFlow v16.12 — telefon kartlarında yoğunluk ve hareket rafı vurgusu */
+#page-movements .movement-location-row{
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;
+  width:fit-content;max-width:100%;margin:10px 0 8px;padding:9px 12px;
+  border-radius:12px;border:1px solid color-mix(in srgb,var(--primary) 38%,var(--border));
+  background:color-mix(in srgb,var(--primary) 9%,var(--card));
+  color:var(--text);
+}
+#page-movements .movement-location-row.has-location{
+  border-color:color-mix(in srgb,var(--primary) 70%,var(--border));
+  background:color-mix(in srgb,var(--primary) 16%,var(--card));
+  box-shadow:inset 3px 0 0 var(--primary);
+}
+#page-movements .movement-location-label{font-size:12px;font-weight:800;color:var(--primary)}
+#page-movements .movement-location-row strong{font-size:14px;font-weight:900;color:var(--text-strong);overflow-wrap:anywhere}
+#page-movements .movement-detail-line{line-height:1.5}
+
+@media(max-width:700px){
+  /* Fotoğrafı başlık hizasında göster; büyük boş satır olmasın. */
+  #page-operation .grouped-operation-card{
+    position:relative;display:block!important;padding:12px!important;
+  }
+  #page-operation .grouped-operation-card>.product-card-img{
+    position:absolute!important;top:12px;left:12px;
+    width:52px!important;height:52px!important;border-radius:12px!important;
+  }
+  #page-operation .grouped-operation-main{
+    display:block!important;width:100%!important;min-width:0!important;
+  }
+  #page-operation .operation-group-head{
+    display:block!important;min-width:0!important;
+  }
+  #page-operation .operation-group-head>div:first-child{min-width:0!important;width:100%!important}
+  #page-operation .operation-title{
+    display:flex;align-items:center;min-height:52px;
+    margin-left:64px;margin-bottom:7px;font-size:14px!important;
+    line-height:1.35!important;overflow-wrap:anywhere!important;
+  }
+  #page-operation .operation-meta-grid{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:6px!important;margin-top:8px!important;
+  }
+  #page-operation .operation-meta-pill{
+    width:auto!important;min-width:0!important;min-height:0!important;
+    padding:7px 9px!important;border-radius:10px!important;
+  }
+  #page-operation .operation-meta-pill .pill-label{font-size:10px!important;line-height:1.2}
+  #page-operation .operation-meta-pill strong{
+    font-size:12px!important;line-height:1.35!important;
+    overflow-wrap:anywhere!important;word-break:normal!important;
+  }
+  #page-operation .operation-meta-category{grid-column:1/-1}
+  /* Raf listesi zaten aşağıda görünüyor, aynı sayıyı telefonda bir daha yazma. */
+  #page-operation .operation-meta-location-count{display:none!important}
+  #page-operation .operation-vehicle-summary{display:none!important}
+  #page-operation .grouped-operation-total{
+    display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:6px!important;margin-top:9px!important;padding:8px!important;
+    font-size:11px!important;line-height:1.35!important;
+  }
+  #page-operation .grouped-operation-total>span{min-width:0!important;overflow-wrap:anywhere}
+  #page-operation .operation-price-line{margin-top:8px!important;padding:6px 9px!important;font-size:12px!important}
+  #page-operation .operation-location-list{gap:7px!important;margin-top:8px!important}
+  #page-operation .operation-location-row{padding:9px!important;gap:8px!important}
+  #page-operation .operation-location-title{margin-bottom:5px}
+  #page-operation .operation-location-badge{font-size:11px;padding:5px 8px}
+  #page-operation .operation-location-info{font-size:12px;line-height:1.45}
+  #page-operation .operation-location-actions{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;
+  }
+  #page-operation .operation-location-actions .operation-qty-row{
+    grid-column:1/-1;grid-template-columns:42px minmax(0,1fr) 42px!important;
+  }
+  #page-operation .operation-location-actions .btn{min-width:0!important;padding:10px 5px!important;font-size:12px!important}
+}
+@media(max-width:380px){
+  #page-operation .grouped-operation-total{font-size:10px!important}
+  #page-operation .operation-meta-pill{padding:6px 7px!important}
+  #page-operation .operation-location-actions{gap:5px!important}
+}
+@media(max-width:560px){
+  #page-movements .movement-location-row{width:100%;align-items:flex-start;flex-direction:column;gap:3px}
+}
