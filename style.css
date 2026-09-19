@@ -2067,7 +2067,7 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 }
 
 
-/* GarageFlow v16.13 — mobil barkod/ses aramasında otomatik klavye engeli */
+/* GarageFlow v16.14 — Android sesli aramada kalıcı klavye odağı engeli */
 #page-movements .movement-location-row{
   display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;
   width:fit-content;max-width:100%;margin:10px 0 8px;padding:9px 12px;
