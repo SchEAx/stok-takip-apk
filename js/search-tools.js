@@ -42,6 +42,7 @@
   let selectedBarcodeProduct = null;
   let barcodeActionBusy = false;
   let lastScannedBarcode = "";
+  let keyboardGuardTimer = null;
 
   function toast(message, isError = false){
     if (typeof showToast === "function") showToast(message, isError);
@@ -57,12 +58,42 @@
     return String(value || "").trim().replace(/\s+/g, "").toLocaleLowerCase("tr-TR");
   }
 
+  function dismissAutomaticKeyboard(){
+    const guardedInputs = [searchInput, qtyInput].filter(Boolean);
+
+    guardedInputs.forEach(input => {
+      input.dataset.autoKeyboardGuard = "1";
+      input.readOnly = true;
+      input.blur();
+    });
+
+    const active = document.activeElement;
+    if (guardedInputs.includes(active) && typeof active?.blur === "function") {
+      active.blur();
+    }
+
+    clearTimeout(keyboardGuardTimer);
+    keyboardGuardTimer = setTimeout(() => {
+      guardedInputs.forEach(input => {
+        if (input.dataset.autoKeyboardGuard === "1") {
+          input.blur();
+          input.readOnly = false;
+          delete input.dataset.autoKeyboardGuard;
+          input.blur();
+        }
+      });
+    }, 420);
+  }
+
   function runOperationSearch(value){
     if (!searchInput) return;
+    dismissAutomaticKeyboard();
     searchInput.value = String(value || "").trim();
     if (typeof state !== "undefined") state.operationCacheKey = "";
     searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-    searchInput.focus({ preventScroll: true });
+    // Sesli arama ve barkod sonucunda mobil klavye kendiliğinden açılmasın.
+    // Kullanıcı metni düzenlemek isterse arama alanına dokunarak açabilir.
+    dismissAutomaticKeyboard();
   }
 
   function setSearchInputWithoutDuplicateQuery(value){
@@ -85,6 +116,8 @@
   }
 
   function startVoiceSearch(){
+    dismissAutomaticKeyboard();
+
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition){
       toast("Bu tarayıcı sesle aramayı desteklemiyor.", true);
@@ -103,10 +136,20 @@
       speechRecognition.continuous = false;
       speechRecognition.maxAlternatives = 1;
 
-      speechRecognition.onstart = () => setVoiceActive(true);
-      speechRecognition.onend = () => setVoiceActive(false);
+      speechRecognition.onstart = () => {
+        dismissAutomaticKeyboard();
+        setVoiceActive(true);
+      };
+      speechRecognition.onend = () => {
+        setVoiceActive(false);
+        // Android ses motoru kapanırken önceki metin alanının odağını
+        // geri yükleyebiliyor. Olay tamamlandıktan sonra odağı tekrar temizle.
+        dismissAutomaticKeyboard();
+        setTimeout(dismissAutomaticKeyboard, 80);
+      };
       speechRecognition.onerror = (event) => {
         setVoiceActive(false);
+        dismissAutomaticKeyboard();
         const code = String(event?.error || "");
         if (code === "aborted" || code === "no-speech") return;
         if (code === "not-allowed" || code === "service-not-allowed") {
@@ -205,7 +248,10 @@
     const nums = stockNumbers(product);
     const vehicle = vehicleText(product);
     if (actionTitle) actionTitle.textContent = product.name || product.category || "Barkodlu Ürün";
-    if (actionMeta) actionMeta.textContent = `Barkod: ${product.barcode || lastScannedBarcode || "-"} · Raf: ${product.location || "-"}`;
+    if (actionMeta) actionMeta.innerHTML = `
+      <span class="barcode-action-code">Barkod: ${html(product.barcode || lastScannedBarcode || "-")}</span>
+      <span class="barcode-action-location">📍 Raf: <strong>${html(product.location || "Konum yok")}</strong></span>
+    `;
     if (selectedStock) selectedStock.innerHTML = `
       <div><strong>${html(product.productBrand || "-")}</strong> · ${html(product.category || "-")}</div>
       ${vehicle ? `<div class="muted">Araç: <strong>${html(vehicle)}</strong></div>` : ""}
@@ -219,7 +265,9 @@
       button.classList.toggle("active", String(button.dataset.barcodeProductId) === String(product.id));
     });
 
-    setTimeout(() => qtyInput?.focus(), 30);
+    // Ürün/konum seçildiğinde adet alanını otomatik odaklama.
+    // Böylece mobil klavye yalnızca kullanıcı adet alanına dokunursa açılır.
+    dismissAutomaticKeyboard();
   }
 
   function closeBarcodeActionModal(){
@@ -432,6 +480,7 @@
   function finishBarcodeScan(value){
     const barcode = String(value || "").trim();
     if (!barcode || scannerBusy) return;
+    dismissAutomaticKeyboard();
     scannerBusy = true;
     closeOperationBarcodeScanner();
     openBarcodeActionForCode(barcode);
@@ -487,6 +536,8 @@
   }
 
   async function openOperationBarcodeScanner(){
+    dismissAutomaticKeyboard();
+
     if (!navigator.mediaDevices?.getUserMedia){
       toast("Bu cihazda kamera erişimi kullanılamıyor.", true);
       return;
