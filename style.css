@@ -2025,6 +2025,10 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 .barcode-action-card{position:relative;width:min(620px,100%);max-height:min(780px,94vh);overflow:auto;background:var(--card,#111827);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:0 28px 90px rgba(0,0,0,.62)}
 .barcode-action-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
 .barcode-action-head h3{margin:0 0 5px;font-size:21px;line-height:1.2}
+#operationBarcodeActionMeta{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:7px}
+.barcode-action-code{font-size:14px}
+.barcode-action-location{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;border:1px solid color-mix(in srgb,var(--primary) 72%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--primary) 16%,var(--card));color:var(--text);font-size:14px;font-weight:800;line-height:1.15;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 10%,transparent)}
+.barcode-action-location strong{font-weight:950;letter-spacing:.02em}
 .barcode-action-total{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
 .barcode-action-total .badge{font-size:13px;padding:8px 10px}
 .barcode-not-found{border:1px dashed var(--border);border-radius:18px;padding:22px 18px;text-align:center;background:rgba(255,255,255,.025);margin-top:8px}
@@ -2063,7 +2067,7 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 }
 
 
-/* GarageFlow v16.12 — telefon kartlarında yoğunluk ve hareket rafı vurgusu */
+/* GarageFlow v16.13 — mobil barkod/ses aramasında otomatik klavye engeli */
 #page-movements .movement-location-row{
   display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;
   width:fit-content;max-width:100%;margin:10px 0 8px;padding:9px 12px;
