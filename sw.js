@@ -1,27 +1,27 @@
-const CACHE_NAME = "garage-stock-16-14";
+const CACHE_NAME = "garage-stock-16-15";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=16.14",
-  "./js/core.js?v=16.14",
-  "./js/inventory.js?v=16.14",
-  "./js/sales-dashboard.js?v=16.14",
-  "./js/staff.js?v=16.14",
-  "./js/sales.js?v=16.14",
-  "./js/requests.js?v=16.14",
-  "./js/surveys.js?v=16.14",
-  "./js/management.js?v=16.14",
-  "./js/purchasing.js?v=16.14",
-  "./js/navigation.js?v=16.14",
-  "./js/reports.js?v=16.14",
-  "./js/migration-api.js?v=16.14",
-  "./js/search-tools.js?v=16.14",
-  "./js/events.js?v=16.14",
-  "./js/excel.js?v=16.14",
-  "./js/migration-excel.js?v=16.14",
-  "./app.js?v=16.14",
-  "./manifest.webmanifest?v=16.14",
+  "./style.css?v=16.15",
+  "./js/core.js?v=16.15",
+  "./js/inventory.js?v=16.15",
+  "./js/sales-dashboard.js?v=16.15",
+  "./js/staff.js?v=16.15",
+  "./js/sales.js?v=16.15",
+  "./js/requests.js?v=16.15",
+  "./js/surveys.js?v=16.15",
+  "./js/management.js?v=16.15",
+  "./js/purchasing.js?v=16.15",
+  "./js/navigation.js?v=16.15",
+  "./js/reports.js?v=16.15",
+  "./js/migration-api.js?v=16.15",
+  "./js/search-tools.js?v=16.15",
+  "./js/events.js?v=16.15",
+  "./js/excel.js?v=16.15",
+  "./js/migration-excel.js?v=16.15",
+  "./app.js?v=16.15",
+  "./manifest.webmanifest?v=16.15",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
@@ -68,7 +68,7 @@ self.addEventListener("activate", (event) => {
         try {
           const url = new URL(client.url);
           if (url.origin !== self.location.origin) return;
-          url.searchParams.set("__garage_build", "16.14");
+          url.searchParams.set("__garage_build", "16.15");
           url.searchParams.set("__garage_sw", String(Date.now()));
           await client.navigate(url.href);
         } catch {}
@@ -98,7 +98,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // v16.14: Cache-first tamamen kaldırıldı.
+  // v16.15: Cache-first tamamen kaldırıldı.
   // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
   event.respondWith(
     fetch(request, { cache: "no-cache" })

@@ -2,7 +2,7 @@
 
 <html lang="tr">
 <head>
-<meta name="garage-build-version" content="16.14">
+<meta name="garage-build-version" content="16.15">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -25,8 +25,8 @@
 <meta content="yes" name="mobile-web-app-capable"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="Garage Stok" name="apple-mobile-web-app-title"/>
-<link href="manifest.webmanifest?v=16.14" rel="manifest"/>
-<link href="style.css?v=16.14" rel="stylesheet"/>
+<link href="manifest.webmanifest?v=16.15" rel="manifest"/>
+<link href="style.css?v=16.15" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
 </head>
@@ -210,7 +210,13 @@
 <h2>Ürün Kartı</h2>
 <form class="form-grid" id="productForm">
 <input id="productId" type="hidden"/>
-<div><label>Barkod</label><input autocomplete="off" id="barcode" placeholder="Örn: 1000001" spellcheck="false" type="text"/></div>
+<div>
+<label>Barkod</label>
+<div class="product-barcode-control">
+<input autocomplete="off" id="barcode" placeholder="Örn: 1000001" spellcheck="false" type="text"/>
+<button class="btn secondary product-barcode-scan-btn" id="productBarcodeScanBtn" type="button" aria-label="Barkodu kamerayla okut" title="Barkodu kamerayla okut">▥</button>
+</div>
+</div>
 <div><label>Ürün Markası</label><input autocomplete="off" class="custom-suggest-input" id="productBrand" placeholder="Örn: Rizline" type="text"/></div>
 <div><label>Ürün Kategorisi *</label><input autocomplete="off" class="custom-suggest-input" id="category" placeholder="Örn: Paspas, Cam Rüzgarlığı" type="text"/></div>
 <div><label>Araç Markası *</label><input autocomplete="off" class="custom-suggest-input" id="carBrand" placeholder="Örn: Renault" type="text"/></div>
@@ -862,11 +868,28 @@ LED" rows="8"></textarea>
     <div class="barcode-not-found hidden" id="operationBarcodeNotFound">
       <div class="barcode-not-found-icon" aria-hidden="true">＋</div>
       <div class="barcode-not-found-title">Bu barkod kayıtlı değil</div>
-      <div class="muted">Ürün eklemek ister misiniz?</div>
+      <div class="muted">Yeni ürün ekleyebilir veya bu barkodu stoktaki bir ürünle eşleyebilirsiniz.</div>
       <div class="barcode-not-found-code">Barkod: <strong id="operationBarcodeNotFoundValue">-</strong></div>
       <div class="barcode-not-found-actions">
         <button class="btn secondary" id="operationBarcodeNotFoundCancelBtn" type="button">Vazgeç</button>
+        <button class="btn primary" id="operationBarcodeLinkProductBtn" type="button">🔗 Ürün Eşle</button>
         <button class="btn success" id="operationBarcodeAddProductBtn" type="button">＋ Ürün Ekle</button>
+      </div>
+    </div>
+
+    <div class="barcode-linker hidden" id="operationBarcodeLinker">
+      <div class="barcode-linker-head">
+        <div>
+          <div class="barcode-linker-title">Stoktaki Ürünle Eşle</div>
+          <div class="muted">Okutulan barkod: <strong id="operationBarcodeLinkValue">-</strong></div>
+        </div>
+        <button class="btn ghost mini" id="operationBarcodeLinkBackBtn" type="button">Geri</button>
+      </div>
+      <label for="operationBarcodeLinkSearchInput">Ürün / marka / model ara</label>
+      <input autocomplete="off" id="operationBarcodeLinkSearchInput" placeholder="En az 2 karakter yazın" spellcheck="false" type="search"/>
+      <div class="muted barcode-linker-hint">Eşlemek istediğiniz stok kartını seçin. Kartta eski barkod varsa değiştirmeden önce onay istenir.</div>
+      <div class="barcode-link-results" id="operationBarcodeLinkResults">
+        <div class="empty-state">Ürün bulmak için arama yapın.</div>
       </div>
     </div>
 
@@ -878,6 +901,7 @@ LED" rows="8"></textarea>
 
     <div class="barcode-selected-product hidden" id="operationBarcodeSelectedProduct">
       <div class="barcode-selected-stock" id="operationBarcodeSelectedStock"></div>
+      <button class="btn secondary barcode-edit-product-btn" id="operationBarcodeEditProductBtn" type="button">✏️ Ürünü Düzenle</button>
       <div class="barcode-qty-wrap">
         <span>Adet</span>
         <div class="barcode-qty-control">
@@ -911,24 +935,24 @@ LED" rows="8"></textarea>
 <datalist id="carTypeList"></datalist>
 <datalist id="vehicleYearList"></datalist>
 <datalist id="locationList"></datalist>
-<script>window.GARAGE_BUILD_VERSION = "16.14";</script>
-<script>console.info("[GarageFlow] HTML build 16.14 · otomatik PWA güncelleme");</script>
-<script src="js/core.js?v=16.14"></script>
-<script src="js/inventory.js?v=16.14"></script>
-<script src="js/sales-dashboard.js?v=16.14"></script>
-<script src="js/staff.js?v=16.14"></script>
-<script src="js/sales.js?v=16.14"></script>
-<script src="js/requests.js?v=16.14"></script>
-<script src="js/surveys.js?v=16.14"></script>
-<script src="js/management.js?v=16.14"></script>
-<script src="js/purchasing.js?v=16.14"></script>
-<script src="js/navigation.js?v=16.14"></script>
-<script src="js/reports.js?v=16.14"></script>
-<script src="js/migration-api.js?v=16.14"></script>
-<script src="js/search-tools.js?v=16.14"></script>
-<script src="js/events.js?v=16.14"></script>
-<script src="js/excel.js?v=16.14"></script>
-<script src="js/migration-excel.js?v=16.14"></script>
-<script src="app.js?v=16.14"></script>
+<script>window.GARAGE_BUILD_VERSION = "16.15";</script>
+<script>console.info("[GarageFlow] HTML build 16.15 · barkod düzenleme ve ürün eşleme");</script>
+<script src="js/core.js?v=16.15"></script>
+<script src="js/inventory.js?v=16.15"></script>
+<script src="js/sales-dashboard.js?v=16.15"></script>
+<script src="js/staff.js?v=16.15"></script>
+<script src="js/sales.js?v=16.15"></script>
+<script src="js/requests.js?v=16.15"></script>
+<script src="js/surveys.js?v=16.15"></script>
+<script src="js/management.js?v=16.15"></script>
+<script src="js/purchasing.js?v=16.15"></script>
+<script src="js/navigation.js?v=16.15"></script>
+<script src="js/reports.js?v=16.15"></script>
+<script src="js/migration-api.js?v=16.15"></script>
+<script src="js/search-tools.js?v=16.15"></script>
+<script src="js/events.js?v=16.15"></script>
+<script src="js/excel.js?v=16.15"></script>
+<script src="js/migration-excel.js?v=16.15"></script>
+<script src="app.js?v=16.15"></script>
 </body>
 </html>

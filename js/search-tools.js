@@ -1,7 +1,8 @@
-// v16.5 - İşlem ekranı: sesle arama + barkod kamera + hızlı stok + bulunamayan barkoddan ürün ekleme
+// v16.15 - Barkod arama, hızlı stok, ürün eşleme ve düzenleme formunda kamera
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
+  const productBarcodeScanBtn = document.getElementById("productBarcodeScanBtn");
   const searchInput = document.getElementById("operationSearchInput");
   const scannerModal = document.getElementById("operationBarcodeScannerModal");
   const scannerVideo = document.getElementById("operationBarcodeScannerVideo");
@@ -26,7 +27,14 @@
   const notFoundWrap = document.getElementById("operationBarcodeNotFound");
   const notFoundBarcode = document.getElementById("operationBarcodeNotFoundValue");
   const addProductBtn = document.getElementById("operationBarcodeAddProductBtn");
+  const linkProductBtn = document.getElementById("operationBarcodeLinkProductBtn");
   const notFoundCancelBtn = document.getElementById("operationBarcodeNotFoundCancelBtn");
+  const editProductBtn = document.getElementById("operationBarcodeEditProductBtn");
+  const linkerWrap = document.getElementById("operationBarcodeLinker");
+  const linkerBarcode = document.getElementById("operationBarcodeLinkValue");
+  const linkerBackBtn = document.getElementById("operationBarcodeLinkBackBtn");
+  const linkerSearchInput = document.getElementById("operationBarcodeLinkSearchInput");
+  const linkerResults = document.getElementById("operationBarcodeLinkResults");
 
   let speechRecognition = null;
   let speechActive = false;
@@ -37,12 +45,17 @@
   let scannerBusy = false;
   let scannerZxingReader = null;
   let scannerZxingControls = null;
+  let scannerPurpose = "search";
 
   let barcodeMatches = [];
   let selectedBarcodeProduct = null;
   let barcodeActionBusy = false;
   let lastScannedBarcode = "";
   let keyboardGuardTimer = null;
+  let linkerSearchTimer = null;
+  let linkerQuerySequence = 0;
+  let linkerCandidates = [];
+  let linkerBusy = false;
 
   function toast(message, isError = false){
     if (typeof showToast === "function") showToast(message, isError);
@@ -239,6 +252,11 @@
     if (qtyPlus) qtyPlus.disabled = !enabled || barcodeActionBusy;
   }
 
+  function canCurrentUserEditProduct(){
+    const staff = typeof currentStaff === "function" ? currentStaff() : null;
+    return ["admin", "depo"].includes(String(staff?.role || ""));
+  }
+
   function selectBarcodeProduct(productId){
     const product = barcodeMatches.find(p => String(p.id) === String(productId));
     if (!product) return;
@@ -260,6 +278,11 @@
     `;
     selectedWrap?.classList.remove("hidden");
     setActionButtonsEnabled(true);
+    if (editProductBtn) {
+      const allowed = canCurrentUserEditProduct();
+      editProductBtn.disabled = !allowed;
+      editProductBtn.title = allowed ? "" : "Ürün düzenleme yetkin yok";
+    }
 
     locationList?.querySelectorAll("[data-barcode-product-id]").forEach(button => {
       button.classList.toggle("active", String(button.dataset.barcodeProductId) === String(product.id));
@@ -280,7 +303,15 @@
     locationWrap?.classList.add("hidden");
     selectedWrap?.classList.add("hidden");
     notFoundWrap?.classList.add("hidden");
+    linkerWrap?.classList.add("hidden");
     if (notFoundBarcode) notFoundBarcode.textContent = "-";
+    if (linkerBarcode) linkerBarcode.textContent = "-";
+    if (linkerSearchInput) linkerSearchInput.value = "";
+    if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Ürün bulmak için arama yapın.</div>`;
+    clearTimeout(linkerSearchTimer);
+    linkerQuerySequence++;
+    linkerCandidates = [];
+    linkerBusy = false;
     resetBarcodeQuantity();
     setActionButtonsEnabled(false);
   }
@@ -299,6 +330,7 @@
     setActionButtonsEnabled(false);
     locationWrap?.classList.add("hidden");
     selectedWrap?.classList.add("hidden");
+    linkerWrap?.classList.add("hidden");
     if (locationList) locationList.innerHTML = "";
     if (actionTitle) actionTitle.textContent = "Barkod Kayıtlı Değil";
     if (actionMeta) actionMeta.textContent = "Bu barkodla eşleşen ürün bulunamadı.";
@@ -309,6 +341,11 @@
       const allowed = canCurrentUserAddProduct();
       addProductBtn.disabled = !allowed;
       addProductBtn.title = allowed ? "" : "Ürün ekleme yetkin yok";
+    }
+    if (linkProductBtn) {
+      const allowed = canCurrentUserEditProduct();
+      linkProductBtn.disabled = !allowed;
+      linkProductBtn.title = allowed ? "" : "Ürün eşleme yetkin yok";
     }
     actionModal?.classList.remove("hidden");
     setTimeout(() => (canCurrentUserAddProduct() ? addProductBtn : notFoundCancelBtn)?.focus(), 30);
@@ -340,6 +377,156 @@
     } catch (error) {
       console.error("Barkoddan ürün ekleme ekranı açılamadı:", error);
       toast("Ürün ekleme ekranı açılamadı.", true);
+    }
+  }
+
+  function editSelectedBarcodeProduct(){
+    const product = selectedBarcodeProduct;
+    if (!product?.id) {
+      toast("Önce düzenlenecek raf / konumu seç.", true);
+      return;
+    }
+    if (!canCurrentUserEditProduct()) {
+      toast("Ürün düzenleme yetkin yok.", true);
+      return;
+    }
+
+    const productId = String(product.id);
+    closeBarcodeActionModal();
+    if (typeof window.editProduct === "function") {
+      window.editProduct(productId);
+    } else {
+      toast("Ürün düzenleme ekranı açılamadı.", true);
+    }
+  }
+
+  function openBarcodeLinker(){
+    if (!canCurrentUserEditProduct()) {
+      toast("Ürün eşleme yetkin yok.", true);
+      return;
+    }
+
+    notFoundWrap?.classList.add("hidden");
+    linkerWrap?.classList.remove("hidden");
+    if (actionTitle) actionTitle.textContent = "Stoktaki Ürünle Eşle";
+    if (actionMeta) actionMeta.textContent = "Okutulan barkodu doğru stok kartına bağlayın.";
+    if (linkerBarcode) linkerBarcode.textContent = lastScannedBarcode || "-";
+    if (linkerSearchInput) linkerSearchInput.value = "";
+    if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Ürün bulmak için en az 2 karakter yazın.</div>`;
+    linkerCandidates = [];
+  }
+
+  function returnToBarcodeNotFound(){
+    linkerWrap?.classList.add("hidden");
+    openBarcodeNotFoundPrompt();
+  }
+
+  function renderBarcodeLinkCandidates(rows){
+    if (!linkerResults) return;
+    linkerCandidates = rows.slice(0, 50);
+
+    if (!linkerCandidates.length) {
+      linkerResults.innerHTML = `<div class="empty-state">Bu aramayla eşleşen stok ürünü bulunamadı.</div>`;
+      return;
+    }
+
+    linkerResults.innerHTML = linkerCandidates.map(product => {
+      const nums = stockNumbers(product);
+      const vehicle = vehicleText(product);
+      const currentBarcode = String(product.barcode || "").trim();
+      return `<button type="button" class="barcode-link-option" data-link-product-id="${html(product.id)}" ${linkerBusy ? "disabled" : ""}>
+        <span class="barcode-link-option-title">${html(product.name || product.category || "Ürün")}</span>
+        <span class="barcode-link-option-meta">${html(product.productBrand || "Marka yok")} · ${html(product.category || "Kategori yok")}${vehicle ? ` · ${html(vehicle)}` : ""}</span>
+        <span class="barcode-link-option-location">📍 ${html(product.location || "Konum yok")} · Stok ${nums.stock} · ${currentBarcode ? `Mevcut barkod: ${html(currentBarcode)}` : "Barkod yok"}</span>
+      </button>`;
+    }).join("");
+  }
+
+  async function loadBarcodeLinkCandidates(){
+    const query = String(linkerSearchInput?.value || "").trim();
+    const sequence = ++linkerQuerySequence;
+
+    if (query.length < 2) {
+      linkerCandidates = [];
+      if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Ürün bulmak için en az 2 karakter yazın.</div>`;
+      return;
+    }
+
+    if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Stok ürünleri aranıyor...</div>`;
+
+    try {
+      const rows = await searchStockProducts({ search: query, limit: 100 });
+      if (sequence !== linkerQuerySequence) return;
+      const mapped = (rows || []).map(row => typeof mapProduct === "function" ? mapProduct(row) : row);
+      const permitted = typeof filterProductsByCurrentUser === "function" ? filterProductsByCurrentUser(mapped) : mapped;
+      const unique = [...new Map(permitted.filter(product => product?.id).map(product => [String(product.id), product])).values()];
+      renderBarcodeLinkCandidates(unique);
+    } catch (error) {
+      if (sequence !== linkerQuerySequence) return;
+      console.error("Barkod ürün eşleme araması başarısız:", error);
+      linkerCandidates = [];
+      if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Ürünler alınamadı: ${html(error?.message || error)}</div>`;
+    }
+  }
+
+  function scheduleBarcodeLinkSearch(){
+    clearTimeout(linkerSearchTimer);
+    linkerSearchTimer = setTimeout(loadBarcodeLinkCandidates, 260);
+  }
+
+  async function linkScannedBarcodeToProduct(productId){
+    if (linkerBusy) return;
+    if (!canCurrentUserEditProduct()) {
+      toast("Ürün eşleme yetkin yok.", true);
+      return;
+    }
+
+    const product = linkerCandidates.find(item => String(item.id) === String(productId));
+    const barcode = String(lastScannedBarcode || "").trim();
+    if (!product || !barcode) {
+      toast("Eşlenecek ürün veya barkod bulunamadı.", true);
+      return;
+    }
+
+    const currentBarcode = String(product.barcode || "").trim();
+    const productLabel = product.name || [product.productBrand, product.category, vehicleText(product)].filter(Boolean).join(" ") || "Seçilen ürün";
+    const message = currentBarcode
+      ? `${productLabel} ürününün mevcut barkodu ${currentBarcode}. Bu barkod ${barcode} ile değiştirilsin mi?`
+      : `${barcode} barkodu ${productLabel} ürününe eklensin mi?`;
+
+    const confirmed = typeof appConfirm === "function"
+      ? await appConfirm(message, { title: "Barkodu Ürünle Eşle", okText: currentBarcode ? "Barkodu Değiştir" : "Barkodu Eşle" })
+      : window.confirm(message);
+    if (!confirmed) return;
+
+    linkerBusy = true;
+    renderBarcodeLinkCandidates(linkerCandidates);
+    try {
+      if (typeof setLoading === "function") setLoading(true);
+      const result = await apiFetch(`/api/products/${encodeURIComponent(product.id)}`, {
+        method: "PATCH",
+        body: { barcode }
+      });
+      await refreshMigrationProductState(product.id, { product: result?.product }).catch(() => {});
+      if (typeof logActivity === "function") {
+        await logActivity(
+          "product_barcode_link",
+          `${productLabel} ürünü ${barcode} barkoduyla eşlendi${currentBarcode ? ` · Önceki barkod: ${currentBarcode}` : ""}`,
+          "stock_products",
+          product.id
+        ).catch(() => {});
+      }
+
+      closeBarcodeActionModal();
+      await openBarcodeActionForCode(barcode);
+      toast("Barkod ürünle eşlendi ✅");
+    } catch (error) {
+      console.error("Barkod ürünle eşlenemedi:", error);
+      toast(error?.message || "Barkod ürünle eşlenemedi.", true);
+    } finally {
+      linkerBusy = false;
+      if (typeof setLoading === "function") setLoading(false);
+      if (!linkerWrap?.classList.contains("hidden")) renderBarcodeLinkCandidates(linkerCandidates);
     }
   }
 
@@ -482,7 +669,24 @@
     if (!barcode || scannerBusy) return;
     dismissAutomaticKeyboard();
     scannerBusy = true;
+    const purpose = scannerPurpose;
     closeOperationBarcodeScanner();
+    scannerPurpose = "search";
+
+    if (purpose === "product-form") {
+      const barcodeInput = document.getElementById("barcode");
+      if (!barcodeInput) {
+        toast("Barkod alanı bulunamadı.", true);
+        return;
+      }
+      barcodeInput.value = barcode;
+      barcodeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      barcodeInput.blur();
+      barcodeInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast("Barkod ürün kartına aktarıldı ✅");
+      return;
+    }
+
     openBarcodeActionForCode(barcode);
   }
 
@@ -535,7 +739,7 @@
     setScannerStatus("Barkodu yeşil çerçevenin ortasında tut.");
   }
 
-  async function openOperationBarcodeScanner(){
+  async function openOperationBarcodeScanner(purpose = "search"){
     dismissAutomaticKeyboard();
 
     if (!navigator.mediaDevices?.getUserMedia){
@@ -543,6 +747,7 @@
       return;
     }
 
+    scannerPurpose = purpose === "product-form" ? "product-form" : "search";
     closeBarcodeActionModal();
     closeOperationBarcodeScanner();
     scannerBusy = false;
@@ -583,6 +788,15 @@
     }
   }
 
+  function openProductBarcodeScanner(){
+    if (!canCurrentUserEditProduct()) {
+      toast("Ürün barkodu düzenleme yetkin yok.", true);
+      return;
+    }
+    document.getElementById("barcode")?.blur();
+    openOperationBarcodeScanner("product-form");
+  }
+
   function closeOperationBarcodeScanner(){
     if (scannerFrameId) cancelAnimationFrame(scannerFrameId);
     scannerFrameId = null;
@@ -602,12 +816,14 @@
 
   window.startOperationVoiceSearch = startVoiceSearch;
   window.openOperationBarcodeScanner = openOperationBarcodeScanner;
+  window.openProductBarcodeScanner = openProductBarcodeScanner;
   window.closeOperationBarcodeScanner = closeOperationBarcodeScanner;
   window.openBarcodeActionForCode = openBarcodeActionForCode;
   window.closeBarcodeActionModal = closeBarcodeActionModal;
 
   voiceBtn?.addEventListener("click", startVoiceSearch);
-  barcodeBtn?.addEventListener("click", openOperationBarcodeScanner);
+  barcodeBtn?.addEventListener("click", () => openOperationBarcodeScanner("search"));
+  productBarcodeScanBtn?.addEventListener("click", openProductBarcodeScanner);
   scannerCloseBtn?.addEventListener("click", closeOperationBarcodeScanner);
   actionCloseBtn?.addEventListener("click", closeBarcodeActionModal);
   actionBackdrop?.addEventListener("click", closeBarcodeActionModal);
@@ -620,7 +836,15 @@
   stockInBtn?.addEventListener("click", () => performBarcodeStockAction("giris"));
   stockOutBtn?.addEventListener("click", () => performBarcodeStockAction("cikis"));
   addProductBtn?.addEventListener("click", addScannedBarcodeAsProduct);
+  linkProductBtn?.addEventListener("click", openBarcodeLinker);
+  editProductBtn?.addEventListener("click", editSelectedBarcodeProduct);
   notFoundCancelBtn?.addEventListener("click", closeBarcodeActionModal);
+  linkerBackBtn?.addEventListener("click", returnToBarcodeNotFound);
+  linkerSearchInput?.addEventListener("input", scheduleBarcodeLinkSearch);
+  linkerResults?.addEventListener("click", event => {
+    const button = event.target.closest("[data-link-product-id]");
+    if (button) linkScannedBarcodeToProduct(button.dataset.linkProductId);
+  });
   locationList?.addEventListener("click", event => {
     const button = event.target.closest("[data-barcode-product-id]");
     if (button) selectBarcodeProduct(button.dataset.barcodeProductId);
