@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.16';
+const APP_VERSION = '16.17';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 

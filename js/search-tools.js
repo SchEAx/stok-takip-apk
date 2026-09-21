@@ -1,4 +1,4 @@
-// v16.16 - Seçili ürün ve açık kaydet butonlu barkod eşleme
+// v16.17 - Seçili ürün ve açık kaydet butonlu barkod eşleme
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
@@ -552,7 +552,7 @@
       }
 
       closeBarcodeActionModal();
-      await openBarcodeActionForCode(barcode);
+      runOperationSearch(barcode);
       toast("Barkod ürünle eşlendi ✅");
     } catch (error) {
       console.error("Barkod ürünle eşlenemedi:", error);
