@@ -2067,7 +2067,7 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 }
 
 
-/* GarageFlow v16.15 — barkod düzenleme, ürün eşleme ve form kamerası */
+/* GarageFlow v16.16 — seçili ürün ve açık kaydet butonlu barkod eşleme */
 .product-barcode-control{
   display:grid;
   grid-template-columns:minmax(0,1fr) 48px;
@@ -2125,16 +2125,35 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
   outline:none;
   box-shadow:0 0 0 3px rgba(96,165,250,.12);
 }
+.barcode-link-option.active{
+  border-color:#22c55e;
+  background:rgba(34,197,94,.14);
+  box-shadow:0 0 0 3px rgba(34,197,94,.14);
+}
 .barcode-link-option:disabled{opacity:.55;cursor:wait}
 .barcode-link-option-title{font-size:15px;font-weight:900}
 .barcode-link-option-meta{font-size:12px;color:var(--muted)}
 .barcode-link-option-location{font-size:12px;font-weight:750;color:var(--text)}
+.barcode-link-save-wrap{
+  position:sticky;
+  bottom:-15px;
+  z-index:2;
+  margin:12px -15px -15px;
+  padding:11px 15px 15px;
+  border-top:1px solid var(--border);
+  background:color-mix(in srgb,var(--card,#111827) 94%,transparent);
+  backdrop-filter:blur(8px);
+}
+.barcode-link-selection{margin-bottom:8px;font-size:12px;font-weight:750}
+.barcode-link-save-btn{width:100%;min-height:52px;font-size:15px;font-weight:900}
+.barcode-link-save-btn:disabled{opacity:.48;cursor:not-allowed}
 .barcode-not-found-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:620px){
   .barcode-not-found-actions{grid-template-columns:1fr 1fr}
   #operationBarcodeNotFoundCancelBtn{grid-column:1 / -1;grid-row:2}
   .barcode-linker{padding:12px}
   .barcode-link-results{max-height:44vh}
+  .barcode-link-save-wrap{bottom:-12px;margin:10px -12px -12px;padding:10px 12px 12px}
 }
 
 #page-movements .movement-location-row{

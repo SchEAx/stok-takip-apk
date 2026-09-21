@@ -1,4 +1,4 @@
-// v16.15 - Barkod arama, hızlı stok, ürün eşleme ve düzenleme formunda kamera
+// v16.16 - Seçili ürün ve açık kaydet butonlu barkod eşleme
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
@@ -35,6 +35,8 @@
   const linkerBackBtn = document.getElementById("operationBarcodeLinkBackBtn");
   const linkerSearchInput = document.getElementById("operationBarcodeLinkSearchInput");
   const linkerResults = document.getElementById("operationBarcodeLinkResults");
+  const linkerSelection = document.getElementById("operationBarcodeLinkSelection");
+  const linkerSaveBtn = document.getElementById("operationBarcodeLinkSaveBtn");
 
   let speechRecognition = null;
   let speechActive = false;
@@ -55,6 +57,7 @@
   let linkerSearchTimer = null;
   let linkerQuerySequence = 0;
   let linkerCandidates = [];
+  let selectedLinkProduct = null;
   let linkerBusy = false;
 
   function toast(message, isError = false){
@@ -311,7 +314,10 @@
     clearTimeout(linkerSearchTimer);
     linkerQuerySequence++;
     linkerCandidates = [];
+    selectedLinkProduct = null;
     linkerBusy = false;
+    if (linkerSelection) linkerSelection.textContent = "Henüz ürün seçilmedi.";
+    if (linkerSaveBtn) linkerSaveBtn.disabled = true;
     resetBarcodeQuantity();
     setActionButtonsEnabled(false);
   }
@@ -414,6 +420,9 @@
     if (linkerSearchInput) linkerSearchInput.value = "";
     if (linkerResults) linkerResults.innerHTML = `<div class="empty-state">Ürün bulmak için en az 2 karakter yazın.</div>`;
     linkerCandidates = [];
+    selectedLinkProduct = null;
+    if (linkerSelection) linkerSelection.textContent = "Henüz ürün seçilmedi.";
+    if (linkerSaveBtn) linkerSaveBtn.disabled = true;
   }
 
   function returnToBarcodeNotFound(){
@@ -421,9 +430,22 @@
     openBarcodeNotFoundPrompt();
   }
 
+  function updateBarcodeLinkSelection(){
+    if (linkerSelection) {
+      linkerSelection.textContent = selectedLinkProduct
+        ? `Seçilen ürün: ${selectedLinkProduct.name || selectedLinkProduct.category || "Ürün"} · ${selectedLinkProduct.location || "Konum yok"}`
+        : "Henüz ürün seçilmedi.";
+    }
+    if (linkerSaveBtn) linkerSaveBtn.disabled = !selectedLinkProduct || linkerBusy;
+  }
+
   function renderBarcodeLinkCandidates(rows){
     if (!linkerResults) return;
     linkerCandidates = rows.slice(0, 50);
+    if (selectedLinkProduct && !linkerCandidates.some(product => String(product.id) === String(selectedLinkProduct.id))) {
+      selectedLinkProduct = null;
+    }
+    updateBarcodeLinkSelection();
 
     if (!linkerCandidates.length) {
       linkerResults.innerHTML = `<div class="empty-state">Bu aramayla eşleşen stok ürünü bulunamadı.</div>`;
@@ -434,12 +456,21 @@
       const nums = stockNumbers(product);
       const vehicle = vehicleText(product);
       const currentBarcode = String(product.barcode || "").trim();
-      return `<button type="button" class="barcode-link-option" data-link-product-id="${html(product.id)}" ${linkerBusy ? "disabled" : ""}>
+      const selected = selectedLinkProduct && String(selectedLinkProduct.id) === String(product.id);
+      return `<button type="button" class="barcode-link-option${selected ? " active" : ""}" data-link-product-id="${html(product.id)}" aria-pressed="${selected ? "true" : "false"}" ${linkerBusy ? "disabled" : ""}>
         <span class="barcode-link-option-title">${html(product.name || product.category || "Ürün")}</span>
         <span class="barcode-link-option-meta">${html(product.productBrand || "Marka yok")} · ${html(product.category || "Kategori yok")}${vehicle ? ` · ${html(vehicle)}` : ""}</span>
         <span class="barcode-link-option-location">📍 ${html(product.location || "Konum yok")} · Stok ${nums.stock} · ${currentBarcode ? `Mevcut barkod: ${html(currentBarcode)}` : "Barkod yok"}</span>
       </button>`;
     }).join("");
+  }
+
+  function selectBarcodeLinkProduct(productId){
+    const product = linkerCandidates.find(item => String(item.id) === String(productId));
+    if (!product || linkerBusy) return;
+    selectedLinkProduct = product;
+    renderBarcodeLinkCandidates(linkerCandidates);
+    requestAnimationFrame(() => linkerSaveBtn?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
 
   async function loadBarcodeLinkCandidates(){
@@ -471,6 +502,8 @@
 
   function scheduleBarcodeLinkSearch(){
     clearTimeout(linkerSearchTimer);
+    selectedLinkProduct = null;
+    updateBarcodeLinkSelection();
     linkerSearchTimer = setTimeout(loadBarcodeLinkCandidates, 260);
   }
 
@@ -500,6 +533,7 @@
     if (!confirmed) return;
 
     linkerBusy = true;
+    updateBarcodeLinkSelection();
     renderBarcodeLinkCandidates(linkerCandidates);
     try {
       if (typeof setLoading === "function") setLoading(true);
@@ -525,6 +559,7 @@
       toast(error?.message || "Barkod ürünle eşlenemedi.", true);
     } finally {
       linkerBusy = false;
+      updateBarcodeLinkSelection();
       if (typeof setLoading === "function") setLoading(false);
       if (!linkerWrap?.classList.contains("hidden")) renderBarcodeLinkCandidates(linkerCandidates);
     }
@@ -843,7 +878,10 @@
   linkerSearchInput?.addEventListener("input", scheduleBarcodeLinkSearch);
   linkerResults?.addEventListener("click", event => {
     const button = event.target.closest("[data-link-product-id]");
-    if (button) linkScannedBarcodeToProduct(button.dataset.linkProductId);
+    if (button) selectBarcodeLinkProduct(button.dataset.linkProductId);
+  });
+  linkerSaveBtn?.addEventListener("click", () => {
+    if (selectedLinkProduct?.id) linkScannedBarcodeToProduct(selectedLinkProduct.id);
   });
   locationList?.addEventListener("click", event => {
     const button = event.target.closest("[data-barcode-product-id]");
