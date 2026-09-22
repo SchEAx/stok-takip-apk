@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.17';
+const APP_VERSION = '16.18';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -1106,9 +1106,6 @@ window.openProductImage = function(url) {
   if (img) img.src = imageUrl;
   modal.classList.remove("hidden");
   document.body.classList.add("image-modal-open");
-  if (!history.state || !history.state.productImageModal) {
-    history.pushState({ ...(history.state || {}), productImageModal: true }, "");
-  }
 };
 
 window.closeProductImageModal = function(fromPopState = false) {
@@ -1118,14 +1115,4 @@ window.closeProductImageModal = function(fromPopState = false) {
   document.body.classList.remove("image-modal-open");
   const img = document.getElementById("productImageModalImg");
   if (img) img.src = "";
-  if (!fromPopState && history.state?.productImageModal) {
-    history.back();
-  }
 };
-
-window.addEventListener("popstate", () => {
-  const modal = document.getElementById("productImageModal");
-  if (modal && !modal.classList.contains("hidden")) {
-    closeProductImageModal(true);
-  }
-});

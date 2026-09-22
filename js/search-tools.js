@@ -1,4 +1,4 @@
-// v16.17 - Seçili ürün ve açık kaydet butonlu barkod eşleme
+// v16.18 - Android geri tuşu ve kamera oturumu yönetimi
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
@@ -48,6 +48,7 @@
   let scannerZxingReader = null;
   let scannerZxingControls = null;
   let scannerPurpose = "search";
+  let scannerSession = 0;
 
   let barcodeMatches = [];
   let selectedBarcodeProduct = null;
@@ -726,7 +727,7 @@
   }
 
   async function scanNativeFrame(){
-    if (!scannerStream || !scannerDetector || !scannerVideo) return;
+    if (!scannerStream || !scannerDetector || !scannerVideo || scannerModal?.classList.contains("hidden")) return;
     if (scannerVideo.readyState >= 2 && !scannerBusy){
       try{
         const codes = await scannerDetector.detect(scannerVideo);
@@ -738,39 +739,51 @@
         setScannerStatus("Barkodu yeşil çerçevenin ortasında sabit tut.");
       }
     }
-    scannerFrameId = requestAnimationFrame(scanNativeFrame);
+    if (scannerStream && !scannerModal?.classList.contains("hidden")) scannerFrameId = requestAnimationFrame(scanNativeFrame);
   }
 
-  async function startNativeScanner(){
+  async function startNativeScanner(session){
     scannerDetector = new BarcodeDetector();
-    scannerStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:720 } },
       audio:false
     });
+    if (session !== scannerSession || scannerModal?.classList.contains("hidden")) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    scannerStream = stream;
     scannerVideo.srcObject = scannerStream;
     await scannerVideo.play();
+    if (session !== scannerSession) return;
     setScannerStatus("Barkodu yeşil çerçevenin ortasında tut.");
     scanNativeFrame();
   }
 
-  async function startZxingScanner(){
+  async function startZxingScanner(session){
     if (!window.ZXingBrowser?.BrowserMultiFormatReader){
       throw new Error("ZXing barkod okuyucu yüklenemedi.");
     }
-    scannerZxingReader = new ZXingBrowser.BrowserMultiFormatReader(undefined, {
+    const reader = new ZXingBrowser.BrowserMultiFormatReader(undefined, {
       delayBetweenScanAttempts: 90,
       delayBetweenScanSuccess: 400
     });
-    scannerZxingControls = await scannerZxingReader.decodeFromConstraints({
+    scannerZxingReader = reader;
+    const controls = await reader.decodeFromConstraints({
       video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:720 } },
       audio:false
     }, scannerVideo, (result, _error, controls) => {
-      if (result && !scannerBusy){
+      if (result && !scannerBusy && session === scannerSession && !scannerModal?.classList.contains("hidden")){
         const value = typeof result.getText === "function" ? result.getText() : result.text;
         try { controls?.stop?.(); } catch (_) {}
         finishBarcodeScan(value);
       }
     });
+    if (session !== scannerSession || scannerModal?.classList.contains("hidden")) {
+      try { controls?.stop?.(); } catch (_) {}
+      return;
+    }
+    scannerZxingControls = controls;
     setScannerStatus("Barkodu yeşil çerçevenin ortasında tut.");
   }
 
@@ -785,6 +798,7 @@
     scannerPurpose = purpose === "product-form" ? "product-form" : "search";
     closeBarcodeActionModal();
     closeOperationBarcodeScanner();
+    const session = scannerSession;
     scannerBusy = false;
     scannerSetOpen(true);
     setScannerStatus("Kamera hazırlanıyor...");
@@ -798,20 +812,23 @@
 
     try{
       if (isIOSDevice() || !("BarcodeDetector" in window)){
-        await startZxingScanner();
+        await startZxingScanner(session);
       }else{
         try{
-          await startNativeScanner();
+          await startNativeScanner(session);
         }catch(nativeError){
+          if (session !== scannerSession) return;
           console.warn("Native barkod tarayıcı açılamadı, ZXing deneniyor:", nativeError);
           closeOperationBarcodeScanner();
+          const fallbackSession = scannerSession;
           scannerBusy = false;
           scannerSetOpen(true);
           setScannerStatus("Kamera hazırlanıyor...");
-          await startZxingScanner();
+          await startZxingScanner(fallbackSession);
         }
       }
     }catch(error){
+      if (scannerModal?.classList.contains("hidden")) return;
       console.error("Barkod kamera hatası:", error);
       closeOperationBarcodeScanner();
       const name = String(error?.name || "");
@@ -833,6 +850,7 @@
   }
 
   function closeOperationBarcodeScanner(){
+    scannerSession++;
     if (scannerFrameId) cancelAnimationFrame(scannerFrameId);
     scannerFrameId = null;
     try { scannerZxingControls?.stop?.(); } catch (_) {}

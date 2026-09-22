@@ -1,5 +1,5 @@
 // Navigasyon, şifre değişimi, güncelleme ve realtime olayları
-function switchTab(tab) {
+function switchTab(tab, options = {}) {
   const staff = currentStaff();
   if (!canAccessTab(tab, staff.role)) {
     showToast(`${roleLabel(staff.role)} yetkisi bu sayfayı açamaz`, true);
@@ -40,7 +40,9 @@ function switchTab(tab) {
 if (tab === "operation") {
   loadOperationFilterOptions().catch(err => console.warn("İşlem filtreleri alınamadı:", err?.message || err));
   refreshOperationFilters();
-  if (el.operationResultBox && !(el.operationBrandFilter?.value || el.operationCategoryFilter?.value || String(el.operationSearchInput?.value || "").trim())) {
+  if (options.showSavedProduct && state.operationResults?.length) {
+    renderOperationCards(state.operationResults);
+  } else if (el.operationResultBox && !(el.operationBrandFilter?.value || el.operationCategoryFilter?.value || String(el.operationSearchInput?.value || "").trim())) {
     state.operationResults = [];
     el.operationResultBox.innerHTML = `<div class="empty-state">Filtre seç veya en az 2 karakter ürün ara</div>`;
   } else {
@@ -102,6 +104,79 @@ if (tab === "settings") initializeStockTheme();
 if (tab === "logs") { loadActivityLogs(); }
 }
 window.switchTab = switchTab;
+
+// Android geri tuşu WebView geçmişini kullanır. Tek bir koruma kaydı tutarak
+// açık pencereleri kapatır, sonra işlem ekranına ve çıkış onayına döneriz.
+let garageBackGuardReady = false;
+let garageExitConfirmOpen = false;
+let garageBackGuardActive = false;
+let garageExiting = false;
+
+function armGarageBackGuard() {
+  history.pushState({ garageBackGuard: true }, "", location.href);
+  garageBackGuardActive = true;
+}
+
+function initGarageBackGuard() {
+  if (garageBackGuardReady) return;
+  garageBackGuardReady = true;
+  // Yenilemede eski geçici pencere kaydını taşımayalım.
+  history.replaceState({ garageBackBase: true }, "", location.href);
+  armGarageBackGuard();
+}
+
+window.addEventListener("popstate", () => {
+  if (!garageBackGuardReady) return;
+  garageBackGuardActive = false;
+
+  if (garageExiting) {
+    // Önce başlangıç geçmişi, varsa onun da öncesi kapanır.
+    window.close();
+    history.back();
+    return;
+  }
+
+  if (garageExitConfirmOpen) {
+    // Çıkış sorusu açıkken bir kez daha geri: uygulamadan çık.
+    document.getElementById("appConfirmOk")?.click();
+    return;
+  }
+
+  const visible = id => {
+    const node = document.getElementById(id);
+    return node && !node.classList.contains("hidden");
+  };
+
+  if (visible("appConfirmOverlay")) {
+    document.getElementById("appConfirmCancel")?.click();
+  } else if (visible("operationBarcodeScannerModal")) {
+    window.closeOperationBarcodeScanner?.();
+  } else if (visible("operationBarcodeActionModal")) {
+    window.closeBarcodeActionModal?.();
+  } else if (visible("productCameraModal")) {
+    window.closeProductCamera?.();
+  } else if (visible("productImageModal")) {
+    window.closeProductImageModal?.(true);
+  } else if (state.activeTab !== "operation") {
+    switchTab("operation");
+  } else {
+    armGarageBackGuard();
+    garageExitConfirmOpen = true;
+    appConfirm("Uygulamadan çıkmak istiyor musun? Geri tuşuna tekrar basarak da çıkabilirsin.", {
+      title: "Çıkış onayı", okText: "Çık", cancelText: "Kal"
+    }).then(confirmed => {
+      garageExitConfirmOpen = false;
+      if (confirmed) {
+        garageExiting = true;
+        window.close();
+        history.back();
+      }
+    });
+    return;
+  }
+
+  armGarageBackGuard();
+});
 async function changeOwnPassword() {
   const currentInput = document.getElementById("currentPasswordInput");
   const newInput = document.getElementById("newPasswordInput");

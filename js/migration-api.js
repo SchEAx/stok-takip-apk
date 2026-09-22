@@ -130,6 +130,7 @@ loginWithSelectedStaff = async function() {
     if (el.loginPasswordInput) el.loginPasswordInput.value = "";
     hideLogin(); updateUserPill(); applyRoleVisibility(); renderStaffSelector();
     switchTab("operation");
+    initGarageBackGuard();
     await logActivity("login", `${staff.name} migration-test giriş yaptı`, "staff", staff.name);
     showToast(`Hoş geldin ${staff.name} ✅`);
     await Promise.all([loadDashboardStats(), loadMovements(), loadOperationFilterOptions()]);
@@ -762,9 +763,6 @@ window.openProductImage = function(url) {
   if (img) img.src = imageUrl;
   modal.classList.remove("hidden");
   document.body.classList.add("image-modal-open");
-  if (!history.state || !history.state.productImageModal) {
-    history.pushState({ ...(history.state || {}), productImageModal: true }, "");
-  }
 };
 openProductImage = window.openProductImage;
 

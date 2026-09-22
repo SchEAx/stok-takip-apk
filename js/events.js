@@ -34,12 +34,15 @@ el.productForm.addEventListener("submit", async (e) => {
       const wasEdit = Boolean(payload.id);
       const result = await migrationSaveProduct(payload);
       const productId = result?.product?.id || payload.id;
+      const savedProduct = productId
+        ? await refreshMigrationProductState(productId, { product: result?.product }).catch(() => null)
+        : null;
       await logActivity(
         wasEdit ? "product_update" : "product_insert",
         `${wasEdit ? "Ürün güncellendi" : "Ürün eklendi"}: ${payload.category} ${payload.carBrand} ${payload.carModel}`,
         "stock_products",
         productId
-      );
+      ).catch(error => console.warn("Ürün etkinlik kaydı yazılamadı:", error));
       showToast(wasEdit ? "Ürün güncellendi ✅" : "Ürün kaydedildi ✅");
       clearProductForm();
       state.operationFilterOptionsLoaded = false;
@@ -49,6 +52,21 @@ el.productForm.addEventListener("submit", async (e) => {
         loadOperationFilterOptions(),
         loadMovements()
       ]);
+      if (el.operationBrandFilter) el.operationBrandFilter.value = "";
+      if (el.operationCategoryFilter) el.operationCategoryFilter.value = "";
+      const product = savedProduct || (result?.product && mapProduct(result.product));
+      if (product) {
+        clearTimeout(state.operationSearchTimer);
+        state.operationQuerySeq++;
+        if (el.operationSearchInput) {
+          el.operationSearchInput.value = String(product.barcode || product.carModel || product.category || "");
+          el.operationSearchInput.blur();
+        }
+        state.operationResults = [product];
+      }
+      switchTab("operation", { showSavedProduct: Boolean(product) });
+      if (product) renderOperationCards([product]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       console.error(err);
       showToast(err.message || "Ürün kaydedilemedi", true);
@@ -123,6 +141,7 @@ async function bootApp() {
   if (authenticated && state.currentUser) {
     renderStaffSelector();
     switchTab("operation");
+    initGarageBackGuard();
     loadActivityLogs();
     await Promise.all([
       loadDashboardStats().catch(err => console.error(err)),
