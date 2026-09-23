@@ -141,6 +141,8 @@ loginWithSelectedStaff = async function() {
 };
 
 initAuthGate = async function() {
+  const hubToken = await window.GarageHubSSO?.waitForToken();
+  if (hubToken) setMigrationToken(hubToken);
   if (!migrationToken()) { showLogin(); return false; }
   try {
     await loadAuthenticatedProfile();

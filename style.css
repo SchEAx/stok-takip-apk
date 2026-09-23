@@ -2067,7 +2067,7 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 }
 
 
-/* GarageFlow v16.18 — seçili ürün ve açık kaydet butonlu barkod eşleme */
+/* GarageFlow v16.19 — seçili ürün ve açık kaydet butonlu barkod eşleme */
 .product-barcode-control{
   display:grid;
   grid-template-columns:minmax(0,1fr) 48px;

@@ -1,4 +1,4 @@
-// v16.18 - Android geri tuşu ve kamera oturumu yönetimi
+// v16.19 - Android geri tuşu ve kamera oturumu yönetimi
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
