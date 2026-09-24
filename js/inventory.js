@@ -316,19 +316,18 @@ function productPriceWithCostHtml(product, members = [product]) {
   const high = Math.max(...costs);
   const costText = low === high ? formatTL(low) : `${formatTL(low)} – ${formatTL(high)}`;
   const costLabel = low === high ? "Maliyet" : "Maliyet (konuma göre)";
+  const cost = `${costLabel}: ${costText}`;
   return `<div class="operation-price-row">
     <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(product.averageSalePrice || 0)}</strong></div>
-    <button class="operation-cost-toggle" type="button" onclick="toggleProductCost(this)" aria-expanded="false" aria-label="Maliyeti göster" title="Maliyeti göster">👁 <span>Maliyet</span></button>
-    <div class="operation-cost-box" hidden>${costLabel}: <strong>${costText}</strong></div>
+    <button class="operation-cost-toggle" type="button" onclick="toggleProductCost(this)" data-cost="${escapeHtml(cost)}" aria-pressed="false" aria-label="Maliyeti göster" title="Maliyeti göster">👁</button>
   </div>`;
 }
 window.toggleProductCost = function(button) {
-  const cost = button.nextElementSibling;
-  if (!cost || !cost.classList.contains("operation-cost-box")) return;
-  cost.hidden = !cost.hidden;
-  button.setAttribute("aria-expanded", String(!cost.hidden));
-  button.setAttribute("aria-label", cost.hidden ? "Maliyeti göster" : "Maliyeti gizle");
-  button.title = cost.hidden ? "Maliyeti göster" : "Maliyeti gizle";
+  const visible = button.getAttribute("aria-pressed") !== "true";
+  button.setAttribute("aria-pressed", String(visible));
+  button.textContent = visible ? button.dataset.cost : "👁";
+  button.setAttribute("aria-label", visible ? `${button.dataset.cost}. Gizlemek için dokun` : "Maliyeti göster");
+  button.title = visible ? "Maliyeti gizle" : "Maliyeti göster";
 };
 function getQuickQty(productId) {
   const value = Number(state.quickQty[productId] || 1);

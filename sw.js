@@ -1,28 +1,28 @@
-const CACHE_NAME = "garage-stock-16-20";
+const CACHE_NAME = "garage-stock-16-21";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=16.20",
-  "./hub-sso.js?v=16.20",
-  "./js/core.js?v=16.20",
-  "./js/inventory.js?v=16.20",
-  "./js/sales-dashboard.js?v=16.20",
-  "./js/staff.js?v=16.20",
-  "./js/sales.js?v=16.20",
-  "./js/requests.js?v=16.20",
-  "./js/surveys.js?v=16.20",
-  "./js/management.js?v=16.20",
-  "./js/purchasing.js?v=16.20",
-  "./js/navigation.js?v=16.20",
-  "./js/reports.js?v=16.20",
-  "./js/migration-api.js?v=16.20",
-  "./js/search-tools.js?v=16.20",
-  "./js/events.js?v=16.20",
-  "./js/excel.js?v=16.20",
-  "./js/migration-excel.js?v=16.20",
-  "./app.js?v=16.20",
-  "./manifest.webmanifest?v=16.20",
+  "./style.css?v=16.21",
+  "./hub-sso.js?v=16.21",
+  "./js/core.js?v=16.21",
+  "./js/inventory.js?v=16.21",
+  "./js/sales-dashboard.js?v=16.21",
+  "./js/staff.js?v=16.21",
+  "./js/sales.js?v=16.21",
+  "./js/requests.js?v=16.21",
+  "./js/surveys.js?v=16.21",
+  "./js/management.js?v=16.21",
+  "./js/purchasing.js?v=16.21",
+  "./js/navigation.js?v=16.21",
+  "./js/reports.js?v=16.21",
+  "./js/migration-api.js?v=16.21",
+  "./js/search-tools.js?v=16.21",
+  "./js/events.js?v=16.21",
+  "./js/excel.js?v=16.21",
+  "./js/migration-excel.js?v=16.21",
+  "./app.js?v=16.21",
+  "./manifest.webmanifest?v=16.21",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
@@ -69,7 +69,7 @@ self.addEventListener("activate", (event) => {
         try {
           const url = new URL(client.url);
           if (url.origin !== self.location.origin) return;
-          url.searchParams.set("__garage_build", "16.20");
+          url.searchParams.set("__garage_build", "16.21");
           url.searchParams.set("__garage_sw", String(Date.now()));
           await client.navigate(url.href);
         } catch {}
@@ -99,7 +99,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // v16.20: Cache-first tamamen kaldırıldı.
+  // v16.21: Cache-first tamamen kaldırıldı.
   // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
   event.respondWith(
     fetch(request, { cache: "no-cache" })

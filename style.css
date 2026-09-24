@@ -667,14 +667,13 @@ body.image-modal-open{overflow:hidden}
   color: #ffffff;
   font-size: 14px;
 }
-.operation-price-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
-.operation-price-row .operation-price-line{margin-top:0}
-.operation-cost-toggle{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 10px;border:1px solid #64748b;border-radius:10px;background:#1e293b;color:#f8fafc;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-.operation-cost-toggle:hover,.operation-cost-toggle[aria-expanded="true"]{border-color:#fbbf24;background:#403117}
+.operation-price-row{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;max-width:100%;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+.operation-price-row::-webkit-scrollbar{display:none}
+.operation-price-row .operation-price-line{flex:0 0 auto;margin-top:0;white-space:nowrap}
+.operation-cost-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:36px;min-height:34px;padding:6px 9px;border:1px solid #64748b;border-radius:10px;background:#1e293b;color:#f8fafc;font:inherit;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
+.operation-cost-toggle:hover,.operation-cost-toggle[aria-pressed="true"]{border-color:#fbbf24;background:#403117;color:#fde68a}
 .operation-cost-toggle:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
-.operation-cost-box{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:7px 10px;border:1px solid rgba(251,191,36,.4);border-radius:12px;background:rgba(251,191,36,.12);color:#fde68a;font-size:13px;font-weight:700}
-.operation-cost-box strong{color:#fff;font-size:14px}
-.operation-cost-box[hidden]{display:none}
+@media(max-width:700px){.operation-price-row{gap:6px}.operation-price-row .operation-price-line{padding:6px 8px;font-size:12px}.operation-price-row .operation-price-line strong{font-size:12px}.operation-cost-toggle{padding:5px 8px;font-size:12px}}
 
 /* === Rezerve / Bildirim sekmeleri geri aktif === */
 .top-nav .nav-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:900;vertical-align:middle}
@@ -2224,7 +2223,7 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
     font-size:11px!important;line-height:1.35!important;
   }
   #page-operation .grouped-operation-total>span{min-width:0!important;overflow-wrap:anywhere}
-  #page-operation .operation-price-line{margin-top:8px!important;padding:6px 9px!important;font-size:12px!important}
+  #page-operation .operation-price-line{margin-top:0!important;padding:6px 9px!important;font-size:12px!important}
   #page-operation .operation-location-list{gap:7px!important;margin-top:8px!important}
   #page-operation .operation-location-row{padding:9px!important;gap:8px!important}
   #page-operation .operation-location-title{margin-bottom:5px}
