@@ -667,6 +667,14 @@ body.image-modal-open{overflow:hidden}
   color: #ffffff;
   font-size: 14px;
 }
+.operation-price-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.operation-price-row .operation-price-line{margin-top:0}
+.operation-cost-toggle{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 10px;border:1px solid #64748b;border-radius:10px;background:#1e293b;color:#f8fafc;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.operation-cost-toggle:hover,.operation-cost-toggle[aria-expanded="true"]{border-color:#fbbf24;background:#403117}
+.operation-cost-toggle:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
+.operation-cost-box{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:7px 10px;border:1px solid rgba(251,191,36,.4);border-radius:12px;background:rgba(251,191,36,.12);color:#fde68a;font-size:13px;font-weight:700}
+.operation-cost-box strong{color:#fff;font-size:14px}
+.operation-cost-box[hidden]{display:none}
 
 /* === Rezerve / Bildirim sekmeleri geri aktif === */
 .top-nav .nav-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:900;vertical-align:middle}

@@ -310,6 +310,26 @@ function renderMovements() {
       <div class="movement-detail-line">Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`;
   }).join("");
 }
+function productPriceWithCostHtml(product, members = [product]) {
+  const costs = members.map(item => Number(item.purchasePrice || 0)).filter(Number.isFinite);
+  const low = Math.min(...costs);
+  const high = Math.max(...costs);
+  const costText = low === high ? formatTL(low) : `${formatTL(low)} – ${formatTL(high)}`;
+  const costLabel = low === high ? "Maliyet" : "Maliyet (konuma göre)";
+  return `<div class="operation-price-row">
+    <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(product.averageSalePrice || 0)}</strong></div>
+    <button class="operation-cost-toggle" type="button" onclick="toggleProductCost(this)" aria-expanded="false" aria-label="Maliyeti göster" title="Maliyeti göster">👁 <span>Maliyet</span></button>
+    <div class="operation-cost-box" hidden>${costLabel}: <strong>${costText}</strong></div>
+  </div>`;
+}
+window.toggleProductCost = function(button) {
+  const cost = button.nextElementSibling;
+  if (!cost || !cost.classList.contains("operation-cost-box")) return;
+  cost.hidden = !cost.hidden;
+  button.setAttribute("aria-expanded", String(!cost.hidden));
+  button.setAttribute("aria-label", cost.hidden ? "Maliyeti göster" : "Maliyeti gizle");
+  button.title = cost.hidden ? "Maliyeti göster" : "Maliyeti gizle";
+};
 function getQuickQty(productId) {
   const value = Number(state.quickQty[productId] || 1);
   return value > 0 ? value : 1;
@@ -338,7 +358,7 @@ function renderMovementCards(results) {
         <div class="muted">Araç: <strong>${escapeHtml(vehicle || "-")}</strong> · Raf: <strong>${escapeHtml(p.location || "-")}</strong>${p.barcode ? ` · Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""}</div>
         ${p.note ? `<div class="muted">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
         <div class="muted">Stok: <strong>${p.stock}</strong> | Rezerve: <strong>${p.reserved}</strong> | Kullanılabilir: <strong>${available}</strong></div>
-        <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
+        ${productPriceWithCostHtml(p)}
       </div>
       <div class="movement-search-actions">
         <div class="operation-qty-row quick-qty-row">
@@ -496,7 +516,7 @@ function renderOperationCards(results) {
           <span>Kullanılabilir: <b class="${totalAvailable <= 0 ? "stock-warning" : ""}">${totalAvailable}</b></span>
           <span class="operation-vehicle-summary">Araç Özeti: <b>${escapeHtml(vehicle || "-")}</b></span>
         </div>
-        <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(p.averageSalePrice || 0)}</strong></div>
+        ${productPriceWithCostHtml(p, group.members)}
         <div class="operation-location-list">${locationRows}</div>
       </div>
     </div>`;
@@ -609,4 +629,3 @@ function fillProductForm(product) { el.productId.value = product.id || ""; el.ba
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function() { throw new Error("VDS API yüklenmeden ürün silinemez."); };
 window.quickStockAction = async function() { throw new Error("VDS API yüklenmeden hızlı stok işlemi yapılamaz."); };
-
