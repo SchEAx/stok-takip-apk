@@ -2245,3 +2245,26 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 @media(max-width:560px){
   #page-movements .movement-location-row{width:100%;align-items:flex-start;flex-direction:column;gap:3px}
 }
+
+/* v16.22 — arama kartlarında kullanılabilir stok durumunu belirgin göster. */
+.stock-status-available{--stock-state-border:#22c55e;--stock-state-tint:rgba(34,197,94,.10);--stock-state-badge-bg:#14532d;--stock-state-badge-text:#dcfce7}
+.stock-status-critical{--stock-state-border:#facc15;--stock-state-tint:rgba(250,204,21,.12);--stock-state-badge-bg:#713f12;--stock-state-badge-text:#fef9c3}
+.stock-status-empty{--stock-state-border:#ef4444;--stock-state-tint:rgba(239,68,68,.12);--stock-state-badge-bg:#7f1d1d;--stock-state-badge-text:#fee2e2}
+#page-operation .operation-card.stock-status-surface,
+.movement-search-item.stock-status-surface{
+  border:3px solid var(--stock-state-border)!important;
+  background:linear-gradient(120deg,var(--stock-state-tint),transparent 80%),var(--card)!important;
+}
+#page-operation .operation-location-row.stock-status-surface{
+  border:2px solid var(--stock-state-border)!important;
+  background:var(--stock-state-tint)!important;
+}
+.stock-state-badge{
+  display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+  padding:4px 9px;border:1px solid var(--stock-state-border);border-radius:999px;
+  background:var(--stock-state-badge-bg)!important;color:var(--stock-state-badge-text)!important;
+  font-size:12px;font-weight:800;line-height:1.4;white-space:nowrap;
+}
+.stock-state-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--stock-state-border);flex-shrink:0}
+#page-operation .operation-title .stock-state-badge{margin-left:6px}
+@media(max-width:700px){.stock-state-badge{font-size:11px;padding:4px 8px}}

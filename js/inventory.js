@@ -310,6 +310,15 @@ function renderMovements() {
       <div class="movement-detail-line">Tarih: <strong>${formatDate(m.created_at)}</strong></div></div>`;
   }).join("");
 }
+function stockAvailabilityStatus(stock, reserved, minimum) {
+  const available = Number(stock || 0) - Number(reserved || 0);
+  if (available <= 0) return { key: "empty", label: "Stok yok" };
+  if (available <= Number(minimum || 0)) return { key: "critical", label: "Kritik stok" };
+  return { key: "available", label: "Stok var" };
+}
+function stockStatusBadgeHtml(status) {
+  return `<span class="stock-state-badge stock-status-${status.key}">${status.label}</span>`;
+}
 function productPriceWithCostHtml(product, members = [product]) {
   const costs = members.map(item => Number(item.purchasePrice || 0)).filter(Number.isFinite);
   const low = Math.min(...costs);
@@ -347,12 +356,13 @@ function renderMovementCards(results) {
   if (!results.length) { el.movementSearchList.innerHTML = `<div class="empty-state">Eşleşen ürün bulunamadı</div>`; return; }
   el.movementSearchList.innerHTML = results.slice(0, 60).map((p) => {
     const available = Number(p.stock || 0) - Number(p.reserved || 0);
+    const stockStatus = stockAvailabilityStatus(p.stock, p.reserved, p.minStock);
     const qty = getQuickQty(p.id);
     const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
-    return `<div class="movement-search-item">
+    return `<div class="movement-search-item stock-status-surface stock-status-${stockStatus.key}">
       ${productImageHtml(p, "product-card-img")}
       <div class="movement-search-info">
-        <strong>${escapeHtml(p.name || p.category || "-")}</strong>
+        <strong>${escapeHtml(p.name || p.category || "-")}</strong> ${stockStatusBadgeHtml(stockStatus)}
         <div class="muted">Ürün Marka: <strong>${escapeHtml(p.productBrand || "-")}</strong> · Kategori: <strong>${escapeHtml(p.category || "-")}</strong></div>
         <div class="muted">Araç: <strong>${escapeHtml(vehicle || "-")}</strong> · Raf: <strong>${escapeHtml(p.location || "-")}</strong>${p.barcode ? ` · Barkod: <strong>${escapeHtml(p.barcode)}</strong>` : ""}</div>
         ${p.note ? `<div class="muted">Açıklama/Renk: <strong>${escapeHtml(p.note)}</strong></div>` : ""}
@@ -458,6 +468,7 @@ function renderOperationCards(results) {
   el.operationResultBox.innerHTML = groups.slice(0, 120).map((group) => {
     const p = group.first;
     const totalAvailable = group.totalStock - group.totalReserved;
+    const stockStatus = stockAvailabilityStatus(group.totalStock, group.totalReserved, group.minStockTotal);
     const vehicle = [p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(" ");
     const barcodes = [...group.barcodes];
     const barcodeText = !barcodes.length ? "Barkod yok" : barcodes.length === 1 ? `Barkod: <strong>${escapeHtml(barcodes[0])}</strong>` : `<strong>${barcodes.length} farklı barkod</strong>`;
@@ -467,10 +478,11 @@ function renderOperationCards(results) {
       .sort((a, b) => String(a.location || "").localeCompare(String(b.location || ""), "tr"))
       .map(item => {
         const available = Number(item.stock || 0) - Number(item.reserved || 0);
+        const locationStatus = stockAvailabilityStatus(item.stock, item.reserved, item.minStock);
         const qty = getOperationQty(item.id);
-        return `<div class="operation-location-row">
+        return `<div class="operation-location-row stock-status-surface stock-status-${locationStatus.key}">
           <div class="operation-location-info">
-            <div class="operation-location-title"><span class="operation-location-badge">📍 ${escapeHtml(item.location || "Konum yok")}</span>${item.barcode ? `<span class="operation-location-badge subtle">Barkod: <strong>${escapeHtml(item.barcode)}</strong></span>` : ""}</div>
+            <div class="operation-location-title"><span class="operation-location-badge">📍 ${escapeHtml(item.location || "Konum yok")}</span>${item.barcode ? `<span class="operation-location-badge subtle">Barkod: <strong>${escapeHtml(item.barcode)}</strong></span>` : ""}${stockStatusBadgeHtml(locationStatus)}</div>
             <div class="muted">Stok: <strong>${Number(item.stock || 0)}</strong> · Rezerve: <strong>${Number(item.reserved || 0)}</strong> · Kullanılabilir: <strong class="${available <= 0 ? "stock-warning" : ""}">${available}</strong>${item.note ? ` · Not: <strong>${escapeHtml(item.note)}</strong>` : ""}</div>
           </div>
           <div class="operation-location-actions">
@@ -499,12 +511,12 @@ function renderOperationCards(results) {
       `<div class="operation-meta-pill operation-meta-location-count"><span class="pill-label">Konum Sayısı</span><strong>${group.members.length}</strong></div>`
     ].filter(Boolean).join("");
 
-    return `<div class="operation-card grouped-operation-card">
+    return `<div class="operation-card grouped-operation-card stock-status-surface stock-status-${stockStatus.key}">
       ${productImageHtml(p, "product-card-img")}
       <div class="operation-main grouped-operation-main">
         <div class="operation-group-head">
           <div>
-            <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")}</div>
+            <div class="operation-title">${escapeHtml(p.name || p.category || "Ürün")} ${stockStatusBadgeHtml(stockStatus)}</div>
             <div class="operation-meta-grid">${detailPills}</div>
           </div>
           <button class="btn secondary mini" type="button" onclick="assignBarcodeToStockGroup('${p.id}')">Barkod Ver</button>
