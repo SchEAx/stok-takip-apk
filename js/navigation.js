@@ -6,7 +6,7 @@ function switchTab(tab, options = {}) {
     tab = ROLE_DEFAULT_TAB[staff.role] || "operation";
   }
   state.activeTab = tab;
-  ["search", "add", "requests", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys", "management", "notifications", "history", "users", "settings", "logs"].forEach((key) => {
+  ["search", "add", "requests", "reservations", "operation", "movements", "sale", "reports", "critical", "categoryValues", "orderSuggestion", "purchaseOrders", "surveys", "management", "notifications", "history", "users", "settings", "logs"].forEach((key) => {
     const page = document.getElementById("page-" + key);
     const nav = document.getElementById("nav-" + key);
     if (page) page.classList.add("hidden");
@@ -66,6 +66,7 @@ if (tab === "sale") {
   renderSaleDashboard();
 }
 if (tab === "requests") { clearNewRequestAlert(); loadStockRequests(); }
+if (tab === "reservations") loadManualReservations();
 if (tab === "reports") renderReports();
 if (tab === "critical") loadCriticalStock().catch(err => showToast(err.message || "Kritik stok alınamadı", true));
 if (tab === "categoryValues") loadCategoryValues().catch(err => showToast(err.message || "Kategori değerleri alınamadı", true));

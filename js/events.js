@@ -80,6 +80,7 @@ if (el.productImageFile) el.productImageFile.addEventListener("change", handlePr
 if (el.productImageRemoveBtn) el.productImageRemoveBtn.addEventListener("click", removeSelectedProductImage);
 if (el.productImageViewBtn) el.productImageViewBtn.addEventListener("click", () => openProductImage());
 async function smartRefresh() {
+  if (state.activeTab === "reservations") { await loadManualReservations(); return; }
   if (state.activeTab === "requests") { await loadStockRequests(); return; }
   if (state.activeTab === "notifications") { await loadNotifications(); return; }
   if (state.activeTab === "operation") {

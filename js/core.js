@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.22';
+const APP_VERSION = '16.23';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -183,6 +183,7 @@ const TAB_DEFINITIONS = [
   { key: "operation", label: "İşlem" },
   { key: "add", label: "Ürün Ekle" },
   { key: "requests", label: "Talepler" },
+  { key: "reservations", label: "Rezerveler" },
   { key: "movements", label: "Hareketler" },
   { key: "critical", label: "Kritik Stok" },
   { key: "categoryValues", label: "Kategori Değerleri" },

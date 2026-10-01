@@ -377,7 +377,7 @@ function renderMovementCards(results) {
         </div>
         ${p.imageUrl ? `<button type="button" class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
         <button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>
-        <button type="button" class="btn danger" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Çıkış</button>
+        <button type="button" class="btn reserve-btn" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Rezerve et</button>
       </div>
     </div>`;
   }).join("");
@@ -492,7 +492,7 @@ function renderOperationCards(results) {
               <button class="btn secondary mini" onclick="stepOperationQty('${item.id}', 1)">+</button>
             </div>
             ${userActionAllowed("stockIn") ? `<button class="btn success" onclick="operationStockAction('${item.id}', 'giris')">Giriş</button>` : ""}
-            ${userActionAllowed("stockOut") ? `<button class="btn danger" onclick="operationStockAction('${item.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Çıkış</button>` : ""}
+            ${userActionAllowed("stockOut") ? `<button class="btn reserve-btn" onclick="operationStockAction('${item.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Rezerve et</button>` : ""}
             ${userActionAllowed("addToOrderPool") ? `<button class="btn primary" onclick="addProductToPurchaseOrder('${item.id}')">📦 Sipariş</button>` : ""}
             <button class="btn secondary" onclick="editProduct('${item.id}')">Düzenle</button>
             <button class="btn danger" onclick="deleteProduct('${item.id}')">Sil</button>

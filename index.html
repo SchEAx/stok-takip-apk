@@ -2,7 +2,7 @@
 
 <html lang="tr">
 <head>
-<meta name="garage-build-version" content="16.22">
+<meta name="garage-build-version" content="16.23">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -25,8 +25,8 @@
 <meta content="yes" name="mobile-web-app-capable"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="Garage Stok" name="apple-mobile-web-app-title"/>
-<link href="manifest.webmanifest?v=16.22" rel="manifest"/>
-<link href="style.css?v=16.22" rel="stylesheet"/>
+<link href="manifest.webmanifest?v=16.23" rel="manifest"/>
+<link href="style.css?v=16.23" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
 </head>
@@ -75,6 +75,7 @@
 
 
 <button id="nav-add" onclick="switchTab('add')">Ürün Ekle</button>
+<button id="nav-reservations" onclick="switchTab('reservations')">Rezerveler</button>
 <button id="nav-requests" onclick="switchTab('requests')">Talepler <span id="requestNavBadge" class="nav-count hidden">0</span></button>
 <button id="nav-movements" onclick="switchTab('movements')">Hareketler</button>
 <button id="nav-critical" onclick="switchTab('critical')">Kritik Stok</button>
@@ -100,7 +101,7 @@
 <section class="card">
 <div class="section-head">
 <div>
-<h2>Hızlı Giriş / Çıkış</h2>
+<h2>Hızlı Giriş / Rezerve</h2>
 <p class="muted">Ürün kartına girmeden marka, kategori ve model filtresiyle hızlı stok işlemi yap</p>
 </div>
 <button class="btn secondary" onclick="clearOperationFilters()">Filtreleri Temizle</button>
@@ -133,11 +134,36 @@
 </div>
 <div class="operation-hint collapsible-info" data-info-title="Hızlı İşlem İpuçları">
 <strong>İpucu:</strong> Marka + kategori seçip sadece modeli yazarsan sonuç listesi çok daralır. Örn: Renault + Paspas + Megane 4.<br/>
-<strong>Toplu stok:</strong> Aynı ürün farklı raflarda bulunuyorsa tek kartta toplam stok görünür; rafların giriş/çıkış işlemleri kartın altında ayrı ayrı kalır.
+<strong>Toplu stok:</strong> Aynı ürün farklı raflarda bulunuyorsa tek kartta toplam stok görünür; rafların giriş/rezerve işlemleri kartın altında ayrı ayrı kalır.
         </div>
 <div class="operation-result-list" id="operationResultBox">
 <div class="empty-state">Filtre seç veya ürün ara</div>
 </div>
+</section>
+</div>
+
+<div class="page hidden" id="page-reservations">
+<section class="card">
+  <div class="section-head">
+    <div><h2>Rezerveler</h2><p class="muted">Satılanları stoktan düş, vazgeçilenlerin rezerve adedini serbest bırak. Adedi değiştirerek kaydın bir kısmını da işleyebilirsin.</p></div>
+    <button class="btn secondary" type="button" data-reservation-control onclick="loadManualReservations()">Yenile</button>
+  </div>
+  <div class="manual-reservation-filters">
+    <button class="btn primary" type="button" data-reservation-control data-reservation-filter="active" onclick="setManualReservationFilter('active')">Bekleyenler</button>
+    <button class="btn ghost" type="button" data-reservation-control data-reservation-filter="closed" onclick="setManualReservationFilter('closed')">Kapananlar</button>
+    <button class="btn ghost" type="button" data-reservation-control data-reservation-filter="all" onclick="setManualReservationFilter('all')">Tümü</button>
+    <input type="search" aria-label="Rezervelerde ara" placeholder="Ürün, müşteri, plaka veya personel ara..." data-reservation-control oninput="searchManualReservations(this.value)">
+  </div>
+  <p class="muted" id="manualReservationStats">Rezerveler yükleniyor...</p>
+  <div class="manual-reservation-toolbar">
+    <button class="btn secondary" type="button" data-reservation-control onclick="selectAllManualReservations()">Listedekileri seç / bırak</button>
+    <span id="manualReservationSelection" aria-live="polite">0 kayıt · 0 adet seçili</span>
+    <button class="btn success" type="button" id="manualCompleteBtn" onclick="resolveManualReservations('complete')" disabled>✓ Satılanları stoktan düş</button>
+    <button class="btn secondary" type="button" id="manualCancelBtn" onclick="resolveManualReservations('cancel')" disabled>↶ Rezerveyi iptal et</button>
+  </div>
+  <p class="muted">Toplu işlemde en fazla 100 kayıt seçebilirsin. İptal, toplam stoğu artırmaz; yalnızca ayrılan adedi serbest bırakır.</p>
+  <div id="manualReservationList" class="manual-reservation-list"><div class="empty-state">Rezerveler yükleniyor...</div></div>
+  <button class="btn secondary hidden" type="button" id="manualReservationMoreBtn" onclick="loadManualReservations(true)">Daha fazla yükle</button>
 </section>
 </div>
 
@@ -916,7 +942,7 @@ LED" rows="8"></textarea>
       </div>
       <div class="barcode-action-buttons">
         <button class="btn success" id="operationBarcodeStockInBtn" type="button">➕ Stok Girişi</button>
-        <button class="btn danger" id="operationBarcodeStockOutBtn" type="button">➖ Stok Çıkışı</button>
+        <button class="btn reserve-btn" id="operationBarcodeStockOutBtn" type="button">🔖 Rezerve et</button>
       </div>
     </div>
   </div>
@@ -939,25 +965,26 @@ LED" rows="8"></textarea>
 <datalist id="carTypeList"></datalist>
 <datalist id="vehicleYearList"></datalist>
 <datalist id="locationList"></datalist>
-<script>window.GARAGE_BUILD_VERSION = "16.22";</script>
-<script>console.info("[GarageFlow] HTML build 16.22 · stok durumu renkleri");</script>
-<script src="hub-sso.js?v=16.22"></script>
-<script src="js/core.js?v=16.22"></script>
-<script src="js/inventory.js?v=16.22"></script>
-<script src="js/sales-dashboard.js?v=16.22"></script>
-<script src="js/staff.js?v=16.22"></script>
-<script src="js/sales.js?v=16.22"></script>
-<script src="js/requests.js?v=16.22"></script>
-<script src="js/surveys.js?v=16.22"></script>
-<script src="js/management.js?v=16.22"></script>
-<script src="js/purchasing.js?v=16.22"></script>
-<script src="js/navigation.js?v=16.22"></script>
-<script src="js/reports.js?v=16.22"></script>
-<script src="js/migration-api.js?v=16.22"></script>
-<script src="js/search-tools.js?v=16.22"></script>
-<script src="js/events.js?v=16.22"></script>
-<script src="js/excel.js?v=16.22"></script>
-<script src="js/migration-excel.js?v=16.22"></script>
-<script src="app.js?v=16.22"></script>
+<script>window.GARAGE_BUILD_VERSION = "16.23";</script>
+<script>console.info("[GarageFlow] HTML build 16.23 · stok durumu renkleri");</script>
+<script src="hub-sso.js?v=16.23"></script>
+<script src="js/core.js?v=16.23"></script>
+<script src="js/inventory.js?v=16.23"></script>
+<script src="js/sales-dashboard.js?v=16.23"></script>
+<script src="js/staff.js?v=16.23"></script>
+<script src="js/sales.js?v=16.23"></script>
+<script src="js/requests.js?v=16.23"></script>
+<script src="js/surveys.js?v=16.23"></script>
+<script src="js/management.js?v=16.23"></script>
+<script src="js/purchasing.js?v=16.23"></script>
+<script src="js/navigation.js?v=16.23"></script>
+<script src="js/reports.js?v=16.23"></script>
+<script src="js/migration-api.js?v=16.23"></script>
+<script src="js/reservations.js?v=16.23"></script>
+<script src="js/search-tools.js?v=16.23"></script>
+<script src="js/events.js?v=16.23"></script>
+<script src="js/excel.js?v=16.23"></script>
+<script src="js/migration-excel.js?v=16.23"></script>
+<script src="app.js?v=16.23"></script>
 </body>
 </html>

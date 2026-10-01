@@ -2268,3 +2268,28 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 .stock-state-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--stock-state-border);flex-shrink:0}
 #page-operation .operation-title .stock-state-badge{margin-left:6px}
 @media(max-width:700px){.stock-state-badge{font-size:11px;padding:4px 8px}}
+
+
+/* Manual reservation queue: desktop and mobile. */
+.btn.reserve-btn { background: #a16207; color: #fff; border-color: #ca8a04; }
+.manual-reservation-filters, .manual-reservation-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.manual-reservation-filters input { flex: 1 1 250px; min-width: 0; }
+.manual-reservation-toolbar { padding: 14px 0; }
+.manual-reservation-toolbar > span { flex: 1 1 160px; }
+.manual-reservation-list { display: grid; gap: 12px; margin: 16px 0; }
+.manual-reservation-row { display: grid; grid-template-columns: 28px minmax(0,1fr) 150px; gap: 12px; padding: 16px; border: 2px solid #64748b55; border-radius: 16px; }
+.manual-reservation-row.is-selected { border-color: #eab308; background: #eab30810; }
+.manual-reservation-choice input { width: 22px; height: 22px; cursor: pointer; accent-color: #eab308; }
+.manual-reservation-details { min-width: 0; overflow-wrap: anywhere; }
+.manual-reservation-details > strong { display: block; margin-bottom: 6px; }
+.manual-reservation-note { margin-top: 7px; font-weight: 600; }
+.manual-reservation-counts { margin-top: 9px; font-size: .9rem; }
+.manual-reservation-amount { display: flex; flex-direction: column; gap: 10px; }
+.manual-reservation-amount input { width: 100%; box-sizing: border-box; margin-top: 5px; }
+.manual-reservation-status { color: #fde68a; background: #713f12; border: 1px solid #ca8a0480; border-radius: 999px; padding: 6px 10px; font-size: .8rem; text-align: center; font-weight: 700; }
+@media (max-width: 600px) {
+  .manual-reservation-row { grid-template-columns: 24px minmax(0,1fr); padding: 12px; }
+  .manual-reservation-amount { grid-column: 2; flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .manual-reservation-amount label { width: 140px; }
+  .manual-reservation-toolbar .btn { flex: 1 1 100%; white-space: normal; }
+}

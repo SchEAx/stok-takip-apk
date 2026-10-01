@@ -666,7 +666,7 @@
       return;
     }
 
-    const label = direction === "giris" ? "giriş" : "çıkış";
+    const label = direction === "giris" ? "giriş" : "rezerve";
     barcodeActionBusy = true;
     const clickedButton = direction === "giris" ? stockInBtn : stockOutBtn;
     const originalText = clickedButton?.textContent || "";
@@ -674,12 +674,17 @@
     setActionButtonsEnabled(true);
 
     try{
+      let note = "";
+      if (direction === "cikis") {
+        note = await confirmManualStockReservation(product, quantity);
+        if (note === null) return;
+      }
       if (typeof setLoading === "function") setLoading(true);
       const suffix = typeof actorSuffix === "function" ? actorSuffix() : "";
-      const payload = await migrationStockMovement(product.id, direction, quantity, `Barkod ile hızlı stok ${label}${suffix}`);
+      const payload = await migrationStockMovement(product.id, direction, quantity, `Barkod ile hızlı stok ${label}${suffix}`, note);
       const fresh = await refreshMigrationProductState(product.id, payload);
       if (typeof logActivity === "function") {
-        await logActivity("stock_" + direction, `${product.name || product.category} için barkodla ${quantity} adet ${label}`, "stock_products", product.id);
+        await logActivity(direction === "giris" ? "stock_giris" : "stock_rezerv", `${product.name || product.category} için barkodla ${quantity} adet ${label}`, "stock_products", product.id);
       }
       await Promise.allSettled([
         typeof loadMovements === "function" ? loadMovements() : Promise.resolve(),
@@ -688,7 +693,7 @@
 
       if (fresh) selectedBarcodeProduct = fresh;
       closeBarcodeActionModal();
-      toast(`${quantity} adet ${label} kaydedildi ✅`);
+      toast(direction === "giris" ? `${quantity} adet giriş kaydedildi ✅` : `${quantity} adet rezerve edildi ✅`);
     }catch(error){
       console.error("Barkod stok işlemi hatası:", error);
       toast(error?.message || "Stok işlemi kaydedilemedi.", true);

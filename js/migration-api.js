@@ -2,7 +2,7 @@
 const MIGRATION_TEST_MODE = true;
 const MIGRATION_API_BASE = "https://api.scheax.com.tr/migration-test";
 const MIGRATION_TOKEN_KEY = "garage_migration_test_jwt_v1";
-const MIGRATION_ALLOWED_TABS = new Set(["operation", "movements", "critical", "categoryValues", "orderSuggestion", "add", "requests", "purchaseOrders", "management", "users", "settings", "logs", "surveys", "history"]);
+const MIGRATION_ALLOWED_TABS = new Set(["operation", "movements", "critical", "categoryValues", "orderSuggestion", "add", "requests", "reservations", "purchaseOrders", "management", "users", "settings", "logs", "surveys", "history"]);
 
 function migrationToken() {
   try { return localStorage.getItem(MIGRATION_TOKEN_KEY) || ""; } catch { return ""; }
@@ -55,7 +55,9 @@ async function apiFetch(path, options = {}) {
     showLogin();
   }
   if (!response.ok || payload?.status === "error") {
-    throw new Error(payload?.message || `API hatası (${response.status})`);
+    const error = new Error(payload?.message || `API hatası (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
   return payload;
 }
@@ -75,6 +77,7 @@ saveRolePermissionsToServer = async function() {
 };
 canAccessTab = function(tab, role = currentStaff().role) {
   if (!MIGRATION_ALLOWED_TABS.has(tab)) return false;
+  if (tab === "reservations" && role !== "admin") return false;
   return permissionsForRole(role).includes(tab);
 };
 applyRoleVisibility = function() {
@@ -1003,7 +1006,8 @@ searchStockProducts = async function({ brand = "", category = "", search = "", l
   return payload.products || [];
 };
 
-async function migrationStockMovement(id, direction, quantity, description) {
+async function migrationStockMovement(id, direction, quantity, description, note = "") {
+  if (direction === "cikis") return createManualStockReservation(id, quantity, note);
   return apiFetch("/api/stock/movement", {
     method: "POST",
     body: { product_id: id, direction, quantity: Number(quantity), description }
@@ -1026,6 +1030,7 @@ async function refreshMigrationProductState(id, movementPayload = null) {
   // yanlışlıkla "işlem başarısız" göstermeyelim.
   if (!fresh) {
     const rawQty = movementPayload?.new_quantity
+      ?? movementPayload?.movement?.new_quantity
       ?? movementPayload?.product?.quantity
       ?? movementPayload?.quantity;
     const qty = Number(rawQty);
@@ -1039,6 +1044,8 @@ async function refreshMigrationProductState(id, movementPayload = null) {
     if (source) {
       fresh = { ...source };
       if (Number.isFinite(qty)) fresh.stock = qty;
+      const rawReserved = movementPayload?.product?.reserved_quantity ?? movementPayload?.movement?.reserved_quantity;
+      if (rawReserved !== undefined && Number.isFinite(Number(rawReserved))) fresh.reserved = Number(rawReserved);
     }
   }
 
@@ -1061,7 +1068,7 @@ async function refreshMigrationProductState(id, movementPayload = null) {
   state.operationCacheKey = "";
 
   if (el.operationResultBox) renderOperationCards(state.operationResults || []);
-  if (typeof renderMovementCards === "function" && el.movementResultBox) {
+  if (typeof renderMovementCards === "function" && el.movementSearchList) {
     renderMovementCards(state.movementResults || []);
   }
 
@@ -1069,51 +1076,15 @@ async function refreshMigrationProductState(id, movementPayload = null) {
 }
 
 window.operationStockAction = async function(id, type) {
-  const direction = String(type || "").trim().toLowerCase();
-  if (!["giris", "cikis"].includes(direction)) return showToast("Hareket tipi belirlenemedi", true);
   const product = [...(state.operationResults || []), ...(state.products || [])].find(p => String(p.id) === String(id));
   if (!product) return showToast("Ürün bulunamadı", true);
-  if (!canAccessCategory(product.category)) return showToast("Bu ürün kategorisine yetkin yok", true);
-  if (direction === "giris" && !requireUserAction("stockIn", "Stok giriş yetkin yok")) return;
-  if (direction === "cikis" && !requireUserAction("stockOut", "Stok çıkış yetkin yok")) return;
-  const quantity = getOperationQty(id);
-  const available = Number(product.stock || 0) - Number(product.reserved || 0);
-  if (direction === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  const label = direction === "giris" ? "giriş" : "çıkış";
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try {
-    setLoading(true);
-    const payload = await migrationStockMovement(id, direction, quantity, `Hızlı işlem ekranı manuel ${label}${actorSuffix()}`);
-    await refreshMigrationProductState(id, payload);
-    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
-    await Promise.allSettled([loadMovements(), loadDashboardStats()]);
-    showToast(`${quantity} adet ${label} kaydedildi ✅`);
-  } catch (err) {
-    console.error(err); showToast(err.message || "İşlem kaydedilemedi", true);
-  } finally { setLoading(false); }
+  return performManualStockAction(product, String(type || "").toLowerCase(), Number(getOperationQty(id)), "İşlem ekranı");
 };
 
 window.quickStockAction = async function(id, type, fixedQty = null) {
-  const direction = String(type || "").trim().toLowerCase();
-  if (!["giris", "cikis"].includes(direction)) return showToast("Hareket tipi belirlenemedi", true);
-  if (!["admin", "depo"].includes(currentStaff().role)) return showToast("Stok giriş/çıkış sadece Admin/Depo", true);
   const product = [...(state.movementResults || []), ...(state.operationResults || [])].find(p => String(p.id) === String(id));
   if (!product) return showToast("Ürün bulunamadı", true);
-  const quantity = Number(fixedQty || getQuickQty(id) || 1);
-  const available = Number(product.stock || 0) - Number(product.reserved || 0);
-  if (direction === "cikis" && available < quantity) return showToast(`Yeterli kullanılabilir stok yok. Kullanılabilir: ${available}`, true);
-  const label = direction === "giris" ? "giriş" : "çıkış";
-  if (!(await appConfirm(`${product.category || product.name} için ${quantity} adet ${label} yapılsın mı?`, { okText: "İşlemi Yap" }))) return;
-  try {
-    setLoading(true);
-    const payload = await migrationStockMovement(id, direction, quantity, `Hareketler ekranı manuel ${label}${actorSuffix()}`);
-    await refreshMigrationProductState(id, payload);
-    await logActivity("stock_" + direction, `${product.name || product.category} için ${quantity} adet ${label}`, "stock_products", id);
-    await Promise.allSettled([loadMovements(), loadDashboardStats()]);
-    showToast(`${quantity} adet ${label} kaydedildi ✅`);
-  } catch (err) {
-    console.error(err); showToast(err.message || "Hareket kaydedilemedi", true);
-  } finally { setLoading(false); }
+  return performManualStockAction(product, String(type || "").toLowerCase(), Number(fixedQty ?? getQuickQty(id)), "Hareketler ekranı");
 };
 
 // v15.5: Şifre değiştirme navigation.js içinden PostgreSQL API kullanır.
