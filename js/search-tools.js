@@ -1,4 +1,4 @@
-// v16.24 - Barkod kamerası flaşı ve kamera oturumu yönetimi
+// v16.25 - Flaş komutu uyumluluğu ve kamera oturumu yönetimi
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
@@ -263,6 +263,43 @@
     renderScannerTorch();
   }
 
+  function isScannerTorchSessionCurrent(track, session){
+    return session === scannerSession && scannerTorchTrack === track
+      && track?.readyState === "live" && !scannerModal?.classList.contains("hidden");
+  }
+
+  async function applyScannerTorch(track, nextOn, session){
+    // Chromium flaş ve çözünürlük/cihaz ayarlarının aynı çağrıda karışmasını
+    // reddedebilir. Buraya getConstraints() sonucu veya video ayarları eklenmez.
+    const commands = [
+      { advanced: [{ torch: nextOn }] },
+      { torch: nextOn, advanced: [{ torch: nextOn }] }
+    ];
+    let lastError;
+    for (const command of commands) {
+      if (!isScannerTorchSessionCurrent(track, session)) return;
+      try {
+        await track.applyConstraints(command);
+        if (!isScannerTorchSessionCurrent(track, session)) return;
+        let actualOn = readScannerTorchSetting(track);
+        // Telefon kamera sürücüsünün güncel durumu bildirmesi gecikebilir.
+        for (let attempt = 0; attempt < 3 && typeof actualOn === "boolean" && actualOn !== nextOn; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 80));
+          if (!isScannerTorchSessionCurrent(track, session)) return;
+          actualOn = readScannerTorchSetting(track);
+        }
+        if (typeof actualOn === "boolean" && actualOn !== nextOn) {
+          throw new Error("Flaş ayarı uygulanmadı.");
+        }
+        return typeof actualOn === "boolean" ? actualOn : nextOn;
+      } catch (error) {
+        if (!isScannerTorchSessionCurrent(track, session)) return;
+        lastError = error;
+      }
+    }
+    throw lastError || new Error("Flaş ayarı uygulanmadı.");
+  }
+
   async function toggleScannerTorch(){
     const track = scannerTorchTrack;
     const session = scannerSession;
@@ -272,22 +309,15 @@
     scannerTorchBusy = true;
     renderScannerTorch();
     try {
-      const current = track.getConstraints?.() || {};
-      // Kamera çözünürlüğü ve odak gibi mevcut ayarlar korunur.
-      const advanced = (Array.isArray(current.advanced) ? current.advanced : [])
-        .map(({ torch, ...other }) => other).filter(item => Object.keys(item).length);
-      await track.applyConstraints({ ...current, torch: nextOn, advanced: [...advanced, { torch: nextOn }] });
-      if (session !== scannerSession || scannerTorchTrack !== track || track.readyState !== "live") return;
-      const actualOn = readScannerTorchSetting(track);
-      if (typeof actualOn === "boolean" && actualOn !== nextOn) {
-        throw new Error("Flaş ayarı uygulanmadı.");
-      }
-      scannerTorchOn = typeof actualOn === "boolean" ? actualOn : nextOn;
+      const actualOn = await applyScannerTorch(track, nextOn, session);
+      if (!isScannerTorchSessionCurrent(track, session)) return;
+      scannerTorchOn = actualOn;
     } catch (error) {
-      if (session !== scannerSession || scannerTorchTrack !== track || track.readyState !== "live") return;
+      if (!isScannerTorchSessionCurrent(track, session)) return;
       const actualOn = readScannerTorchSetting(track);
       if (typeof actualOn === "boolean") scannerTorchOn = actualOn;
       if (error?.name === "NotSupportedError") scannerTorchSupported = false;
+      console.warn("Barkod kamera flaşı değiştirilemedi:", error);
       toast(nextOn ? "Flaş açılamadı. Tekrar deneyebilirsin." : "Flaş kapatılamadı. Kamerayı kapatabilirsin.", true);
     } finally {
       if (session === scannerSession && scannerTorchTrack === track) {

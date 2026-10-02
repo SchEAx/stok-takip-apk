@@ -1,29 +1,29 @@
-const CACHE_NAME = "garage-stock-16-24";
+const CACHE_NAME = "garage-stock-16-25";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=16.24",
-  "./hub-sso.js?v=16.24",
-  "./js/core.js?v=16.24",
-  "./js/inventory.js?v=16.24",
-  "./js/sales-dashboard.js?v=16.24",
-  "./js/staff.js?v=16.24",
-  "./js/sales.js?v=16.24",
-  "./js/requests.js?v=16.24",
-  "./js/surveys.js?v=16.24",
-  "./js/management.js?v=16.24",
-  "./js/purchasing.js?v=16.24",
-  "./js/navigation.js?v=16.24",
-  "./js/reports.js?v=16.24",
-  "./js/migration-api.js?v=16.24",
-  "./js/reservations.js?v=16.24",
-  "./js/search-tools.js?v=16.24",
-  "./js/events.js?v=16.24",
-  "./js/excel.js?v=16.24",
-  "./js/migration-excel.js?v=16.24",
-  "./app.js?v=16.24",
-  "./manifest.webmanifest?v=16.24",
+  "./style.css?v=16.25",
+  "./hub-sso.js?v=16.25",
+  "./js/core.js?v=16.25",
+  "./js/inventory.js?v=16.25",
+  "./js/sales-dashboard.js?v=16.25",
+  "./js/staff.js?v=16.25",
+  "./js/sales.js?v=16.25",
+  "./js/requests.js?v=16.25",
+  "./js/surveys.js?v=16.25",
+  "./js/management.js?v=16.25",
+  "./js/purchasing.js?v=16.25",
+  "./js/navigation.js?v=16.25",
+  "./js/reports.js?v=16.25",
+  "./js/migration-api.js?v=16.25",
+  "./js/reservations.js?v=16.25",
+  "./js/search-tools.js?v=16.25",
+  "./js/events.js?v=16.25",
+  "./js/excel.js?v=16.25",
+  "./js/migration-excel.js?v=16.25",
+  "./app.js?v=16.25",
+  "./manifest.webmanifest?v=16.25",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
@@ -70,7 +70,7 @@ self.addEventListener("activate", (event) => {
         try {
           const url = new URL(client.url);
           if (url.origin !== self.location.origin) return;
-          url.searchParams.set("__garage_build", "16.24");
+          url.searchParams.set("__garage_build", "16.25");
           url.searchParams.set("__garage_sw", String(Date.now()));
           await client.navigate(url.href);
         } catch {}
@@ -100,7 +100,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // v16.24: Cache-first tamamen kaldırıldı.
+  // v16.25: Cache-first tamamen kaldırıldı.
   // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
   event.respondWith(
     fetch(request, { cache: "no-cache" })
