@@ -1,4 +1,4 @@
-// v16.19 - Android geri tuşu ve kamera oturumu yönetimi
+// v16.24 - Barkod kamerası flaşı ve kamera oturumu yönetimi
 (function(){
   const voiceBtn = document.getElementById("operationVoiceSearchBtn");
   const barcodeBtn = document.getElementById("operationBarcodeSearchBtn");
@@ -8,6 +8,8 @@
   const scannerVideo = document.getElementById("operationBarcodeScannerVideo");
   const scannerStatus = document.getElementById("operationBarcodeScannerStatus");
   const scannerCloseBtn = document.getElementById("operationBarcodeScannerCloseBtn");
+  const scannerTorchBtn = document.getElementById("operationBarcodeScannerTorchBtn");
+  const scannerTorchLabel = document.getElementById("operationBarcodeScannerTorchLabel");
 
   const actionModal = document.getElementById("operationBarcodeActionModal");
   const actionBackdrop = document.getElementById("operationBarcodeActionBackdrop");
@@ -49,6 +51,11 @@
   let scannerZxingControls = null;
   let scannerPurpose = "search";
   let scannerSession = 0;
+  let scannerTorchTrack = null;
+  let scannerTorchSupported = false;
+  let scannerTorchOn = false;
+  let scannerTorchBusy = false;
+  let scannerTorchReady = false;
 
   let barcodeMatches = [];
   let selectedBarcodeProduct = null;
@@ -204,6 +211,90 @@
 
   function setScannerStatus(text){
     if (scannerStatus) scannerStatus.textContent = text;
+  }
+
+  function renderScannerTorch(){
+    if (!scannerTorchBtn) return;
+    const label = scannerTorchBusy ? "Bekle…" : !scannerTorchReady ? "Flaş aç"
+      : !scannerTorchSupported ? "Flaş yok" : scannerTorchOn ? "Flaş kapat" : "Flaş aç";
+    if (scannerTorchLabel) scannerTorchLabel.textContent = label;
+    scannerTorchBtn.disabled = !scannerTorchSupported || scannerTorchBusy;
+    scannerTorchBtn.classList.toggle("is-active", scannerTorchOn);
+    scannerTorchBtn.setAttribute("aria-pressed", String(scannerTorchOn));
+    scannerTorchBtn.setAttribute("aria-busy", String(scannerTorchBusy));
+    scannerTorchBtn.setAttribute("aria-label", label);
+    scannerTorchBtn.title = !scannerTorchReady ? "Kamera hazırlanıyor…"
+      : !scannerTorchSupported ? "Bu kamerada flaş kullanılamıyor." : label;
+  }
+
+  function resetScannerTorch(){
+    scannerTorchTrack = null;
+    scannerTorchSupported = false;
+    scannerTorchOn = false;
+    scannerTorchBusy = false;
+    scannerTorchReady = false;
+    renderScannerTorch();
+  }
+
+  function readScannerTorchSetting(track){
+    try { return track?.getSettings?.().torch; } catch (_) { return undefined; }
+  }
+
+  function prepareScannerTorch(stream, session){
+    if (session !== scannerSession || scannerModal?.classList.contains("hidden")) return;
+    const track = stream?.getVideoTracks?.().find(item => item.readyState === "live");
+    let torchCapability;
+    try { torchCapability = track?.getCapabilities?.().torch; } catch (_) {}
+    // Bazı tarayıcılar boolean, standart ise boolean dizisi döndürür.
+    const canToggle = torchCapability === true || (Array.isArray(torchCapability)
+      && torchCapability.includes(true) && torchCapability.includes(false));
+    scannerTorchTrack = track || null;
+    scannerTorchReady = true;
+    scannerTorchSupported = canToggle && typeof track?.applyConstraints === "function";
+    scannerTorchOn = readScannerTorchSetting(track) === true;
+    scannerTorchBusy = false;
+    track?.addEventListener?.("ended", () => {
+      if (session !== scannerSession || scannerTorchTrack !== track) return;
+      scannerTorchSupported = false;
+      scannerTorchOn = false;
+      scannerTorchBusy = false;
+      renderScannerTorch();
+    }, { once: true });
+    renderScannerTorch();
+  }
+
+  async function toggleScannerTorch(){
+    const track = scannerTorchTrack;
+    const session = scannerSession;
+    if (!scannerTorchSupported || scannerTorchBusy || track?.readyState !== "live"
+      || scannerModal?.classList.contains("hidden")) return;
+    const nextOn = !scannerTorchOn;
+    scannerTorchBusy = true;
+    renderScannerTorch();
+    try {
+      const current = track.getConstraints?.() || {};
+      // Kamera çözünürlüğü ve odak gibi mevcut ayarlar korunur.
+      const advanced = (Array.isArray(current.advanced) ? current.advanced : [])
+        .map(({ torch, ...other }) => other).filter(item => Object.keys(item).length);
+      await track.applyConstraints({ ...current, torch: nextOn, advanced: [...advanced, { torch: nextOn }] });
+      if (session !== scannerSession || scannerTorchTrack !== track || track.readyState !== "live") return;
+      const actualOn = readScannerTorchSetting(track);
+      if (typeof actualOn === "boolean" && actualOn !== nextOn) {
+        throw new Error("Flaş ayarı uygulanmadı.");
+      }
+      scannerTorchOn = typeof actualOn === "boolean" ? actualOn : nextOn;
+    } catch (error) {
+      if (session !== scannerSession || scannerTorchTrack !== track || track.readyState !== "live") return;
+      const actualOn = readScannerTorchSetting(track);
+      if (typeof actualOn === "boolean") scannerTorchOn = actualOn;
+      if (error?.name === "NotSupportedError") scannerTorchSupported = false;
+      toast(nextOn ? "Flaş açılamadı. Tekrar deneyebilirsin." : "Flaş kapatılamadı. Kamerayı kapatabilirsin.", true);
+    } finally {
+      if (session === scannerSession && scannerTorchTrack === track) {
+        scannerTorchBusy = false;
+        renderScannerTorch();
+      }
+    }
   }
 
   function stockNumbers(product){
@@ -731,20 +822,24 @@
     openBarcodeActionForCode(barcode);
   }
 
-  async function scanNativeFrame(){
-    if (!scannerStream || !scannerDetector || !scannerVideo || scannerModal?.classList.contains("hidden")) return;
+  async function scanNativeFrame(session){
+    if (session !== scannerSession || !scannerStream || !scannerDetector || !scannerVideo || scannerModal?.classList.contains("hidden")) return;
     if (scannerVideo.readyState >= 2 && !scannerBusy){
       try{
         const codes = await scannerDetector.detect(scannerVideo);
+        if (session !== scannerSession || scannerModal?.classList.contains("hidden")) return;
         if (codes?.length){
           finishBarcodeScan(codes[0].rawValue);
           return;
         }
       }catch(_error){
+        if (session !== scannerSession) return;
         setScannerStatus("Barkodu yeşil çerçevenin ortasında sabit tut.");
       }
     }
-    if (scannerStream && !scannerModal?.classList.contains("hidden")) scannerFrameId = requestAnimationFrame(scanNativeFrame);
+    if (session === scannerSession && scannerStream && !scannerModal?.classList.contains("hidden")) {
+      scannerFrameId = requestAnimationFrame(() => scanNativeFrame(session));
+    }
   }
 
   async function startNativeScanner(session){
@@ -761,8 +856,9 @@
     scannerVideo.srcObject = scannerStream;
     await scannerVideo.play();
     if (session !== scannerSession) return;
+    prepareScannerTorch(stream, session);
     setScannerStatus("Barkodu yeşil çerçevenin ortasında tut.");
-    scanNativeFrame();
+    scanNativeFrame(session);
   }
 
   async function startZxingScanner(session){
@@ -774,21 +870,35 @@
       delayBetweenScanSuccess: 400
     });
     scannerZxingReader = reader;
-    const controls = await reader.decodeFromConstraints({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:720 } },
       audio:false
-    }, scannerVideo, (result, _error, controls) => {
+    });
+    if (session !== scannerSession || scannerModal?.classList.contains("hidden")) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    scannerStream = stream;
+    const controls = await reader.decodeFromStream(stream, scannerVideo, (result, _error, controls) => {
       if (result && !scannerBusy && session === scannerSession && !scannerModal?.classList.contains("hidden")){
         const value = typeof result.getText === "function" ? result.getText() : result.text;
-        try { controls?.stop?.(); } catch (_) {}
+        stopScannerControls(controls);
         finishBarcodeScan(value);
       }
     });
     if (session !== scannerSession || scannerModal?.classList.contains("hidden")) {
-      try { controls?.stop?.(); } catch (_) {}
+      const activeStream = scannerVideo?.srcObject;
+      stopScannerControls(controls);
+      // Eski ZXing oturumu kapanırken yeni oturumun ön izlemesini temizleyebilir.
+      if (activeStream && activeStream !== stream && activeStream === scannerStream
+        && scannerVideo && !scannerModal?.classList.contains("hidden")) {
+        scannerVideo.srcObject = activeStream;
+        try { Promise.resolve(scannerVideo.play()).catch(() => {}); } catch (_) {}
+      }
       return;
     }
     scannerZxingControls = controls;
+    prepareScannerTorch(stream, session);
     setScannerStatus("Barkodu yeşil çerçevenin ortasında tut.");
   }
 
@@ -803,7 +913,7 @@
     scannerPurpose = purpose === "product-form" ? "product-form" : "search";
     closeBarcodeActionModal();
     closeOperationBarcodeScanner();
-    const session = scannerSession;
+    let session = scannerSession;
     scannerBusy = false;
     scannerSetOpen(true);
     setScannerStatus("Kamera hazırlanıyor...");
@@ -825,15 +935,15 @@
           if (session !== scannerSession) return;
           console.warn("Native barkod tarayıcı açılamadı, ZXing deneniyor:", nativeError);
           closeOperationBarcodeScanner();
-          const fallbackSession = scannerSession;
+          session = scannerSession;
           scannerBusy = false;
           scannerSetOpen(true);
           setScannerStatus("Kamera hazırlanıyor...");
-          await startZxingScanner(fallbackSession);
+          await startZxingScanner(session);
         }
       }
     }catch(error){
-      if (scannerModal?.classList.contains("hidden")) return;
+      if (session !== scannerSession || scannerModal?.classList.contains("hidden")) return;
       console.error("Barkod kamera hatası:", error);
       closeOperationBarcodeScanner();
       const name = String(error?.name || "");
@@ -854,14 +964,25 @@
     openOperationBarcodeScanner("product-form");
   }
 
+  function stopScannerControls(controls){
+    // ZXing flaşı kapatırken asenkron hata döndürebilir; kamera yine bırakılır.
+    try { Promise.resolve(controls?.stop?.()).catch(() => {}); } catch (_) {}
+  }
+
   function closeOperationBarcodeScanner(){
     scannerSession++;
+    const tracks = new Set();
+    for (const stream of [scannerStream, scannerVideo?.srcObject]) {
+      try { stream?.getTracks?.().forEach(track => tracks.add(track)); } catch (_) {}
+    }
+    if (scannerTorchTrack) tracks.add(scannerTorchTrack);
+    resetScannerTorch();
     if (scannerFrameId) cancelAnimationFrame(scannerFrameId);
     scannerFrameId = null;
-    try { scannerZxingControls?.stop?.(); } catch (_) {}
+    stopScannerControls(scannerZxingControls);
     scannerZxingControls = null;
     scannerZxingReader = null;
-    try { scannerStream?.getTracks?.().forEach(track => track.stop()); } catch (_) {}
+    tracks.forEach(track => { try { track.stop(); } catch (_) {} });
     scannerStream = null;
     scannerDetector = null;
     scannerBusy = false;
@@ -883,6 +1004,7 @@
   barcodeBtn?.addEventListener("click", () => openOperationBarcodeScanner("search"));
   productBarcodeScanBtn?.addEventListener("click", openProductBarcodeScanner);
   scannerCloseBtn?.addEventListener("click", closeOperationBarcodeScanner);
+  scannerTorchBtn?.addEventListener("click", toggleScannerTorch);
   actionCloseBtn?.addEventListener("click", closeBarcodeActionModal);
   actionBackdrop?.addEventListener("click", closeBarcodeActionModal);
   qtyMinus?.addEventListener("click", () => stepBarcodeQty(-1));
@@ -926,4 +1048,5 @@
       if (scannerModal && !scannerModal.classList.contains("hidden")) closeOperationBarcodeScanner();
     }
   });
+  window.addEventListener("pagehide", closeOperationBarcodeScanner);
 })();
