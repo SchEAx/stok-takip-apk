@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.25';
+const APP_VERSION = '16.26';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -388,7 +388,7 @@ function renderUserCategoryPermissions() {
       <div class="permission-role-head"><strong>${escapeHtml(s.name)}</strong><small>${roleLabel(s.role)}</small></div>
       <div class="permission-check-grid action-permission-grid">
         <label class="permission-check"><input type="checkbox" data-user-action="stockIn" ${s.permissions?.stockIn ? "checked" : ""}><span>Stok Giriş</span></label>
-        <label class="permission-check"><input type="checkbox" data-user-action="stockOut" ${s.permissions?.stockOut ? "checked" : ""}><span>Stok Çıkış</span></label>
+        <label class="permission-check"><input type="checkbox" data-user-action="stockOut" ${s.permissions?.stockOut ? "checked" : ""}><span>Stok Çıkış / Rezerve</span></label>
         <label class="permission-check"><input type="checkbox" data-user-action="addToOrderPool" ${s.permissions?.addToOrderPool ? "checked" : ""}><span>Sipariş Havuzuna At</span></label>
         <label class="permission-check"><input type="checkbox" data-user-action="themeSettings" ${s.permissions?.themeSettings ? "checked" : ""}><span>Tema Ayarları</span></label>
       </div>

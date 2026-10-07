@@ -48,8 +48,8 @@ function normalizeStaffItem(item) {
     allowedCategories: [...new Set(allowedCategories.map(v => String(v || "").trim()).filter(Boolean))],
     permissions: {
       ...rawPermissions,
-      stockIn: rawPermissions.stockIn !== false,
-      stockOut: rawPermissions.stockOut !== false,
+      stockIn: rawPermissions.stockIn === true,
+      stockOut: rawPermissions.stockOut === true,
       addToOrderPool: rawPermissions.addToOrderPool !== false,
       themeSettings: rawPermissions.themeSettings === true
     }

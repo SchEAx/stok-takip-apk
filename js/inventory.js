@@ -376,8 +376,8 @@ function renderMovementCards(results) {
           <button type="button" class="btn secondary mini" onclick="stepQuickQty('${p.id}', 1)">+</button>
         </div>
         ${p.imageUrl ? `<button type="button" class="btn secondary" onclick="openProductImage('${escapeHtml(p.imageUrl)}')">Resmi Gör</button>` : ""}
-        <button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>
-        <button type="button" class="btn reserve-btn" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Rezerve et</button>
+        ${userActionAllowed("stockIn") ? `<button type="button" class="btn success" onclick="quickStockAction('${p.id}', 'giris', getQuickQty('${p.id}'))">Giriş</button>` : ""}
+        ${userActionAllowed("stockOut") ? `<button type="button" class="btn reserve-btn" onclick="quickStockAction('${p.id}', 'cikis', getQuickQty('${p.id}'))" ${available <= 0 ? "disabled" : ""}>Rezerve et</button>` : ""}
       </div>
     </div>`;
   }).join("");

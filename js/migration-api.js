@@ -91,7 +91,7 @@ applyRoleVisibility = function() {
 };
 userActionAllowed = function(action) {
   const staff = currentStaff();
-  if (["stockIn", "stockOut"].includes(action) && !["admin", "depo"].includes(staff.role)) return false;
+  if (["stockIn", "stockOut"].includes(action) && !["admin", "depo", "kasa", "satis", "usta"].includes(staff.role)) return false;
   if (staff.role === "admin") return true;
   return staff.permissions?.[action] === true;
 };
