@@ -111,6 +111,14 @@ function migrationExcelNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function migrationExcelCurrency(value) {
+  const currency = migrationExcelCell(value).toUpperCase();
+  if (!currency) return null; // preserve the current currency for a legacy sheet
+  if (["TL", "TRY", "₺"].includes(currency)) return "TRY";
+  if (["USD", "$", "DOLAR"].includes(currency)) return "USD";
+  return currency; // unsupported currency is rejected by the API
+}
+
 function migrationExcelRowsFromSheet(sheet) {
   const sourceRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
   const rows = [];
@@ -129,6 +137,7 @@ function migrationExcelRowsFromSheet(sheet) {
       quantity: migrationExcelNumber(r.mevcut_stok ?? r.quantity, 0),
       min_stock: migrationExcelNumber(r.minimum_stok ?? r.min_stock, 0),
       purchase_price: migrationExcelNumber(r.alis_fiyati ?? r.purchase_price, 0),
+      purchase_currency: migrationExcelCurrency(r.alis_para_birimi ?? r.maliyet_para_birimi ?? r.purchase_currency),
       average_sale_price: migrationExcelNumber(
         r.ortalama_satis_fiyati ?? r.average_sale_price,
         0
@@ -268,6 +277,7 @@ uploadStockExcel = async function(event) {
       percent: 35
     });
 
+    await ensureProductPricingApi();
     const previewPayload = await apiFetch("/api/excel/import/preview", {
       method: "POST",
       body: { rows }
@@ -326,6 +336,7 @@ uploadStockExcel = async function(event) {
     });
     progressOpened = true;
 
+    await ensureProductPricingApi();
     const applyPayload = await apiFetch("/api/excel/import/apply", {
       method: "POST",
       body: {

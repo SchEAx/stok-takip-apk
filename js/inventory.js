@@ -320,12 +320,20 @@ function stockStatusBadgeHtml(status) {
   return `<span class="stock-state-badge stock-status-${status.key}">${status.label}</span>`;
 }
 function productPriceWithCostHtml(product, members = [product]) {
-  const costs = members.map(item => Number(item.purchasePrice || 0)).filter(Number.isFinite);
-  const low = Math.min(...costs);
-  const high = Math.max(...costs);
-  const costText = low === high ? formatTL(low) : `${formatTL(low)} – ${formatTL(high)}`;
-  const costLabel = low === high ? "Maliyet" : "Maliyet (konuma göre)";
-  const cost = `${costLabel}: ${costText}`;
+  const amounts = new Map();
+  members.forEach(item => {
+    const currency = item.purchaseCurrency || "TRY";
+    const value = Number(item.purchasePrice || 0);
+    if (!Number.isFinite(value)) return;
+    if (!amounts.has(currency)) amounts.set(currency, []);
+    amounts.get(currency).push(value);
+  });
+  const costText = [...amounts.entries()].map(([currency, values]) => {
+    const low = Math.min(...values), high = Math.max(...values);
+    return low === high ? formatPurchasePrice(low, currency)
+      : `${formatPurchasePrice(low, currency)} – ${formatPurchasePrice(high, currency)}`;
+  }).join(" / ");
+  const cost = costText;
   return `<div class="operation-price-row">
     <div class="operation-price-line">Satış Fiyatı: <strong>${formatTL(product.averageSalePrice || 0)}</strong></div>
     <button class="operation-cost-toggle" type="button" onclick="toggleProductCost(this)" data-cost="${escapeHtml(cost)}" aria-pressed="false" aria-label="Maliyeti göster" title="Maliyeti göster">👁</button>
@@ -335,7 +343,7 @@ window.toggleProductCost = function(button) {
   const visible = button.getAttribute("aria-pressed") !== "true";
   button.setAttribute("aria-pressed", String(visible));
   button.textContent = visible ? button.dataset.cost : "👁";
-  button.setAttribute("aria-label", visible ? `${button.dataset.cost}. Gizlemek için dokun` : "Maliyeti göster");
+  button.setAttribute("aria-label", visible ? `Maliyet: ${button.dataset.cost}. Gizlemek için dokun` : "Maliyeti göster");
   button.title = visible ? "Maliyeti gizle" : "Maliyeti göster";
 };
 function getQuickQty(productId) {
@@ -635,8 +643,8 @@ function renderStockRequests() {
 ].filter(Boolean).join(" ") || "-")}</strong></div><div>Tarih: <strong>${formatDate(req.created_at)}</strong></div><div class="row-gap" style="margin-top:10px;"><button class="btn primary" onclick="openReservationPanel('${req.id}')">Ürün Eşleştir</button>${req.status === "rezerve_edildi" ? `<button class="btn danger" onclick="cancelReservation('${req.id}')">Rezervi İptal Et</button>` : ""}</div></div>`).join("");
 }
 window.setRequestFilter = function(status) { state.requestFilter = status; renderStockRequests(); };
-function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.productPurchasePrice, el.productAverageSalePrice, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); }
-function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice || ""; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function clearProductForm() { [el.productId, el.barcode, el.productBrand, el.category, el.carBrand, el.carModel, el.carType, el.vehicleYear, el.stock, el.minStock, el.productPurchasePrice, el.productAverageSalePrice, el.location, el.note].filter(Boolean).forEach((x) => x.value = ""); resetProductImageState(); if (el.productPurchaseCurrency) el.productPurchaseCurrency.value = "TRY"; resetProductPricing(); }
+function fillProductForm(product) { el.productId.value = product.id || ""; el.barcode.value = product.barcode || ""; el.productBrand.value = product.productBrand || ""; el.category.value = product.category || ""; el.carBrand.value = product.carBrand || ""; el.carModel.value = product.carModel || ""; el.carType.value = product.carType || ""; el.vehicleYear.value = product.vehicleYear || ""; el.stock.value = product.stock ?? ""; el.minStock.value = product.minStock ?? ""; if (el.productPurchasePrice) el.productPurchasePrice.value = product.purchasePrice ?? ""; if (el.productPurchaseCurrency) el.productPurchaseCurrency.value = product.purchaseCurrency || "TRY"; if (el.productAverageSalePrice) el.productAverageSalePrice.value = product.averageSalePrice || ""; el.location.value = product.location || ""; productImageRemoveRequested = false; selectedProductImageBlob = null; if (el.productImageFile) el.productImageFile.value = ""; if (el.productCameraFile) el.productCameraFile.value = ""; if (el.productImage) el.productImage.value = product.imageUrl || ""; updateProductImagePreview(product.imageUrl || ""); el.note.value = product.note || ""; resetProductPricing(true); queueProductPriceSuggestion(); switchTab("add"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 window.editProduct = function(id) { if (!requireRoleAction(["admin", "depo"], "Ürün düzenleme yetkisi sadece Admin/Depo")) return; const product = [...(state.operationResults || []), ...(state.movementResults || []), ...(state.products || [])].find((p) => String(p.id) === String(id)); if (!product) return showToast("Ürün bulunamadı", true); fillProductForm(product); };
 window.deleteProduct = async function() { throw new Error("VDS API yüklenmeden ürün silinemez."); };
 window.quickStockAction = async function() { throw new Error("VDS API yüklenmeden hızlı stok işlemi yapılamaz."); };

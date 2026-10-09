@@ -243,10 +243,13 @@ function migrationCategoryValueRow(row) {
     qty: Number(row?.total_stock || 0),
     productCount: Number(row?.product_count || 0),
     purchase: Number(row?.average_purchase || 0),
+    purchaseUsd: Number(row?.average_purchase_usd || 0),
+    usdProductCount: Number(row?.usd_product_count || 0),
     sale: Number(row?.average_sale || 0),
     totalPurchase: Number(row?.total_purchase_value || 0),
+    totalPurchaseUsd: Number(row?.total_purchase_value_usd || 0),
     totalSale: Number(row?.total_sale_value || 0),
-    estimatedDiff: Number(row?.estimated_difference || 0),
+    estimatedDiff: row?.estimated_difference === null ? null : Number(row?.estimated_difference || 0),
     zeroPurchaseCount: Number(row?.zero_purchase_count || 0),
     zeroSaleCount: Number(row?.zero_sale_count || 0),
     pricedProductCount: Number(row?.priced_product_count || 0),
@@ -268,9 +271,10 @@ loadCategoryValues = async function() {
   renderCategoryValues();
 
   const isAdmin = currentStaff().role === 'admin';
-  [el.bulkPriceCategory, el.bulkPriceField, el.bulkPriceMode, el.bulkPriceAmount].forEach(node => {
+  [el.bulkPriceCategory, el.bulkPriceField, el.bulkPriceMode, el.bulkPriceAmount, el.bulkPriceCurrency].forEach(node => {
     if (node) node.disabled = !isAdmin;
   });
+  syncBulkPriceCurrency();
   const applyBtn = document.querySelector('#page-categoryValues button[onclick="applyCategoryPriceUpdate()"]');
   if (applyBtn) applyBtn.disabled = !isAdmin;
   if (!isAdmin && el.bulkPricePreview) {
@@ -350,10 +354,24 @@ window.loadUserPermissionCategorySources = async function() {
 let migrationPricePreviewTimer = null;
 let migrationLastPricePreview = null;
 
+function syncBulkPriceCurrency() {
+  if (!el.bulkPriceCurrency) return;
+  const field = el.bulkPriceField?.value || "average_sale_price";
+  const fixed = el.bulkPriceMode?.value === "fixed";
+  el.bulkPriceCurrency.disabled = currentStaff().role !== "admin" || field === "average_sale_price";
+  for (const option of el.bulkPriceCurrency.options) {
+    option.disabled = (fixed && option.value === "all")
+      || (fixed && field === "both" && option.value === "USD");
+  }
+  if (el.bulkPriceCurrency.selectedOptions[0]?.disabled) el.bulkPriceCurrency.value = "TRY";
+}
+
 function migrationPriceRequestBody() {
+  syncBulkPriceCurrency();
   return {
     category: String(el.bulkPriceCategory?.value || '').trim(),
     field: String(el.bulkPriceField?.value || 'average_sale_price'),
+    purchase_currency: el.bulkPriceCurrency?.value || 'TRY',
     mode: String(el.bulkPriceMode?.value || 'percent'),
     amount: Number(el.bulkPriceAmount?.value || 0)
   };
@@ -373,16 +391,24 @@ function migrationPriceAmountIsValid(mode, amount) {
   return amount > 0;
 }
 
-function migrationPriceChangeLabel(mode, amount) {
+function migrationPriceChangeLabel(mode, amount, currency = 'TRY') {
   if (mode === 'percent') return `%${amount} artış`;
-  if (amount < 0) return `${formatTL(Math.abs(amount))} düşüş`;
-  return `${formatTL(amount)} artış`;
+  if (amount < 0) return `${formatPurchasePrice(Math.abs(amount), currency)} düşüş`;
+  return `${formatPurchasePrice(amount, currency)} artış`;
 }
 
-function migrationPriceChangeSentence(mode, amount) {
+function migrationPriceChangeSentence(mode, amount, currency = 'TRY') {
   if (mode === 'percent') return `%${amount} artırılacak`;
-  if (amount < 0) return `${formatTL(Math.abs(amount))} düşürülecek`;
-  return `${formatTL(amount)} artırılacak`;
+  if (amount < 0) return `${formatPurchasePrice(Math.abs(amount), currency)} düşürülecek`;
+  return `${formatPurchasePrice(amount, currency)} artırılacak`;
+}
+
+function migrationPriceValueText(preview, phase) {
+  const cost = purchaseTotalsText(preview?.[phase + "_purchase_value"] || 0,
+    preview?.[phase + "_purchase_value_usd"] || 0, Number(preview?.usd_product_count || 0) > 0);
+  const sale = formatTL(preview?.[phase + "_sale_value"] || 0);
+  return preview?.field === "purchase_price" ? cost
+    : preview?.field === "both" ? `${cost} alış / ${sale} satış` : sale;
 }
 
 function migrationPricePreviewText(preview) {
@@ -396,23 +422,13 @@ function migrationPricePreviewText(preview) {
       ? Number(preview?.zero_sale_count || 0)
       : Math.max(Number(preview?.zero_purchase_count || 0), Number(preview?.zero_sale_count || 0));
 
-  let currentText = '';
-  let nextText = '';
-  if (field === 'purchase_price') {
-    currentText = formatTL(preview?.current_purchase_value || 0);
-    nextText = formatTL(preview?.next_purchase_value || 0);
-  } else if (field === 'average_sale_price') {
-    currentText = formatTL(preview?.current_sale_value || 0);
-    nextText = formatTL(preview?.next_sale_value || 0);
-  } else {
-    currentText = `${formatTL(preview?.current_purchase_value || 0)} / ${formatTL(preview?.current_sale_value || 0)}`;
-    nextText = `${formatTL(preview?.next_purchase_value || 0)} / ${formatTL(preview?.next_sale_value || 0)}`;
-  }
+  const currentText = migrationPriceValueText(preview, "current");
+  const nextText = migrationPriceValueText(preview, "next");
 
   const zeroNote = zeroCount
     ? ` · ${zeroCount} üründe seçili fiyatlardan en az biri 0`
     : '';
-  return `${count} ürün · ${migrationPriceFieldLabel(field)} ${migrationPriceChangeLabel(mode, amount)} · Stok değeri ${currentText} → ${nextText}${zeroNote}`;
+  return `${count} ürün · ${migrationPriceFieldLabel(field)} ${migrationPriceChangeLabel(mode, amount, preview?.purchase_currency)} · Stok değeri ${currentText} → ${nextText}${zeroNote}`;
 }
 
 updateBulkPricePreview = async function() {
@@ -431,6 +447,7 @@ updateBulkPricePreview = async function() {
 
   try {
     el.bulkPricePreview.textContent = 'Önizleme hazırlanıyor...';
+    await ensureProductPricingApi();
     const payload = await apiFetch('/api/category-price-update/preview', {
       method: 'POST',
       body
@@ -453,7 +470,7 @@ function migrationSchedulePricePreview() {
   }, 350);
 }
 
-[el.bulkPriceCategory, el.bulkPriceField, el.bulkPriceMode].forEach(node => {
+[el.bulkPriceCategory, el.bulkPriceField, el.bulkPriceMode, el.bulkPriceCurrency].forEach(node => {
   node?.addEventListener('change', migrationSchedulePricePreview);
 });
 el.bulkPriceAmount?.addEventListener('input', migrationSchedulePricePreview);
@@ -474,6 +491,7 @@ applyCategoryPriceUpdate = async function() {
 
   try {
     setLoading(true);
+    await ensureProductPricingApi();
     const previewPayload = await apiFetch('/api/category-price-update/preview', {
       method: 'POST',
       body
@@ -495,22 +513,14 @@ applyCategoryPriceUpdate = async function() {
     } else if (preview.mode === 'fixed' && Number(preview.amount || 0) > 0 && zeroCount) {
       zeroWarning = `\n\n${zeroCount} üründe seçili fiyatlardan en az biri 0. Sabit artışta girilen tutar eklenir.`;
     } else if (preview.mode === 'fixed' && Number(preview.amount || 0) < 0) {
-      zeroWarning = `\n\n0 TL'nin altına düşecek fiyatlar otomatik olarak 0 TL'de durdurulur.`;
+      zeroWarning = `\n\nNegatife düşecek fiyatlar kendi para biriminde 0’da durdurulur.`;
     }
 
-    const currentValue = field === 'purchase_price'
-      ? formatTL(preview.current_purchase_value || 0)
-      : field === 'average_sale_price'
-        ? formatTL(preview.current_sale_value || 0)
-        : `${formatTL(preview.current_purchase_value || 0)} alış / ${formatTL(preview.current_sale_value || 0)} satış`;
-    const nextValue = field === 'purchase_price'
-      ? formatTL(preview.next_purchase_value || 0)
-      : field === 'average_sale_price'
-        ? formatTL(preview.next_sale_value || 0)
-        : `${formatTL(preview.next_purchase_value || 0)} alış / ${formatTL(preview.next_sale_value || 0)} satış`;
+    const currentValue = migrationPriceValueText(preview, "current");
+    const nextValue = migrationPriceValueText(preview, "next");
 
     const ok = await appConfirm(
-      `${preview.category} kategorisindeki ${Number(preview.affected_products || 0)} ürünün ${migrationPriceFieldLabel(field)} ${migrationPriceChangeSentence(preview.mode, Number(preview.amount || 0))}.\n\nStok değeri: ${currentValue} → ${nextValue}${zeroWarning}\n\nDevam edilsin mi?`,
+      `${preview.category} kategorisindeki ${Number(preview.affected_products || 0)} ürünün ${migrationPriceFieldLabel(field)} ${migrationPriceChangeSentence(preview.mode, Number(preview.amount || 0), preview.purchase_currency)}.\n\nStok değeri: ${currentValue} → ${nextValue}${zeroWarning}\n\nDevam edilsin mi?`,
       { title: 'Toplu fiyat güncelleme', okText: 'Güncelle' }
     );
     if (!ok) return;
@@ -616,14 +626,14 @@ function renderCategoryPriceEditorProducts() {
   list.innerHTML = `
     <div class="table-wrap">
       <table class="category-price-editor-table">
-        <thead><tr><th>Ürün</th><th>Alış Fiyatı</th><th>Ort. Satış Fiyatı</th><th>İşlem</th></tr></thead>
+        <thead><tr><th>Ürün</th><th>Alış Fiyatı</th><th>Ort. Satış Fiyatı (TL)</th><th>İşlem</th></tr></thead>
         <tbody>${rows.map(p => `
           <tr data-price-row="${escapeHtml(String(p.id))}">
             <td>
               <strong>${escapeHtml(p.name || p.category || '-')}</strong>
               <div class="category-price-editor-meta">${escapeHtml([p.productBrand, p.carBrand, p.carModel, p.carType, p.vehicleYear].filter(Boolean).join(' · '))}</div>
             </td>
-            <td><input data-price-purchase type="number" min="0" step="0.01" value="${Number(p.purchasePrice || 0)}"></td>
+            <td><div class="purchase-price-control"><select data-price-currency aria-label="Maliyet para birimi"><option value="TRY" ${p.purchaseCurrency === "USD" ? "" : "selected"}>TL</option><option value="USD" ${p.purchaseCurrency === "USD" ? "selected" : ""}>USD</option></select><input data-price-purchase type="number" aria-label="Alış maliyeti" min="0" step="0.01" value="${Number(p.purchasePrice || 0)}"></div></td>
             <td><input data-price-sale type="number" min="0" step="0.01" value="${Number(p.averageSalePrice || 0)}"></td>
             <td>
               <div class="action-group">
@@ -642,6 +652,7 @@ window.saveCategoryPriceEditorProduct = async function(productId, button) {
   const tr = button?.closest?.('tr');
   if (!tr) return;
   const purchase = Number(tr.querySelector('[data-price-purchase]')?.value || 0);
+  const currency = tr.querySelector('[data-price-currency]')?.value || 'TRY';
   const sale = Number(tr.querySelector('[data-price-sale]')?.value || 0);
   if (!Number.isFinite(purchase) || !Number.isFinite(sale) || purchase < 0 || sale < 0) {
     return showToast('Fiyatlar 0 veya daha büyük olmalı', true);
@@ -651,10 +662,12 @@ window.saveCategoryPriceEditorProduct = async function(productId, button) {
   button.disabled = true;
   button.textContent = 'Kaydediliyor...';
   try {
+    await ensureProductPricingApi();
     const payload = await apiFetch('/api/products/' + encodeURIComponent(productId), {
       method: 'PATCH',
       body: {
         purchase_price: Math.round((purchase + Number.EPSILON) * 100) / 100,
+        purchase_currency: currency,
         average_sale_price: Math.round((sale + Number.EPSILON) * 100) / 100
       }
     });
@@ -666,7 +679,7 @@ window.saveCategoryPriceEditorProduct = async function(productId, button) {
     }
     await logActivity(
       'product_price_update',
-      `${fresh?.name || 'Ürün'} fiyatı düzenlendi · Alış: ${formatTL(purchase)} · Ort. Satış: ${formatTL(sale)}`,
+      `${fresh?.name || 'Ürün'} fiyatı düzenlendi · Alış: ${formatPurchasePrice(purchase, currency)} · Ort. Satış: ${formatTL(sale)}`,
       'stock_products',
       productId
     ).catch(() => {});
@@ -813,6 +826,7 @@ function migrationProductBody(payload) {
 }
 
 async function migrationSaveProduct(payload) {
+  await ensureProductPricingApi();
   const isEdit = Boolean(payload.id);
 
   if (isEdit) {

@@ -1,5 +1,5 @@
 // Core: yapılandırma, state, DOM, yetkiler, bildirimler ve ortak yardımcılar
-const APP_VERSION = '16.26';
+const APP_VERSION = '16.27';
 let isOffline = !navigator.onLine;
 let globalLoading = false;
 
@@ -64,11 +64,15 @@ categoryValueList: document.getElementById("categoryValueList"),
 categoryValueSummary: document.getElementById("categoryValueSummary"),
 categoryValueDetail: document.getElementById("categoryValueDetail"),
 bulkPriceCategory: document.getElementById("bulkPriceCategory"),
+bulkPriceCurrency: document.getElementById("bulkPriceCurrency"),
 bulkPriceField: document.getElementById("bulkPriceField"),
 bulkPriceMode: document.getElementById("bulkPriceMode"),
 bulkPriceAmount: document.getElementById("bulkPriceAmount"),
 bulkPricePreview: document.getElementById("bulkPricePreview"),
 productPurchasePrice: document.getElementById("productPurchasePrice"),
+productPurchaseCurrency: document.getElementById("productPurchaseCurrency"),
+productPriceHint: document.getElementById("productPriceHint"),
+productPriceApplyBtn: document.getElementById("productPriceApplyBtn"),
 productAverageSalePrice: document.getElementById("productAverageSalePrice"),
 managementCategoryBrandSummary: document.getElementById("managementCategoryBrandSummary"),
 managementCategoryBrandList: document.getElementById("managementCategoryBrandList"),
@@ -80,7 +84,7 @@ purchaseSupplier: document.getElementById("purchaseSupplier"), purchaseExpectedD
 const STOCK_IMAGE_BUCKET = "product-images";
 const STOCK_IMAGE_MAX_SIZE = 1200;
 const STOCK_IMAGE_QUALITY = 0.72;
-const STOCK_PRODUCT_SELECT = "id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,image_url,image_thumb_url,purchase_price,average_sale_price,created_at";
+const STOCK_PRODUCT_SELECT = "id,barcode,product_name,product_brand,category,vehicle_brand,vehicle_model,vehicle_type,vehicle_year,quantity,reserved_quantity,min_stock,location,note,image_url,image_thumb_url,purchase_price,average_sale_price,purchase_currency,price_updated_at,created_at";
 
 
 // APK/WebView içinde alert/confirm bazen çalışmadığı için uygulama içi onay penceresi.
@@ -766,7 +770,7 @@ function productImageHtml(p, sizeClass = "product-card-img") {
 }
 function mapProduct(row) {
   const imageUrl = row.image_url || extractImageUrlFromNote(row.note || "");
-  return { id: row.id || "", barcode: row.barcode || "", name: row.product_name || buildProductName(row), productBrand: row.product_brand || "", category: row.category || "", carBrand: row.vehicle_brand || "", carModel: row.vehicle_model || "", carType: row.vehicle_type || "", vehicleYear: row.vehicle_year || "", stock: Number(row.quantity || 0), reserved: Number(row.reserved_quantity || 0), minStock: Number(row.min_stock || 0), location: row.location || "", note: stripImageUrlFromNote(row.note || ""), imageUrl, imageThumbUrl: row.image_thumb_url || imageUrl, purchasePrice: Number(row.purchase_price || 0), averageSalePrice: Number(row.average_sale_price || 0), createdAt: row.created_at || "" };
+  return { id: row.id || "", barcode: row.barcode || "", name: row.product_name || buildProductName(row), productBrand: row.product_brand || "", category: row.category || "", carBrand: row.vehicle_brand || "", carModel: row.vehicle_model || "", carType: row.vehicle_type || "", vehicleYear: row.vehicle_year || "", stock: Number(row.quantity || 0), reserved: Number(row.reserved_quantity || 0), minStock: Number(row.min_stock || 0), location: row.location || "", note: stripImageUrlFromNote(row.note || ""), imageUrl, imageThumbUrl: row.image_thumb_url || imageUrl, purchasePrice: Number(row.purchase_price || 0), purchaseCurrency: row.purchase_currency || "TRY", averageSalePrice: Number(row.average_sale_price || 0), createdAt: row.created_at || "" };
 }
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -858,7 +862,7 @@ function playNotificationSound() {
 }
 function toProductRow(payload) {
   const productName = [payload.productBrand, payload.category, payload.carBrand, payload.carModel, payload.carType, payload.vehicleYear].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  return { barcode: payload.barcode || null, product_name: productName || payload.category, product_brand: payload.productBrand || null, category: payload.category || null, vehicle_brand: payload.carBrand || null, vehicle_model: payload.carModel || null, vehicle_type: payload.carType || null, vehicle_year: payload.vehicleYear || null, quantity: Number(payload.stock || 0), min_stock: Number(payload.minStock || 0), location: payload.location || null, note: stripImageUrlFromNote(payload.note || "") || null, image_url: payload.imageUrl || null, image_thumb_url: payload.imageThumbUrl || payload.imageUrl || null, purchase_price: Number(payload.purchasePrice || 0), average_sale_price: Number(payload.averageSalePrice || 0) };
+  return { barcode: payload.barcode || null, product_name: productName || payload.category, product_brand: payload.productBrand || null, category: payload.category || null, vehicle_brand: payload.carBrand || null, vehicle_model: payload.carModel || null, vehicle_type: payload.carType || null, vehicle_year: payload.vehicleYear || null, quantity: Number(payload.stock || 0), min_stock: Number(payload.minStock || 0), location: payload.location || null, note: stripImageUrlFromNote(payload.note || "") || null, image_url: payload.imageUrl || null, image_thumb_url: payload.imageThumbUrl || payload.imageUrl || null, purchase_price: Number(payload.purchasePrice || 0), purchase_currency: payload.purchaseCurrency || "TRY", average_sale_price: Number(payload.averageSalePrice || 0) };
 }
 function formatRequestStatus(status) { return ({ bekliyor: "Bekliyor", rezerve_edildi: "Rezerve", teslim_edildi: "Teslim Edildi", montaj_bitti: "Tamamlandı", iptal: "İptal" })[status] || status || "-"; }
 

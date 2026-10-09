@@ -44,12 +44,14 @@ function computeCategoryValueRows() {
   (state.products || []).forEach(p => {
     const category = String(p.category || "Kategorisiz").trim() || "Kategorisiz";
     const key = normalizeCategoryKey(category);
-    const old = grouped.get(key) || { category, qty: 0, totalPurchase: 0, totalSale: 0, pricedProductCount: 0 };
+    const old = grouped.get(key) || { category, qty: 0, tryQty: 0, usdQty: 0, totalPurchase: 0, totalPurchaseUsd: 0, usdProductCount: 0, totalSale: 0, pricedProductCount: 0 };
     const qty = Number(p.stock || 0);
     const purchase = Number(p.purchasePrice || 0);
     const sale = Number(p.averageSalePrice || 0);
     old.qty += qty;
-    old.totalPurchase += qty * purchase;
+    if (p.purchaseCurrency === "USD") {
+      old.usdQty += qty; old.totalPurchaseUsd += qty * purchase; old.usdProductCount++;
+    } else { old.tryQty += qty; old.totalPurchase += qty * purchase; }
     old.totalSale += qty * sale;
     if (purchase > 0 || sale > 0) old.pricedProductCount += 1;
     grouped.set(key, old);
@@ -57,9 +59,10 @@ function computeCategoryValueRows() {
   return [...grouped.values()]
     .map(row => ({
       ...row,
-      purchase: row.qty ? row.totalPurchase / row.qty : 0,
+      purchase: row.tryQty ? row.totalPurchase / row.tryQty : 0,
+      purchaseUsd: row.usdQty ? row.totalPurchaseUsd / row.usdQty : 0,
       sale: row.qty ? row.totalSale / row.qty : 0,
-      estimatedDiff: row.totalSale - row.totalPurchase,
+      estimatedDiff: row.usdProductCount ? null : row.totalSale - row.totalPurchase,
       hasPrice: row.pricedProductCount > 0
     }))
     .sort((a,b) => a.category.localeCompare(b.category, "tr"));
@@ -75,25 +78,29 @@ function renderCategoryValues() {
     if ([...el.bulkPriceCategory.options].some(o => o.value === current)) el.bulkPriceCategory.value = current;
   }
   const totalPurchase = rows.reduce((s,r) => s + r.totalPurchase, 0);
+  const totalPurchaseUsd = rows.reduce((s,r) => s + (r.totalPurchaseUsd || 0), 0);
+  const hasUsd = rows.some(r => r.usdProductCount > 0);
   const totalSale = rows.reduce((s,r) => s + r.totalSale, 0);
   const totalDiff = totalSale - totalPurchase;
   const missing = rows.filter(r => !r.hasPrice).length;
   if (el.categoryValueSummary) {
     el.categoryValueSummary.innerHTML = `
-      <div class="value-stat"><span>Toplam Alış Değeri</span><strong>${formatTL(totalPurchase)}</strong></div>
+      <div class="value-stat"><span>Toplam Alış Değeri</span><strong>${purchaseTotalsText(totalPurchase, totalPurchaseUsd, hasUsd)}</strong></div>
       <div class="value-stat"><span>Ort. Satış Değeri</span><strong>${formatTL(totalSale)}</strong></div>
-      <div class="value-stat"><span>Tahmini Brüt Fark</span><strong>${formatTL(totalDiff)}</strong></div>
+      <div class="value-stat"><span>Tahmini Brüt Fark</span><strong>${hasUsd ? "—" : formatTL(totalDiff)}</strong></div>
       <div class="value-stat ${missing ? "warning" : ""}"><span>Fiyat Girilmeyen Kategori</span><strong>${missing}</strong></div>
     `;
   }
   if (el.categoryValueList) {
-    el.categoryValueList.innerHTML = `<div class="empty-state">Fiyatlar artık ürün kartından giriliyor. Kategori toplamları aşağıda otomatik hesaplanıyor.</div>`;
+    el.categoryValueList.innerHTML = `<div class="empty-state">${hasUsd
+      ? "TL ve USD maliyetleri ayrı gösterilir. USD maliyetleri için kur girilmediğinden TL brüt fark hesaplanmaz."
+      : "Fiyatlar ürün kartından giriliyor. Kategori toplamları otomatik hesaplanıyor."}</div>`;
   }
   if (el.categoryValueDetail) {
     el.categoryValueDetail.innerHTML = rows.length ? `
       <div class="table-wrap"><table class="category-value-table">
         <thead><tr><th>Kategori</th><th>Stok</th><th>Ort. Alış</th><th>Ort. Satış</th><th>Alış Toplam</th><th>Satış Toplam</th><th>Fark</th><th>Fiyat</th></tr></thead>
-        <tbody>${rows.map(r => `<tr class="${r.hasPrice ? "" : "missing-price"}"><td>${escapeHtml(r.category)}${r.hasPrice ? "" : " <span class='muted'>(fiyat yok)</span>"}</td><td>${r.qty}</td><td>${formatTL(r.purchase)}</td><td>${formatTL(r.sale)}</td><td>${formatTL(r.totalPurchase)}</td><td>${formatTL(r.totalSale)}</td><td>${formatTL(r.estimatedDiff)}</td><td><button class="action-btn edit category-price-edit-btn" type="button" data-category="${escapeHtml(r.category)}" onclick="openCategoryPriceEditorFromButton(this)">Ürünleri Düzenle</button></td></tr>`).join("")}</tbody>
+        <tbody>${rows.map(r => `<tr class="${r.hasPrice ? "" : "missing-price"}"><td>${escapeHtml(r.category)}${r.hasPrice ? "" : " <span class='muted'>(fiyat yok)</span>"}</td><td>${r.qty}</td><td>${purchaseTotalsText(r.purchase, r.purchaseUsd, r.usdProductCount > 0)}</td><td>${formatTL(r.sale)}</td><td>${purchaseTotalsText(r.totalPurchase, r.totalPurchaseUsd, r.usdProductCount > 0)}</td><td>${formatTL(r.totalSale)}</td><td>${r.usdProductCount > 0 ? "—" : formatTL(r.estimatedDiff)}</td><td><button class="action-btn edit category-price-edit-btn" type="button" data-category="${escapeHtml(r.category)}" onclick="openCategoryPriceEditorFromButton(this)">Ürünleri Düzenle</button></td></tr>`).join("")}</tbody>
       </table></div>
     ` : `<div class="empty-state">Hesaplanacak stok bulunamadı.</div>`;
   }
@@ -371,7 +378,7 @@ function renderCategoryBrandManagement() {
     el.managementCategoryBrandList.innerHTML = rows.length ? `
       <div class="table-wrap"><table class="category-value-table">
         <thead><tr><th>Kategori</th><th>Ürün Markası</th><th>Ürün Kartı</th><th>Stok Adedi</th><th>Alış Toplam</th><th>Satış Toplam</th></tr></thead>
-        <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.productBrand)}</td><td>${Number(r.productCount || 0)}</td><td><strong>${Number(r.stockQty || 0)}</strong></td><td>${formatTL(r.totalPurchase)}</td><td>${formatTL(r.totalSale)}</td></tr>`).join("")}</tbody>
+        <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.productBrand)}</td><td>${Number(r.productCount || 0)}</td><td><strong>${Number(r.stockQty || 0)}</strong></td><td>${purchaseTotalsText(r.totalPurchase, r.totalPurchaseUsd, r.usdProductCount > 0)}</td><td>${formatTL(r.totalSale)}</td></tr>`).join("")}</tbody>
       </table></div>
     ` : `<div class="empty-state">Liste için stok ürünü bulunamadı.</div>`;
   }

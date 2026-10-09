@@ -3,6 +3,7 @@ el.productForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!requireRoleAction(["admin", "depo"], "Ürün kaydetme yetkisi sadece Admin/Depo")) return;
 
+  stopProductPriceSuggestions();
   const payload = {
     id: el.productId.value.trim(),
     barcode: el.barcode.value.trim(),
@@ -15,6 +16,7 @@ el.productForm.addEventListener("submit", async (e) => {
     stock: el.stock.value.trim(),
     minStock: el.minStock.value.trim(),
     purchasePrice: el.productPurchasePrice?.value?.trim() || "0",
+    purchaseCurrency: el.productPurchaseCurrency?.value || "TRY",
     averageSalePrice: el.productAverageSalePrice?.value?.trim() || "0",
     location: el.location.value.trim(),
     note: el.note.value.trim(),
@@ -134,6 +136,7 @@ if (el.historySearchInput) el.historySearchInput.addEventListener("keydown", (e)
   .filter(Boolean).forEach(select => select.addEventListener("change", updateExcelFilterSummary));
 if (el.categoryValueForm) el.categoryValueForm.addEventListener("submit", saveCategoryValueFromForm);
 initProductSuggestionInputs();
+initProductPriceSuggestions();
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => registerPwaServiceWorker().catch(console.error));
 }

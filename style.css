@@ -2298,3 +2298,12 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
   .manual-reservation-amount label { width: 140px; }
   .manual-reservation-toolbar .btn { flex: 1 1 100%; white-space: normal; }
 }
+
+/* Product cost currency and price suggestion, GarageFlow 16.27 */
+.purchase-price-control{display:flex;gap:8px;align-items:center;min-width:0}
+.purchase-price-control select{width:105px;flex:0 0 105px;min-height:44px}
+.purchase-price-control input{min-width:0;flex:1;min-height:44px}
+.product-price-suggestion{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(16,185,129,.06)}
+.product-price-suggestion .btn{width:auto;min-height:44px}
+.category-price-editor-table .purchase-price-control{min-width:200px}
+.category-price-editor-table .purchase-price-control select{width:75px;flex-basis:75px}

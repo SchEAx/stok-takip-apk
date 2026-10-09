@@ -23,6 +23,7 @@ async function downloadStockExcel() {
       mevcut_stok: p.stock || 0,
       minimum_stok: p.minStock || 0,
       alis_fiyati: p.purchasePrice || 0,
+      alis_para_birimi: p.purchaseCurrency || "TRY",
       ortalama_satis_fiyati: p.averageSalePrice || 0,
       raf_konum: p.location || "",
       aciklama: p.note || "",
@@ -33,7 +34,7 @@ async function downloadStockExcel() {
     ws["!cols"] = [
       { wch: 38 }, { wch: 20 }, { wch: 18 }, { wch: 24 }, { wch: 18 },
       { wch: 22 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
-      { wch: 14 }, { wch: 20 }, { wch: 18 }, { wch: 32 }, { wch: 42 }
+      { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 32 }, { wch: 42 }
     ];
 
     // Barkodları metin olarak tut; baştaki sıfırlar Excel'de kaybolmasın.
