@@ -5,12 +5,8 @@ async function checkVersion() {
     const localVersion = localStorage.getItem('app_version');
     if (localVersion !== runtimeVersion) {
       localStorage.setItem('app_version', runtimeVersion);
-      if ('caches' in window) {
-        const names = await caches.keys();
-        for (const name of names) {
-          await caches.delete(name);
-        }
-      }
+      // Offline dosyalarını kendi worker'ı yönetir. Açılışta cache silmek,
+      // yeni worker'ın hazırladığı dosyaları ve aynı origin'deki diğer uygulamaları bozar.
     }
   } catch (err) {
     console.error(err);

@@ -2307,3 +2307,19 @@ img.product-card-img,img.product-thumb{display:block!important;object-fit:cover}
 .product-price-suggestion .btn{width:auto;min-height:44px}
 .category-price-editor-table .purchase-price-control{min-width:200px}
 .category-price-editor-table .purchase-price-control select{width:75px;flex-basis:75px}
+
+/* v16.29 — Raf / konum yönetimi */
+.product-location-tools{display:flex;justify-content:flex-end;margin:-2px 0 10px;gap:8px}
+.product-location-modal{position:fixed;inset:0;z-index:23000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.7);backdrop-filter:blur(5px)}
+.product-location-modal.hidden{display:none!important}
+.product-location-card{box-sizing:border-box;width:min(620px,100%);max-height:90vh;max-height:90dvh;overflow:auto;border:1px solid var(--border);border-radius:22px;padding:20px;background:var(--card,#111827);color:var(--text,#fff);box-shadow:0 25px 80px rgba(0,0,0,.5)}
+.product-location-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.product-location-head h2{font-size:22px;margin:0}.product-location-card p{line-height:1.5;overflow-wrap:anywhere}
+#productLocationForm label{display:block;margin:14px 0 7px;font-weight:700}
+#productLocationForm input,#productLocationForm select{width:100%;min-width:0;box-sizing:border-box}
+.product-location-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,.4fr);gap:12px}
+.product-location-fields>div.hidden{display:none!important}
+.product-location-preview{border:1px solid var(--border);border-radius:12px;padding:12px;background:rgba(96,165,250,.08)}
+.product-location-message{color:#fca5a5;min-height:1.5em;margin:8px 0}
+.product-location-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+@media(max-width:600px){.product-location-modal{padding:10px;align-items:center}.product-location-card{padding:16px}.product-location-fields{grid-template-columns:1fr}.product-location-footer{display:grid;grid-template-columns:1fr 1.3fr}.product-location-footer .btn{min-width:0;width:100%}.product-location-tools .btn{width:100%}}

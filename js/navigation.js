@@ -129,6 +129,12 @@ function initGarageBackGuard() {
 window.addEventListener("popstate", () => {
   if (!garageBackGuardReady) return;
   garageBackGuardActive = false;
+  const locationModal = document.getElementById('productLocationModal');
+  if (locationModal && !locationModal.classList.contains('hidden')) {
+    closeProductLocationModal();
+    armGarageBackGuard();
+    return;
+  }
 
   if (garageExiting) {
     // Önce başlangıç geçmişi, varsa onun da öncesi kapanır.
@@ -305,168 +311,138 @@ async function installPwaApp() {
 }
 window.installPwaApp = installPwaApp;
 
-async function clearGarageStockCaches() {
-  if (!("caches" in window)) return;
-  const keys = await caches.keys();
-  await Promise.all(
-    keys
-      .filter(key => key.startsWith("garage-stock-"))
-      .map(key => caches.delete(key))
-  );
-}
-
-async function unregisterGarageStockWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  const registrations = await navigator.serviceWorker.getRegistrations();
-
-  await Promise.all(
-    registrations.map(async reg => {
-      const scriptUrl =
-        reg.active?.scriptURL
-        || reg.waiting?.scriptURL
-        || reg.installing?.scriptURL
-        || "";
-
-      // GarageFlow'un eski worker'ları ve eski Firebase messaging worker'ı
-      // güncelleme sırasında aynı origin üzerinde eski asset servis etmesin.
-      if (
-        scriptUrl.includes("/sw.js")
-        || scriptUrl.endsWith("sw.js")
-        || scriptUrl.includes("firebase-messaging-sw.js")
-      ) {
-        try { await reg.unregister(); } catch {}
-      }
-    })
-  );
-}
-
 function normalizeBuildVersion(value) {
   const raw = String(value || "").replace(/\s+/g, "").trim();
-  // Eski build adlandırması gelirse yalnızca gerçek migration sürümünü karşılaştır.
-  // Örn: v3.13.1-MIGRATION-TEST-JWT-16.0 -> 16.0
   const legacy = raw.match(/MIGRATION-TEST-JWT-([0-9]+(?:\.[0-9]+)*)$/i);
-  return legacy ? legacy[1] : raw.replace(/^v(?=\d)/i, "");
+  const version = legacy ? legacy[1] : raw.replace(/^v(?=\d)/i, "");
+  if (!/^\d+(?:\.\d+)*$/.test(version) || version.length > 64) return "";
+  return version.split(".").every(part => Number.isSafeInteger(Number(part))) ? version : "";
+}
+
+function compareBuildVersions(left, right) {
+  const a = normalizeBuildVersion(left);
+  const b = normalizeBuildVersion(right);
+  if (!a || !b) return null;
+  const aParts = a.split(".").map(Number);
+  const bParts = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+    const difference = (aParts[i] || 0) - (bParts[i] || 0);
+    if (difference) return difference > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+function readHtmlBuildVersion(html) {
+  const text = String(html || "");
+  const meta = (text.match(/<meta\b[^>]*>/gi) || []).find(tag =>
+    /\bname\s*=\s*["']garage-build-version["']/i.test(tag)
+  );
+  const metaVersion = normalizeBuildVersion(meta?.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1]);
+  const scriptVersion = normalizeBuildVersion(text.match(/\bwindow\.GARAGE_BUILD_VERSION\s*=\s*(["'])([0-9]+(?:\.[0-9]+)*)\1\s*;/)?.[2]);
+  // Bir yorumda veya eski dosya adında sürümün geçmesi yeterli değildir.
+  return metaVersion && compareBuildVersions(metaVersion, scriptVersion) === 0 ? metaVersion : "";
+}
+
+function setPwaVersionMetadata(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
+}
+
+function hasAttemptedPwaUpdate(targetVersion) {
+  let savedTarget = "";
+  try { savedTarget = sessionStorage.getItem("garage_auto_update_target") || ""; } catch {}
+  const urlTarget = new URL(window.location.href).searchParams.get("__garage_update_target");
+  return compareBuildVersions(savedTarget, targetVersion) === 0
+    || compareBuildVersions(urlTarget, targetVersion) === 0;
+}
+
+function finishPwaBuildUpdate() {
+  const runtime = normalizeBuildVersion(PWA_BUILD_VERSION);
+  setPwaVersionMetadata("stok_app_version", runtime);
+  try {
+    const target = sessionStorage.getItem("garage_auto_update_target");
+    if (compareBuildVersions(runtime, target) >= 0 && normalizeBuildVersion(target)) {
+      sessionStorage.removeItem("garage_auto_update_target");
+    }
+    localStorage.removeItem("stok_app_update_target");
+  } catch {}
+  const url = new URL(window.location.href);
+  const target = url.searchParams.get("__garage_update_target");
+  if (normalizeBuildVersion(target) && compareBuildVersions(runtime, target) >= 0) {
+    url.searchParams.delete("__garage_update_target");
+    try { history.replaceState(history.state, "", url.href); } catch {}
+  }
 }
 
 async function hardLoadFreshBuild(targetVersion) {
-  const cleanTarget = normalizeBuildVersion(targetVersion || PWA_BUILD_VERSION);
-  const freshUrl = new URL("./index.html", window.location.href);
-  freshUrl.searchParams.set("__garage_build", cleanTarget);
-  freshUrl.searchParams.set("__garage_ts", String(Date.now()));
+  const target = normalizeBuildVersion(targetVersion);
+  if (compareBuildVersions(target, PWA_BUILD_VERSION) !== 1) return false;
+  if (hasAttemptedPwaUpdate(target)) return false;
 
-  // Önce gerçek HTML'yi no-store ile kendimiz çekiyoruz. Böylece tarayıcının
-  // navigation/HTTP cache'i veya eski worker yeni index.html'i engelleyemiyor.
-  const response = await fetch(freshUrl.toString(), {
+  const freshUrl = new URL("./index.html", window.location.href);
+  freshUrl.searchParams.set("__garage_build", target);
+  freshUrl.searchParams.set("__garage_ts", String(Date.now()));
+  freshUrl.searchParams.set("__garage_update_target", target);
+  const response = await fetch(freshUrl.href, {
     method: "GET",
     cache: "no-store",
     credentials: "same-origin",
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      "Pragma": "no-cache"
-    }
+    headers: { "Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache" }
   });
-
-  if (!response.ok) {
-    throw new Error(`Yeni uygulama dosyası alınamadı (${response.status})`);
+  if (!response.ok) throw new Error(`Yeni uygulama dosyası alınamadı (${response.status})`);
+  const actualVersion = readHtmlBuildVersion(await response.text());
+  if (compareBuildVersions(actualVersion, target) !== 0) {
+    throw new Error("Güncelleme henüz hazır değil; mevcut uygulama açık tutuluyor.");
   }
 
-  const html = await response.text();
-
-  // Yanlış/stale deploy geldiyse onu çalıştırmak yerine normal hard navigation'a düş.
-  if (cleanTarget && !html.includes(cleanTarget)) {
-    console.warn("Fresh HTML beklenen build'i içermiyor:", {
-      target: cleanTarget
-    });
-    window.location.replace(freshUrl.toString());
-    return;
-  }
-
-  try {
-    history.replaceState(null, "", freshUrl.pathname + freshUrl.search);
-  } catch {}
-
-  // Fresh HTML'yi doğrudan mevcut document'e yazmak browser navigation cache'ini
-  // tamamen bypass eder. İçindeki ?v=16.1 asset URL'leri de yeni olduğu için
-  // eski JS/CSS tekrar kullanılamaz.
-  document.open();
-  document.write(html);
-  document.close();
+  // Gecikmiş yayınlarda aynı sekmeyi aynı hedefe ikinci kez yönlendirmeyiz.
+  // sessionStorage engelliyse URL işareti de döngüyü durdurur.
+  try { sessionStorage.setItem("garage_auto_update_target", target); } catch {}
+  // Gerçek navigation temiz bir document ve JS ortamı açar. Mevcut sayfanın
+  // içine HTML yazıp uygulamayı aynı ortamda yeniden başlatmayız.
+  // JWT, kullanıcı bilgisi ve tema localStorage'da korunur.
+  window.location.replace(freshUrl.href);
+  return true;
 }
 
+let pwaWorkerRegistrationPromise = null;
 async function registerPwaServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
-
-  const workerUrl = `./sw.js?v=${encodeURIComponent(PWA_BUILD_VERSION)}`;
-
-  const registration = await navigator.serviceWorker.register(
-    workerUrl,
-    { updateViaCache: "none" }
-  );
-
-  try {
-    await registration.update();
-  } catch (err) {
-    console.warn("Service worker update kontrolü yapılamadı:", err);
+  if (!pwaWorkerRegistrationPromise) {
+    pwaWorkerRegistrationPromise = (async () => {
+      const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
+      try { await registration.update(); }
+      catch (err) { console.warn("Service worker kontrolü yapılamadı:", err); }
+      return registration;
+    })().catch(err => { pwaWorkerRegistrationPromise = null; throw err; });
   }
-
-  return registration;
+  return pwaWorkerRegistrationPromise;
 }
 window.registerPwaServiceWorker = registerPwaServiceWorker;
 
 let pwaAutoUpdateInProgress = false;
-
 async function applyRemoteAppVersion(newVersion) {
   const remote = normalizeBuildVersion(newVersion);
-  const runtime = normalizeBuildVersion(PWA_BUILD_VERSION);
-  if (!remote || remote === runtime || pwaAutoUpdateInProgress) return false;
-
+  if (compareBuildVersions(remote, PWA_BUILD_VERSION) !== 1 || pwaAutoUpdateInProgress) return false;
+  if (hasAttemptedPwaUpdate(remote)) return false;
   pwaAutoUpdateInProgress = true;
-  document.getElementById("updateNotice")?.remove();
-
+  let navigating = false;
   try {
-    sessionStorage.setItem("garage_auto_update_target", remote);
-  } catch {}
-
-  try {
-    if (typeof showToast === "function") {
-      showToast(`Yeni sürüm ${remote} alınıyor…`);
+    navigating = await hardLoadFreshBuild(remote);
+    if (navigating) {
+      document.getElementById("updateNotice")?.remove();
+      if (typeof showToast === "function") showToast(`Yeni sürüm ${remote} yükleniyor…`);
     }
-
-    // Eski PWA cache/worker zincirini bırakıp yeni index.html'i no-store ile al.
-    await clearGarageStockCaches();
-    await unregisterGarageStockWorker();
-    localStorage.setItem("stok_app_version", remote);
-    localStorage.setItem("stok_app_remote_version", remote);
-
-    await hardLoadFreshBuild(remote);
-    return true;
-  } catch (err) {
-    console.warn("Otomatik güncelleme hard-load başarısız:", err);
+    return navigating;
+  } finally {
+    if (!navigating) pwaAutoUpdateInProgress = false;
   }
-
-  // Son çare: benzersiz URL ile gerçek navigation.
-  const freshUrl = new URL("./index.html", window.location.href);
-  freshUrl.searchParams.set("__garage_build", remote);
-  freshUrl.searchParams.set("__garage_auto", "1");
-  freshUrl.searchParams.set("__garage_ts", String(Date.now()));
-  freshUrl.hash = "";
-  window.location.replace(freshUrl.toString());
-  return true;
 }
 
 async function fetchRemoteAppVersion() {
-  const response = await fetch(
-    "./version.json?_=" + Date.now(),
-    {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" }
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Sürüm dosyası alınamadı (${response.status})`);
-  }
-
+  const response = await fetch("./version.json?_=" + Date.now(), {
+    cache: "no-store", headers: { "Cache-Control": "no-cache" }
+  });
+  if (!response.ok) throw new Error(`Sürüm dosyası alınamadı (${response.status})`);
   const data = await response.json();
   return String(data.version || "").trim();
 }
@@ -474,45 +450,30 @@ async function fetchRemoteAppVersion() {
 async function checkAppVersion({ silent = true } = {}) {
   if (pwaUpdateCheckRunning || pwaAutoUpdateInProgress) return false;
   pwaUpdateCheckRunning = true;
-
   try {
-    const remoteVersion = normalizeBuildVersion(await fetchRemoteAppVersion());
-    const runtimeVersion = normalizeBuildVersion(PWA_BUILD_VERSION);
-    console.info("[GarageFlow updater]", { runtimeVersion, remoteVersion, source: "navigation-v16.9.js" });
-    if (!remoteVersion) return false;
-
-    localStorage.setItem("stok_app_remote_version", remoteVersion);
-
-    if (remoteVersion !== runtimeVersion) {
-      console.info("GarageFlow otomatik güncelleme:", { runtime: runtimeVersion, remote: remoteVersion });
-      // Kullanıcıya sürekli buton göstermek yerine yeni build'i doğrudan yükle.
-      pwaUpdateCheckRunning = false;
-      return await applyRemoteAppVersion(remoteVersion);
+    const remote = normalizeBuildVersion(await fetchRemoteAppVersion());
+    const runtime = normalizeBuildVersion(PWA_BUILD_VERSION);
+    if (!remote) return false;
+    setPwaVersionMetadata("stok_app_remote_version", remote);
+    if (compareBuildVersions(remote, runtime) === 1) {
+      return await applyRemoteAppVersion(remote);
     }
-
+    // Eski veya aynı version.json asla yenileme/downgrade başlatmaz.
     document.getElementById("updateNotice")?.remove();
-    localStorage.setItem("stok_app_version", runtimeVersion);
-    localStorage.removeItem("stok_app_update_target");
-    try { sessionStorage.removeItem("garage_auto_update_target"); } catch {}
-
-    if (!silent) {
-      showToast(`Uygulama güncel ✅ ${runtimeVersion}`);
-    }
+    finishPwaBuildUpdate();
+    if (!silent && typeof showToast === "function") showToast(`Uygulama güncel ✅ ${runtime}`);
     return false;
   } catch (err) {
-    console.warn("Sürüm kontrolü yapılamadı:", err);
-    if (!silent) showToast("Güncelleme kontrolü yapılamadı", true);
+    console.warn("Sürüm kontrolü yapılamadı:", err?.message || err);
+    if (!silent && typeof showToast === "function") showToast(err?.message || "Güncelleme kontrolü yapılamadı", true);
     return false;
-  } finally {
-    pwaUpdateCheckRunning = false;
-  }
+  } finally { pwaUpdateCheckRunning = false; }
 }
 
 async function forceCheckAppUpdate() {
   const button = document.getElementById("checkUpdateBtn");
   const oldText = button?.textContent;
   if (button) { button.disabled = true; button.textContent = "Kontrol..."; }
-
   try {
     const registration = await registerPwaServiceWorker().catch(() => null);
     try { await registration?.update?.(); } catch {}
@@ -523,18 +484,19 @@ async function forceCheckAppUpdate() {
 }
 window.forceCheckAppUpdate = forceCheckAppUpdate;
 
+let pwaUpdateCheckerInitialized = false;
 function initUpdateChecker() {
-  // Açılışta ve uygulamaya geri dönüldüğünde sessizce kontrol et.
-  // Sürüm farkı varsa checkAppVersion yeni build'i otomatik yükler.
+  if (pwaUpdateCheckerInitialized) return;
+  pwaUpdateCheckerInitialized = true;
+  finishPwaBuildUpdate();
   checkAppVersion({ silent: true });
-
   window.setInterval(() => checkAppVersion({ silent: true }), 5 * 60 * 1000);
-
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") checkAppVersion({ silent: true });
   });
   window.addEventListener("online", () => checkAppVersion({ silent: true }));
 }
+
 
 function playNotifySound() { try { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = "sine"; osc.frequency.value = 880; gain.gain.setValueAtTime(0.001, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.03); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45); osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5); } catch (e) { console.warn("Ses çalınamadı", e); } }
 async function requestNotificationPermission() { if (!("Notification" in window)) { showToast("Bu tarayıcı bildirim desteklemiyor", true); return; } const result = await Notification.requestPermission(); showToast(result === "granted" ? "Bildirim izni açıldı ✅" : "Bildirim izni verilmedi", result !== "granted"); }

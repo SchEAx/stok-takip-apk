@@ -4,47 +4,78 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>GarageFlow Güncelleme Temizliği</title>
+  <title>GarageFlow Güncelleme</title>
   <style>
     html,body{margin:0;min-height:100%;background:#07101d;color:#fff;font-family:Arial,sans-serif}
     body{display:grid;place-items:center;min-height:100vh;padding:20px;box-sizing:border-box}
-    .box{max-width:560px;width:100%;padding:24px;border-radius:18px;background:#111827;border:1px solid rgba(255,255,255,.12);box-shadow:0 20px 50px rgba(0,0,0,.35)}
-    h1{margin:0 0 10px;font-size:22px}p{color:#cbd5e1;line-height:1.5}.ok{color:#86efac;font-weight:700}
+    .box{max-width:560px;width:100%;padding:24px;border-radius:18px;background:#111827;border:1px solid rgba(255,255,255,.12)}
+    h1{margin:0 0 10px;font-size:22px}p{color:#cbd5e1;line-height:1.5}
+    button{padding:12px 18px;background:#2563eb;border:0;border-radius:12px;color:white;font:inherit;cursor:pointer}
+    .hidden{display:none}
   </style>
 </head>
 <body>
   <div class="box">
-    <h1>GarageFlow temiz güncelleme</h1>
-    <p id="status">Eski cache ve Service Worker temizleniyor…</p>
+    <h1>GarageFlow güncelleniyor</h1>
+    <p id="status">Yeni sürüm hazırlanıyor. Lütfen bekle…</p>
+    <button id="retryBtn" class="hidden" type="button">Tekrar dene</button>
   </div>
 <script>
-(async () => {
-  const status = document.getElementById('status');
+const RECOVERY_BUILD_VERSION = "16.29";
+let recoveryRunning = false;
+async function recoverGarageApp() {
+  if (recoveryRunning) return;
+  recoveryRunning = true;
+  const status = document.getElementById("status");
+  const retryBtn = document.getElementById("retryBtn");
+  retryBtn.classList.add("hidden");
+  status.textContent = "Yeni sürüm kontrol ediliyor…";
   try {
-    if ('caches' in window) {
+    const base = new URL("./", window.location.href);
+    const freshUrl = new URL("index.html", base);
+    freshUrl.searchParams.set("__garage_build", RECOVERY_BUILD_VERSION);
+    freshUrl.searchParams.set("__garage_ts", String(Date.now()));
+    const response = await fetch(freshUrl.href, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error("GarageFlow'a ulaşılamadı. Bağlantını kontrol edip tekrar dene.");
+    const html = await response.text();
+    const meta = (html.match(/<meta\b[^>]*>/gi) || []).find(tag => /\bname\s*=\s*["']garage-build-version["']/i.test(tag));
+    const metaVersion = meta?.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
+    const scriptVersion = html.match(/\bwindow\.GARAGE_BUILD_VERSION\s*=\s*(["'])([0-9]+(?:\.[0-9]+)*)\1\s*;/)?.[2];
+    if (metaVersion !== RECOVERY_BUILD_VERSION || scriptVersion !== RECOVERY_BUILD_VERSION) {
+      throw new Error("Yeni sürüm henüz hazır değil. Yayın tamamlanınca tekrar dene.");
+    }
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      const garageWorkerPath = new URL("sw.js", base).pathname;
+      const legacyWorkerPath = new URL("firebase-messaging-sw.js", base).pathname;
+      await Promise.all(registrations.map(async registration => {
+        const script = registration.active?.scriptURL || registration.waiting?.scriptURL || registration.installing?.scriptURL;
+        if (!script) return;
+        const url = new URL(script);
+        if (url.origin === base.origin && [garageWorkerPath, legacyWorkerPath].includes(url.pathname)) {
+          await registration.unregister();
+        }
+      }));
+    }
+    if ("caches" in window) {
       const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
+      await Promise.all(keys.filter(key => key.startsWith("garage-stock-")).map(key => caches.delete(key)));
     }
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister().catch(() => false)));
-    }
+    // JWT, kullanıcı bilgileri ve tema korunur; yalnızca eski güncelleme işaretleri silinir.
     try {
-      ['stok_app_version','stok_app_remote_version','stok_app_update_target','app_version']
-        .forEach(k => localStorage.removeItem(k));
+      ["stok_app_version", "stok_app_remote_version", "stok_app_update_target", "app_version"].forEach(key => localStorage.removeItem(key));
+      sessionStorage.removeItem("garage_auto_update_target");
     } catch {}
-    status.className = 'ok';
-    status.textContent = 'Temizlendi. GarageFlow v16.3 açılıyor…';
+    status.textContent = "GarageFlow açılıyor…";
+    window.location.replace(freshUrl.href);
   } catch (err) {
-    status.textContent = 'Temizlik tamamlanamadı ama temiz sayfa deneniyor…';
+    status.textContent = err?.message || "Güncelleme açılamadı. Tekrar dene.";
+    retryBtn.classList.remove("hidden");
+    recoveryRunning = false;
   }
-  const base = new URL('./', window.location.href);
-  base.searchParams.set('__garage_build','16.3');
-  base.searchParams.set('__garage_ts', String(Date.now()));
-  setTimeout(() => window.location.replace(base.toString()), 500);
-})();
+}
+document.getElementById("retryBtn").addEventListener("click", recoverGarageApp);
+recoverGarageApp();
 </script>
 </body>
 </html>

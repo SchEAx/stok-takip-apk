@@ -250,6 +250,7 @@ function stockGroupLocationHtml(group) {
       return `<div class="stock-location-line">
         <div><strong>${escapeHtml(p.location || "Konum yok")}</strong> · Stok: <strong>${Number(p.stock || 0)}</strong> · Rezerve: <strong>${Number(p.reserved || 0)}</strong> · Kullanılabilir: <strong>${available}</strong>${details ? `<div class="muted">${details}</div>` : ""}</div>
         <button class="action-btn edit mini" type="button" onclick="editProduct('${p.id}')">Düzenle</button>
+        ${canArchiveProductLocation(p, group.members.length) ? `<button class="action-btn delete mini" type="button" onclick="archiveProductLocation('${p.id}')">Konumu kaldır</button>` : ""}
       </div>`;
     }).join("");
 }
@@ -282,7 +283,7 @@ function renderProducts() {
       <td class="${isLow ? "low-stock" : ""}"><strong>${available}</strong></td>
       <td>${group.minStockTotal}</td>
       <td><div class="stock-location-stack">${stockGroupLocationHtml(group)}</div></td>
-      <td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">İlk Kaydı Düzenle</button></div></td>
+      <td><div class="action-group"><button class="action-btn edit" onclick="editProduct('${p.id}')">İlk Kaydı Düzenle</button>${canManageProductLocations() ? `<button class="action-btn edit" type="button" onclick="openProductLocationModal('${p.id}')">＋ Konum ekle</button>` : ""}</div></td>
     </tr>`;
   }).join("");
 }
@@ -503,7 +504,7 @@ function renderOperationCards(results) {
             ${userActionAllowed("stockOut") ? `<button class="btn reserve-btn" onclick="operationStockAction('${item.id}', 'cikis')" ${available <= 0 ? "disabled" : ""}>Rezerve et</button>` : ""}
             ${userActionAllowed("addToOrderPool") ? `<button class="btn primary" onclick="addProductToPurchaseOrder('${item.id}')">📦 Sipariş</button>` : ""}
             <button class="btn secondary" onclick="editProduct('${item.id}')">Düzenle</button>
-            <button class="btn danger" onclick="deleteProduct('${item.id}')">Sil</button>
+            ${canArchiveProductLocation(item, group.members.length) ? `<button class="btn danger location-remove-btn" type="button" onclick="archiveProductLocation('${item.id}')">Konumu kaldır</button>` : `<button class="btn danger" onclick="deleteProduct('${item.id}')">Sil</button>`}
           </div>
         </div>`;
       }).join("");
@@ -536,6 +537,7 @@ function renderOperationCards(results) {
           <span class="operation-vehicle-summary">Araç Özeti: <b>${escapeHtml(vehicle || "-")}</b></span>
         </div>
         ${productPriceWithCostHtml(p, group.members)}
+        ${canManageProductLocations() ? `<div class="product-location-tools"><button class="btn secondary product-location-add-btn" type="button" onclick="openProductLocationModal('${p.id}')">＋ Konum ekle</button></div>` : ""}
         <div class="operation-location-list">${locationRows}</div>
       </div>
     </div>`;

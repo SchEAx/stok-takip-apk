@@ -1,30 +1,31 @@
-const CACHE_NAME = "garage-stock-16-27";
+const CACHE_NAME = "garage-stock-16-29";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=16.27",
-  "./hub-sso.js?v=16.27",
-  "./js/core.js?v=16.27",
-  "./js/product-pricing.js?v=16.27",
-  "./js/inventory.js?v=16.27",
-  "./js/sales-dashboard.js?v=16.27",
-  "./js/staff.js?v=16.27",
-  "./js/sales.js?v=16.27",
-  "./js/requests.js?v=16.27",
-  "./js/surveys.js?v=16.27",
-  "./js/management.js?v=16.27",
-  "./js/purchasing.js?v=16.27",
-  "./js/navigation.js?v=16.27",
-  "./js/reports.js?v=16.27",
-  "./js/migration-api.js?v=16.27",
-  "./js/reservations.js?v=16.27",
-  "./js/search-tools.js?v=16.27",
-  "./js/events.js?v=16.27",
-  "./js/excel.js?v=16.27",
-  "./js/migration-excel.js?v=16.27",
-  "./app.js?v=16.27",
-  "./manifest.webmanifest?v=16.27",
+  "./style.css?v=16.29",
+  "./hub-sso.js?v=16.29",
+  "./js/core.js?v=16.29",
+  "./js/product-pricing.js?v=16.29",
+  "./js/inventory.js?v=16.29",
+  "./js/sales-dashboard.js?v=16.29",
+  "./js/staff.js?v=16.29",
+  "./js/sales.js?v=16.29",
+  "./js/requests.js?v=16.29",
+  "./js/surveys.js?v=16.29",
+  "./js/management.js?v=16.29",
+  "./js/purchasing.js?v=16.29",
+  "./js/navigation.js?v=16.29",
+  "./js/reports.js?v=16.29",
+  "./js/migration-api.js?v=16.29",
+  "./js/product-locations.js?v=16.29",
+  "./js/reservations.js?v=16.29",
+  "./js/search-tools.js?v=16.29",
+  "./js/events.js?v=16.29",
+  "./js/excel.js?v=16.29",
+  "./js/migration-excel.js?v=16.29",
+  "./app.js?v=16.29",
+  "./manifest.webmanifest?v=16.29",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
@@ -55,28 +56,10 @@ self.addEventListener("activate", (event) => {
     const oldGarageCaches = keys.filter(
       key => key.startsWith("garage-stock-") && key !== CACHE_NAME
     );
-    const isUpgrade = oldGarageCaches.length > 0;
-
     await Promise.all(oldGarageCaches.map(key => caches.delete(key)));
     await self.clients.claim();
-
-    // Gerçek bir eski GarageFlow cache'i bulunduysa açık PC/mobil sekmelerini
-    // bir kez cache-busting URL'ye taşı. Böylece Ctrl+F5 / Güncelle butonu gerekmez.
-    if (isUpgrade) {
-      const windows = await self.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true
-      });
-      await Promise.all(windows.map(async (client) => {
-        try {
-          const url = new URL(client.url);
-          if (url.origin !== self.location.origin) return;
-          url.searchParams.set("__garage_build", "16.27");
-          url.searchParams.set("__garage_sw", String(Date.now()));
-          await client.navigate(url.href);
-        } catch {}
-      }));
-    }
+    // Sayfayı yeniden yüklemeyi yalnızca doğrulanmış sürüm kontrolü yönetir.
+    // Worker ayrıca navigate ederse oturum açılırken ikinci bir yükleme başlar.
   })());
 });
 
@@ -101,7 +84,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // v16.27: Cache-first tamamen kaldırıldı.
+  // v16.29: Cache-first tamamen kaldırıldı.
   // Ağ varsa her zaman yeni dosyayı kullan; cache sadece offline fallback.
   event.respondWith(
     fetch(request, { cache: "no-cache" })
